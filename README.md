@@ -13,13 +13,21 @@ This library isn't (yet) published to npm. In the interim:
 
 ## Compatibility
 
-This library is intended for use with **[VBrick Rev](https://vbrick.com)**.
-
-*On-Prem note: this library targets the latest version of Rev. Some API endpoints may not be available in older versions of Rev On-Prem.*
-
 * **Browser** - This library is in ESM module format - it assumes use of an evergreen browser that has `fetch`, `AbortController`, etc.
 * **node.js** - Node.js 14 or above required. It will work with commonjs (`require`) or ES Module (`import`) projects.
 * **deno** - Should be compatible, though testing is limited. You'll need `--allow-net` permissions at minimum.
+
+This library is intended for use with **[VBrick Rev](https://vbrick.com)**.
+
+
+
+### **IMPORTANT! Browser and CORS support**
+By default CORS (Cross Origin Resource Sharing) is **disabled** for Rev Cloud tenants. This means this library will not work out of the box in the browser. You should open a ticket with [Vbrick Support](https://portal.vbrick.com/open-a-case/) if this feature isn't yet configured.
+
+To verify if CORS is enabled for your account check the headers response from `https://YOUR_REV_TENANT_URL/api/v2/accounts/branding-settings` - it doesn't require authentication.
+
+***On-Prem note:** this library targets the latest version of Rev. Some API endpoints may not be available in older versions of Rev On-Prem.*
+
 
 
 ## Example
