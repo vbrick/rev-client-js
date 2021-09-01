@@ -1,0 +1,13 @@
+export { default as admin } from './admin';
+export { default as audit } from './audit';
+export { default as auth } from './auth';
+export { default as category } from './category';
+export { default as device } from './device';
+export { default as group } from './group';
+export { default as playlist } from './playlist';
+export { default as recording } from './recording';
+export { default as upload } from './upload';
+export { default as user } from './user';
+export { default as video } from './video';
+export { default as webcast } from './webcast';
+export { default as zones } from './zones';
