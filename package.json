@@ -27,6 +27,7 @@
   "private": false,
   "author": "Luke Selden",
   "license": "MIT",
+  "repository": "github:vbrick/rev-client-js",
   "engines": {
     "node": ">=14.13.1"
   },
