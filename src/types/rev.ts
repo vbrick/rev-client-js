@@ -1,3 +1,4 @@
+import { RevError, ScrollError } from '..';
 import { OAuth } from './auth';
 
 export type LiteralString<T> = T | (string & { _?: never; });
@@ -52,6 +53,15 @@ export namespace Rev {
          */
         responseType?: 'json' | 'text' | 'blob' | 'stream';
     }
+
+    export interface ISearchRequest<T> extends AsyncIterable<T> {
+        current: number;
+        total: number;
+        done: boolean;
+        nextPage(): Promise<SearchPage<T>>;
+        exec(): Promise<T[]>;
+    }
+
     export interface SearchOptions<T> {
         /**
          * maximum number of search results
@@ -60,7 +70,22 @@ export namespace Rev {
         /**
          * callback per page
          */
-        onPage?: (items: T[], index: number, total: number) => void;
+        onProgress?: (items: T[], current: number, total: number) => void;
+        /**
+         * Search results use a scrollID cursor that expires after 1-5 minutes
+         * from first request. If the scrollID expires then onScrollExpired
+         * will be called with a ScrollError. Default behavior is to throw
+         * the error
+         */
+        onScrollExpired?: (err: ScrollError) => void;
+    }
+
+    export interface SearchDefinition<T = any, RawType = any> {
+        endpoint: string,
+        totalKey: string,
+        hitsKey: string,
+        isPost?: boolean;
+        transform?: (items: RawType[]) => T[] | Promise<T[]>;
     }
 
     export interface KeepAliveOptions {
@@ -82,5 +107,15 @@ export namespace Rev {
          * @default true
          */
         verify?: boolean;
+    }
+
+    /**
+     * Returned from scrollPageStream helper for each results page of a search endpoint
+     */
+    export interface SearchPage<T> {
+        items: T[],
+        current: number,
+        total: number,
+        done: boolean
     }
 }

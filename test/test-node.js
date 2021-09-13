@@ -42,7 +42,7 @@ const revConfig = {
 
 /** get items from CLI arguments */
 const videoFilepath = getArg('file');
-const videoUploader = getArg('uploader');
+const videoUploader = getArg('uploader') || revConfig.username;
 const videoTitle = getArg('title') || 'api upload';
 
 // show help if no configuration values passed

@@ -11,7 +11,7 @@ export default function uploadAPIFactory(rev: RevClient) {
          */
         async video(
             file: FileUploadType,
-            metadata: Video.UploadMetadata = { uploader: rev.session.username },
+            metadata: Video.UploadMetadata = { uploader: rev.session.username ?? '' },
             options: UploadFileOptions = { }): Promise<string> {
 
             // prepare payload

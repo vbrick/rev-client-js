@@ -153,6 +153,13 @@ declare namespace Rev {
          */
         responseType?: 'json' | 'text' | 'blob' | 'stream';
     }
+    interface ISearchRequest<T> extends AsyncIterable<T> {
+        current: number;
+        total: number;
+        done: boolean;
+        nextPage(): Promise<SearchPage<T>>;
+        exec(): Promise<T[]>;
+    }
     interface SearchOptions<T> {
         /**
          * maximum number of search results
@@ -161,7 +168,21 @@ declare namespace Rev {
         /**
          * callback per page
          */
-        onPage?: (items: T[], index: number, total: number) => void;
+        onProgress?: (items: T[], current: number, total: number) => void;
+        /**
+         * Search results use a scrollID cursor that expires after 1-5 minutes
+         * from first request. If the scrollID expires then onScrollExpired
+         * will be called with a ScrollError. Default behavior is to throw
+         * the error
+         */
+        onScrollExpired?: (err: ScrollError) => void;
+    }
+    interface SearchDefinition<T = any, RawType = any> {
+        endpoint: string;
+        totalKey: string;
+        hitsKey: string;
+        isPost?: boolean;
+        transform?: (items: RawType[]) => T[] | Promise<T[]>;
     }
     interface KeepAliveOptions {
         /**
@@ -183,17 +204,25 @@ declare namespace Rev {
          */
         verify?: boolean;
     }
+    /**
+     * Returned from scrollPageStream helper for each results page of a search endpoint
+     */
+    interface SearchPage<T> {
+        items: T[];
+        current: number;
+        total: number;
+        done: boolean;
+    }
 }
 
 declare namespace Audit {
-    type DeviceKeys = 'Devices:DmeDevice' | 'Devices:EncoderDevice' | 'Devices:CustomDevice' | 'Devices:LdapConnectorDevice' | 'Devices:AkamaiDevice';
-    interface Options {
+    export interface Options<T extends Entry> {
         maxResults?: number;
-        onPage?: (current: number, total: number) => void;
+        onProgress?: (lines: T[], current: number, total: number) => void;
         fromDate?: string | Date;
         toDate?: string | Date;
     }
-    interface Entry<EntityKey extends string = string> {
+    export interface Entry<EntityKey extends string = string> {
         messageKey: string;
         entityKey: EntityKey;
         when: string;
@@ -202,6 +231,14 @@ declare namespace Audit {
         currentState: Record<string, any>;
         previousState: Record<string, any>;
     }
+    export type UserAccessEntry = Entry<'Network.UserAccess'>;
+    export type UserEntry = Entry<'Network.User'>;
+    export type GroupEntry = Entry<'Network.Group'>;
+    type DeviceKeys = 'Devices:DmeDevice' | 'Devices:EncoderDevice' | 'Devices:CustomDevice' | 'Devices:LdapConnectorDevice' | 'Devices:AkamaiDevice';
+    export type DeviceEntry = Entry<DeviceKeys>;
+    export type VideoEntry = Entry<'Media:Video'>;
+    export type WebcastEntry = Entry<'ScheduledEvents:Webcast'>;
+    export {};
 }
 
 interface Category {
@@ -262,6 +299,31 @@ declare namespace Category {
         parentCategory?: null | Parent;
     }
     export {};
+}
+
+declare namespace Channel {
+    interface Member {
+        id: string;
+        type: LiteralString<'User' | 'Group'>;
+        roleTypes: LiteralString<'Admin' | 'Contributor' | 'Member'>[];
+    }
+    interface CreateRequest {
+        name: string;
+        description?: string;
+        members?: Member[];
+    }
+    interface SearchHit {
+        id: string;
+        name: string;
+        description: string;
+        members: Member[];
+    }
+    interface SearchOptions {
+        maxResults?: number;
+        pageSize?: number;
+        start?: number;
+        onProgress?: (items: SearchHit[], current: number, total: number) => void;
+    }
 }
 
 declare namespace Device {
@@ -619,7 +681,17 @@ declare namespace Device {
 }
 
 declare namespace Group {
+    interface Details {
+        groupName: string;
+        groupId: string;
+        roles: Role[];
+    }
     interface SearchHit {
+        name: string;
+        id: string;
+        entityType: 'Group';
+    }
+    interface RawSearchHit {
         Name: string;
         Id: string;
         EntityType: 'Group';
@@ -656,6 +728,14 @@ interface User {
 }
 declare namespace User {
     interface SearchHit {
+        userId: string;
+        email: string | null;
+        entityType: 'User';
+        firstname: string;
+        lastname: string;
+        username: string;
+    }
+    interface RawSearchHit {
         Id: string;
         Email: string | null;
         EntityType: 'User';
@@ -705,6 +785,11 @@ declare namespace Video {
         uploadedBy: string;
         whenUploaded: string;
         lastViewed: string;
+        owner?: {
+            fullname: string;
+            id: string;
+            username: string;
+        };
         averageRating: string;
         ratingsCount: string;
         speechResult: Array<{
@@ -1340,79 +1425,62 @@ declare namespace Role {
 
 declare function auditAPIFactory(rev: RevClient): {
     /**
-    * return audit endpoints as stream of items (AsyncIterator)
-    */
-    stream: {
-        /**
-        * Logs of user login / logout / failed login activity
-        */
-        accountAccess(accountId: string, options?: Audit.Options): AsyncGenerator<Audit.Entry<"Network:UserAccess">, void, unknown>;
-        userAccess(userId: string, accountId: string, options?: Audit.Options): AsyncGenerator<Audit.Entry<"Network:UserAccess">, void, unknown>;
-        /**
-        * Operations on User Records (create, delete, etc)
-        */
-        accountUsers(accountId: string, options?: Audit.Options): AsyncGenerator<Audit.Entry<"Network:User">, void, unknown>;
-        user(userId: string, accountId: string, options?: Audit.Options): AsyncGenerator<Audit.Entry<"Network:User">, void, unknown>;
-        /**
-        * Operations on Group Records (create, delete, etc)
-        */
-        accountGroups(accountId: string, options?: Audit.Options): AsyncGenerator<Audit.Entry<"Network:Group">, void, unknown>;
-        group(groupId: string, accountId: string, options?: Audit.Options): AsyncGenerator<Audit.Entry<"Network:Group">, void, unknown>;
-        /**
-        * Operations on Device Records (create, delete, etc)
-        */
-        accountDevices(accountId: string, options?: Audit.Options): AsyncGenerator<Audit.Entry<Audit.DeviceKeys>, void, unknown>;
-        device(deviceId: string, accountId: string, options?: Audit.Options): AsyncGenerator<Audit.Entry<Audit.DeviceKeys>, void, unknown>;
-        /**
-        * Operations on Video Records (create, delete, etc)
-        */
-        accountVideos(accountId: string, options?: Audit.Options): AsyncGenerator<Audit.Entry<"Media:Video">, void, unknown>;
-        video(videoId: string, accountId: string, options?: Audit.Options): AsyncGenerator<Audit.Entry<"Media:Video">, void, unknown>;
-        /**
-        * Operations on Webcast Records (create, delete, etc)
-        */
-        accountWebcasts(accountId: string, options?: Audit.Options): AsyncGenerator<Audit.Entry<"ScheduledEvents:Webcast">, void, unknown>;
-        webcast(eventId: string, accountId: string, options?: Audit.Options): AsyncGenerator<Audit.Entry<"ScheduledEvents:Webcast">, void, unknown>;
-        /**
-        * All operations a single user has made
-        */
-        principal(userId: string, accountId: string, options?: Audit.Options): AsyncGenerator<Audit.Entry<string>, void, unknown>;
-    };
-    /**
     * Logs of user login / logout / failed login activity
     */
-    accountAccess(accountId: string, options?: Audit.Options): Promise<Audit.Entry<"Network:UserAccess">[]>;
-    userAccess(userId: string, accountId: string, options?: Audit.Options): Promise<Audit.Entry<"Network:UserAccess">[]>;
+    accountAccess(accountId: string, options?: Audit.Options<Audit.UserAccessEntry> | undefined): AuditRequest<Audit.UserAccessEntry>;
+    userAccess(userId: string, accountId: string, options?: Audit.Options<Audit.UserAccessEntry> | undefined): AuditRequest<Audit.UserAccessEntry>;
     /**
     * Operations on User Records (create, delete, etc)
     */
-    accountUsers(accountId: string, options?: Audit.Options): Promise<Audit.Entry<"Network:User">[]>;
-    user(userId: string, accountId: string, options?: Audit.Options): Promise<Audit.Entry<"Network:User">[]>;
+    accountUsers(accountId: string, options?: Audit.Options<Audit.UserEntry> | undefined): AuditRequest<Audit.UserEntry>;
+    user(userId: string, accountId: string, options?: Audit.Options<Audit.UserEntry> | undefined): AuditRequest<Audit.UserEntry>;
     /**
     * Operations on Group Records (create, delete, etc)
     */
-    accountGroups(accountId: string, options?: Audit.Options): Promise<Audit.Entry<"Network:Group">[]>;
-    group(groupId: string, accountId: string, options?: Audit.Options): Promise<Audit.Entry<"Network:Group">[]>;
+    accountGroups(accountId: string, options?: Audit.Options<Audit.GroupEntry> | undefined): AuditRequest<Audit.GroupEntry>;
+    group(groupId: string, accountId: string, options?: Audit.Options<Audit.GroupEntry> | undefined): AuditRequest<Audit.GroupEntry>;
     /**
     * Operations on Device Records (create, delete, etc)
     */
-    accountDevices(accountId: string, options?: Audit.Options): Promise<Audit.Entry<Audit.DeviceKeys>[]>;
-    device(deviceId: string, accountId: string, options?: Audit.Options): Promise<Audit.Entry<Audit.DeviceKeys>[]>;
+    accountDevices(accountId: string, options?: Audit.Options<Audit.DeviceEntry> | undefined): AuditRequest<Audit.DeviceEntry>;
+    device(deviceId: string, accountId: string, options?: Audit.Options<Audit.DeviceEntry> | undefined): AuditRequest<Audit.DeviceEntry>;
     /**
     * Operations on Video Records (create, delete, etc)
     */
-    accountVideos(accountId: string, options?: Audit.Options): Promise<Audit.Entry<"Media:Video">[]>;
-    video(videoId: string, accountId: string, options?: Audit.Options): Promise<Audit.Entry<"Media:Video">[]>;
+    accountVideos(accountId: string, options?: Audit.Options<Audit.VideoEntry> | undefined): AuditRequest<Audit.VideoEntry>;
+    video(videoId: string, accountId: string, options?: Audit.Options<Audit.VideoEntry> | undefined): AuditRequest<Audit.VideoEntry>;
     /**
     * Operations on Webcast Records (create, delete, etc)
     */
-    accountWebcasts(accountId: string, options?: Audit.Options): Promise<Audit.Entry<"ScheduledEvents:Webcast">[]>;
-    webcast(eventId: string, accountId: string, options?: Audit.Options): Promise<Audit.Entry<"ScheduledEvents:Webcast">[]>;
+    accountWebcasts(accountId: string, options?: Audit.Options<Audit.WebcastEntry> | undefined): AuditRequest<Audit.WebcastEntry>;
+    webcast(eventId: string, accountId: string, options?: Audit.Options<Audit.WebcastEntry> | undefined): AuditRequest<Audit.WebcastEntry>;
     /**
     * All operations a single user has made
     */
-    principal(userId: string, accountId: string, options?: Audit.Options): Promise<Audit.Entry<string>[]>;
+    principal(userId: string, accountId: string, options?: Audit.Options<Audit.Entry<string>> | undefined): AuditRequest<Audit.Entry<string>>;
 };
+declare class AuditRequest<T extends Audit.Entry> implements Rev.ISearchRequest<T> {
+    current: number;
+    total: number;
+    done: boolean;
+    options: Required<Omit<Audit.Options<T>, 'toDate' | 'fromDate'>>;
+    private params;
+    private _req;
+    constructor(rev: RevClient, endpoint: string, label: string, options?: Audit.Options<T>);
+    nextPage(): Promise<{
+        current: number;
+        total: number;
+        done: boolean;
+        items: T[];
+    }>;
+    /**
+     * Go through all pages of results and return as an array.
+     * TIP: Use the {maxResults} option to limit the maximum number of results
+     *
+     */
+    exec(): Promise<T[]>;
+    [Symbol.asyncIterator](): AsyncGenerator<T, void, unknown>;
+}
 
 declare function authAPIFactory(rev: RevClient): {
     loginToken(apiKey: string, secret: string): Promise<Auth.LoginResponse>;
@@ -1451,17 +1519,81 @@ declare function categoryAPIFactory(rev: RevClient): {
      * get list of categories in system
      * @see {@link https://revdocs.vbrick.com/reference#getcategories}
      */
-    list(parentCategoryId?: string, includeAllDescendants?: boolean): Promise<Category[]>;
+    list(parentCategoryId?: string | undefined, includeAllDescendants?: boolean | undefined): Promise<Category[]>;
 };
 
+declare function channelAPIFactory(rev: RevClient): {
+    create(channel: Channel.CreateRequest): Promise<string>;
+    update(channelId: string, channel: Channel.CreateRequest): Promise<void>;
+    delete(channelId: string): Promise<void>;
+    /**
+     * get list of channels in system
+     * @see {@link https://revdocs.vbrick.com/reference/getchannels}
+     */
+    list(start?: number, options?: Channel.SearchOptions): ChannelListRequest;
+    addMembers(channelId: string, members: Channel.Member[]): Promise<void>;
+    removeMembers(channelId: string, members: Array<string | Channel.Member>): Promise<void>;
+};
+declare class ChannelListRequest implements Rev.ISearchRequest<Channel.SearchHit> {
+    currentPage: number;
+    current: number;
+    total: number;
+    done: boolean;
+    options: Required<Pick<Channel.SearchOptions, 'maxResults' | 'onProgress' | 'pageSize'>>;
+    private _req;
+    constructor(rev: RevClient, start?: number, options?: Channel.SearchOptions);
+    nextPage(): Promise<{
+        current: number;
+        total: number;
+        done: boolean;
+        items: Channel.SearchHit[];
+    }>;
+    /**
+     * Go through all pages of results and return as an array.
+     * TIP: Use the {maxResults} option to limit the maximum number of results
+     *
+     */
+    exec(): Promise<Channel.SearchHit[]>;
+    [Symbol.asyncIterator](): AsyncGenerator<Channel.SearchHit, void, unknown>;
+}
+
 declare function deviceAPIFactory(rev: RevClient): {
-    dmes(): Promise<Device.DmeDetails[]>;
-    zoneDevices(): Promise<Device.ZoneDevice[]>;
-    presentationProfiles(): Promise<Device.PresentationProfile[]>;
+    listDMEs(): Promise<Device.DmeDetails[]>;
+    listZoneDevices(): Promise<Device.ZoneDevice[]>;
+    listPresentationProfiles(): Promise<Device.PresentationProfile[]>;
     add(dme: Device.CreateDMERequest): Promise<any>;
     healthStatus(deviceId: string): Promise<Device.DmeHealthStatus>;
     delete(deviceId: string): Promise<void>;
 };
+
+/**
+ * Interface to iterate through results from API endpoints that return results in pages.
+ * Use in one of three ways:
+ * 1) Get all results as an array: await request.exec() == <array>
+ * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
+ * 3) Use for await to get all results one at a time: for await (let hit of request) { }
+ */
+declare class SearchRequest<T> implements Rev.ISearchRequest<T> {
+    current: number;
+    total: number;
+    done: boolean;
+    options: Required<Rev.SearchOptions<T>>;
+    private _req;
+    private query;
+    constructor(rev: RevClient, searchDefinition: Rev.SearchDefinition<T>, query?: Record<string, any>, options?: Rev.SearchOptions<T>);
+    private _makeReqFunction;
+    /**
+     * Get the next page of results from API
+     */
+    nextPage(): Promise<Rev.SearchPage<T>>;
+    /**
+     * Go through all pages of results and return as an array.
+     * TIP: Use the {maxResults} option to limit the maximum number of results
+     *
+     */
+    exec(): Promise<T[]>;
+    [Symbol.asyncIterator](): AsyncGenerator<T, void, unknown>;
+}
 
 declare function groupAPIFactory(rev: RevClient): {
     /**
@@ -1471,23 +1603,27 @@ declare function groupAPIFactory(rev: RevClient): {
      */
     create(group: Group.CreateRequest): Promise<any>;
     delete(groupId: string): Promise<void>;
+    details(groupId: string): Promise<Group.Details>;
     /**
      *
      * @param {string} [searchText]
      * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
      */
-    search(searchText: string, options?: Rev.SearchOptions<Group.SearchHit>): Promise<Group.SearchHit[]>;
-    list(options?: Rev.SearchOptions<Group.SearchHit>): Promise<Group.SearchHit[]>;
-    listUsers(groupId: string, options?: Rev.SearchOptions<string>): Promise<string[]>;
+    search(searchText?: string | undefined, options?: Rev.SearchOptions<Group.SearchHit>): SearchRequest<Group.SearchHit>;
+    list(options?: Rev.SearchOptions<Group.SearchHit>): SearchRequest<Group.SearchHit>;
+    listUsers(groupId: string, options?: Rev.SearchOptions<string>): SearchRequest<string>;
     /**
-     * get all users in a group with full details as a async generator
+     * get all users in a group with full details
      * @param groupId
      * @param options
      * @returns
      */
-    usersDetailStream(groupId: string, options?: Rev.SearchOptions<string> & {
-        onError?: (userId: string, error: Error) => void;
-    }): AsyncGenerator<User>;
+    listUserDetails(groupId: string, options?: Rev.SearchOptions<User & {
+        error?: Error;
+    }>): SearchRequest<User & {
+        userId: string;
+        error?: Error | undefined;
+    }>;
 };
 
 declare function playlistAPIFactory(rev: RevClient): {
@@ -1504,7 +1640,7 @@ declare function playlistAPIFactory(rev: RevClient): {
 };
 
 declare function recordingAPIFactory(rev: RevClient): {
-    startVideoConferenceRecording(sipAddress: string, sipPin: string, title?: string): Promise<string>;
+    startVideoConferenceRecording(sipAddress: string, sipPin: string, title?: string | undefined): Promise<string>;
     getVideoConferenceStatus(videoId: string): Promise<Video.StatusEnum>;
     stopVideoConferenceRecording(videoId: string): Promise<string>;
     startPresentationProfileRecording(request: Recording.PresentationProfileRequest): Promise<string>;
@@ -1545,6 +1681,7 @@ declare function userAPIFactory(rev: RevClient): {
      * @returns the User ID of the created user
      */
     create(user: User.Request): Promise<string>;
+    delete(userId: string): Promise<void>;
     details(userId: string): Promise<User>;
     /**
      */
@@ -1574,7 +1711,7 @@ declare function userAPIFactory(rev: RevClient): {
      * @param {string} [searchText]
      * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
      */
-    search(searchText?: string, options?: Rev.SearchOptions<User.SearchHit>): Promise<User.SearchHit[]>;
+    search(searchText?: string | undefined, options?: Rev.SearchOptions<User.SearchHit>): SearchRequest<User.SearchHit>;
 };
 
 declare function videoAPIFactory(rev: RevClient): {
@@ -1592,18 +1729,18 @@ declare function videoAPIFactory(rev: RevClient): {
     details(videoId: string): Promise<Video.Details>;
     readonly upload: (file: FileUploadType, metadata?: Video.UploadMetadata, options?: UploadFileOptions) => Promise<string>;
     /**
-     * search for videos. leave blank to get all videos in the account
+     * search for videos, return as one big list. leave blank to get all videos in the account
      */
-    search(query?: Video.SearchOptions, options?: Rev.SearchOptions<Video.SearchHit>): Promise<Video.SearchHit[]>;
+    search(query?: Video.SearchOptions, options?: Rev.SearchOptions<Video.SearchHit>): SearchRequest<Video.SearchHit>;
     /**
      * Example of using the video search API to search for videos, then getting
      * the details of each video
      * @param query
      * @param options
      */
-    searchDetailed(query?: Video.SearchOptions, options?: Rev.SearchOptions<Video.SearchHit>): AsyncGenerator<Video.SearchHit & (Video.Details | {
+    searchDetailed(query?: Video.SearchOptions, options?: Rev.SearchOptions<Video.SearchHit & (Video.Details | {
         error?: Error;
-    })>;
+    })>): SearchRequest<Video.SearchHit>;
     playbackInfo(videoId: string): Promise<Video.Playback>;
     download(videoId: string): Promise<Rev.Response<ReadableStream<any>>>;
     downloadTranscription(videoId: string, language: string): Promise<Blob>;
@@ -1615,17 +1752,16 @@ declare function videoAPIFactory(rev: RevClient): {
 
 declare function webcastAPIFactory(rev: RevClient): {
     list(options?: Webcast.ListRequest): Promise<Webcast[]>;
-    search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): Promise<Webcast[]>;
-    searchStream(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): Generator<never, AsyncGenerator<Webcast, any, unknown>, unknown>;
+    search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast> | undefined): SearchRequest<Webcast>;
     create(event: Webcast.CreateRequest): Promise<string>;
     details(eventId: string): Promise<Webcast.Details>;
     edit(eventId: string, event: Webcast.CreateRequest): Promise<void>;
     delete(eventId: string): Promise<void>;
     editAccess(eventId: string, entities: Webcast.EditAttendeesRequest): Promise<void>;
-    attendees(eventId: string, runNumber?: number, options?: Rev.SearchOptions<Webcast.PostEventSession>): Promise<Webcast.PostEventSession[]>;
-    questions(eventId: string, runNumber?: number): Promise<Webcast.Question[]>;
-    pollResults(eventId: string, runNumber?: number): Promise<Webcast.PollResults[]>;
-    comments(eventId: string, runNumber?: number): Promise<Webcast.Comment[]>;
+    attendees(eventId: string, runNumber?: number | undefined, options?: Rev.SearchOptions<Webcast.PostEventSession> | undefined): SearchRequest<Webcast.PostEventSession>;
+    questions(eventId: string, runNumber?: number | undefined): Promise<Webcast.Question[]>;
+    pollResults(eventId: string, runNumber?: number | undefined): Promise<Webcast.PollResults[]>;
+    comments(eventId: string, runNumber?: number | undefined): Promise<Webcast.Comment[]>;
     status(eventId: string): Promise<Webcast.Status>;
     playbackUrl(eventId: string, options?: Webcast.PlaybackUrlRequest): Promise<Webcast.Playback[]>;
     startEvent(eventId: string, preProduction?: boolean): Promise<void>;
@@ -1659,7 +1795,7 @@ interface LoginResponse {
     apiKey?: string;
 }
 interface RevSession {
-    token: string;
+    token?: string;
     expires: Date;
     readonly isExpired: boolean;
     readonly username: string | undefined;
@@ -1672,8 +1808,8 @@ interface RevSession {
 }
 declare class SessionKeepAlive {
     private readonly _session;
-    private controller;
-    extendOptions: Rev.KeepAliveOptions;
+    private controller?;
+    extendOptions: Required<Rev.KeepAliveOptions>;
     error?: undefined | Error;
     private _isExtending;
     constructor(session: SessionBase, options?: Rev.KeepAliveOptions);
@@ -1682,14 +1818,14 @@ declare class SessionKeepAlive {
     start(): void;
     stop(): void;
     private _reset;
-    get isAlive(): boolean;
+    get isAlive(): boolean | undefined;
 }
 declare abstract class SessionBase implements RevSession {
-    token: string;
+    token?: string;
     expires: Date;
     protected readonly rev: RevClient;
     protected readonly [_credentials]: Rev.Credentials;
-    readonly keepAlive: SessionKeepAlive;
+    readonly keepAlive?: SessionKeepAlive;
     constructor(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions);
     login(): Promise<void>;
     extend(): Promise<void>;
@@ -1707,8 +1843,8 @@ declare abstract class SessionBase implements RevSession {
     /**
      * returns true if session isn't expired and has a token
      */
-    get isConnected(): boolean;
-    get username(): string;
+    get isConnected(): boolean | "" | undefined;
+    get username(): string | undefined;
     protected abstract _login(): Promise<LoginResponse>;
     protected abstract _extend(): Promise<{
         expiration: string;
@@ -1723,11 +1859,11 @@ declare class RevClient {
     url: string;
     logEnabled: boolean;
     session: RevSession;
-    private readonly _log;
     readonly admin: ReturnType<typeof adminAPIFactory>;
     readonly audit: ReturnType<typeof auditAPIFactory>;
     readonly auth: ReturnType<typeof authAPIFactory>;
     readonly category: ReturnType<typeof categoryAPIFactory>;
+    readonly channel: ReturnType<typeof channelAPIFactory>;
     readonly device: ReturnType<typeof deviceAPIFactory>;
     readonly group: ReturnType<typeof groupAPIFactory>;
     readonly playlist: ReturnType<typeof playlistAPIFactory>;
@@ -1761,8 +1897,8 @@ declare class RevClient {
      * @returns Promise<boolean>
      */
     verifySession(): Promise<boolean>;
-    get isConnected(): boolean;
-    get token(): string;
+    get isConnected(): boolean | "" | undefined;
+    get token(): string | undefined;
     get sessionExpires(): Date;
     log(severity: Rev.LogSeverity, ...args: any[]): void;
 }
@@ -1779,5 +1915,13 @@ declare class RevError extends Error {
     get [Symbol.toStringTag](): string;
     static create(response: Response): Promise<RevError>;
 }
+declare class ScrollError extends Error {
+    status: number;
+    code: string;
+    detail: string;
+    constructor(status?: number, code?: string, detail?: string);
+    get name(): string;
+    get [Symbol.toStringTag](): string;
+}
 
-export { AccessControlEntity, AccessControlEntityType, Audit, Auth, BrandingSettings, Category, CustomField, Device, Group, Playlist, Recording, Rev, RevClient, RevError, Role, User, Video, Webcast, Zone, RevClient as default };
+export { AccessControlEntity, AccessControlEntityType, Audit, Auth, BrandingSettings, Category, Channel, CustomField, Device, Group, Playlist, Recording, Rev, RevClient, RevError, Role, ScrollError, User, Video, Webcast, Zone, RevClient as default };

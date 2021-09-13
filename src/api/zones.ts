@@ -35,7 +35,7 @@ export default function zonesAPIFactory(rev: RevClient) {
             return rev.delete(`/api/v2/zones/${zoneId}`);
         },
         get devices() {
-            return rev.device.zoneDevices;
+            return rev.device.listZoneDevices;
         }
     };
     return zonesAPI;

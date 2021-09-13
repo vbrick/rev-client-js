@@ -1,9 +1,9 @@
 
 export namespace Audit {
-    export type DeviceKeys = 'Devices:DmeDevice' | 'Devices:EncoderDevice' | 'Devices:CustomDevice' | 'Devices:LdapConnectorDevice' | 'Devices:AkamaiDevice';
-    export interface Options {
+
+    export interface Options<T extends Entry> {
         maxResults?: number,
-        onPage?: (current: number, total: number) => void,
+        onProgress?: (lines: T[], current: number, total: number) => void,
         fromDate?: string | Date,
         toDate?: string | Date;
     }
@@ -17,4 +17,11 @@ export namespace Audit {
         currentState: Record<string, any>,
         previousState: Record<string, any>;
     }
+    export type UserAccessEntry = Entry<'Network.UserAccess'>;
+    export type UserEntry = Entry<'Network.User'>;
+    export type GroupEntry = Entry<'Network.Group'>;
+    type DeviceKeys = 'Devices:DmeDevice' | 'Devices:EncoderDevice' | 'Devices:CustomDevice' | 'Devices:LdapConnectorDevice' | 'Devices:AkamaiDevice';
+    export type DeviceEntry = Entry<DeviceKeys>;
+    export type VideoEntry = Entry<'Media:Video'>;
+    export type WebcastEntry = Entry<'ScheduledEvents:Webcast'>;
 }

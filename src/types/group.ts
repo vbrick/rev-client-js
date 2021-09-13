@@ -1,6 +1,19 @@
+import { Role } from '.';
+
 export namespace Group {
 
+    export interface Details {
+        groupName: string;
+        groupId: string;
+        roles: Role[];
+    }
     export interface SearchHit {
+        name: string;
+        id: string;
+        entityType: 'Group';
+    }
+
+    export interface RawSearchHit {
         Name: string;
         Id: string;
         EntityType: 'Group';

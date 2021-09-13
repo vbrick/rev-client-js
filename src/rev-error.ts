@@ -50,7 +50,6 @@ export class RevError extends Error {
     get name() {
         return this.constructor.name;
     }
-
     get [Symbol.toStringTag]() {
         return this.constructor.name;
     }
@@ -67,5 +66,23 @@ export class RevError extends Error {
             };
         }
         return new RevError(response, body);
+    }
+}
+
+export class ScrollError extends Error {
+    status: number;
+    code: string;
+    detail: string;
+    constructor(status: number = 408, code: string = 'ScrollExpired', detail: string = 'Timeout while fetching all results in search request') {
+        super('Search Scroll Expired');
+        this.status = status;
+        this.code = code;
+        this.detail = detail;
+    }
+    get name() {
+        return this.constructor.name;
+    }
+    get [Symbol.toStringTag]() {
+        return this.constructor.name;
     }
 }

@@ -17,6 +17,15 @@ export interface User {
 export namespace User {
 
     export interface SearchHit {
+        userId: string;
+        email: string | null;
+        entityType: 'User';
+        firstname: string;
+        lastname: string;
+        username: string;
+    }
+
+    export interface RawSearchHit {
         Id: string;
         Email: string | null;
         EntityType: 'User';

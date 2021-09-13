@@ -160,7 +160,7 @@ export async function uploadMultipart(
 
     useChunkedTransfer = typeof useChunkedTransfer === 'boolean'
         ? useChunkedTransfer
-        : useChunkedTransfer.useChunkedTransfer;
+        : !!useChunkedTransfer?.useChunkedTransfer;
 
     // coerce to Headers object, may be undefined
     const headers = new polyfills.Headers(optHeaders);

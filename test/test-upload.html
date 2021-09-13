@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<style>
+			:root {
+				--icon-required: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="-10 -6 16 16"><line id="line" y1="-3" y2="3" stroke="%23df0000" stroke-linecap="butt" transform="rotate(15)"></line><line id="line" y1="-3" y2="3" stroke="%23df0000" stroke-linecap="butt" transform="rotate(75)"></line><line id="line" y1="-3" y2="3" stroke="%23df0000" stroke-linecap="butt" transform="rotate(-45)"></line></svg>');
+
+				--icon-tick: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100" height="100" viewBox="-2 -2 16 16"> <path fill="green" stroke-linejoin="round" d="M2 6L1 7l3 4 7-10h-1L4 8z"/> </svg>');
+			}
+			form {
+				display: flex;
+				flex-wrap: wrap;
+				border: 1px solid #ccc;
+				padding: 0.5ex;
+				margin-bottom: 2em;
+			}
+			label {
+				display: grid;
+				grid-template-columns: 10ex auto;
+				text-align: right;
+				flex: 1 50%;
+			}
+			.full-width {
+				flex: 100%;
+			}
+			input, textarea, select {
+				margin-left: 1ex;
+				margin-bottom: 1em;
+			}
+			fieldset {
+				width: 100%;
+				display: flex;
+				flex-wrap: wrap;
+				margin: 0.5ex 0;
+				border: 1px solid #ccc;
+			}
+			:required:not(form, fieldset) {
+				background-image: var(--icon-required);
+				background-position-x: right;
+				background-repeat: no-repeat;
+				background-size: contain;
+			}
+			:required:valid:not(form, fieldset) {
+				background-image: var(--icon-tick);
+				background-position-x: right;
+				background-repeat: no-repeat;
+				background-size: contain;
+			}
+			form:invalid #test_upload {
+				cursor: not-allowed;
+			}
+		</style>
+		<script type="module" src="./test-browser-upload.js"></script>
+	</head>
+	<body>
+		<form id="credentials" class="grid-half">
+			<legend>Include Rev URL and <em>either</em> Username+Password or API Key/Secret</legend>
+			<label for="url" class="full-width">Rev URL: <input type="text" name="url" id="url" placeholder="https://YOUR_REV_TENANT_URL" value="" required /></label>
+			<label for="apiKey">API Key: <input type="text" name="apiKey" id="apiKey" value = "" /></label>
+			<label for="secret">Secret: <input type="text" name="secret" id="secret" value = "" /></label>
+			<label for="username">Username: <input type="text" name="username" id="username" value = "" /></label>
+			<label for="password">Password: <input type="text" name="password" id="password" value = "" /></label>
+		</form>
+		<form id="upload_form">
+			<label for="uploader">Uploader: <input type="text" name="uploader" id="uploader" value="robot" required /></label>
+			<label for="title" class="full-width">Title: <input type="text" name="title" id="title" value="test upload" /></label>
+			<label for="description" class="full-width">Description: <textarea type="text" name="description" id="description" value=""></textarea></label>
+			<label for="tags">Tags: <input type="text" name="tags" id="tags" value="" /></label>
+
+			<label for="videoAccessControl">Access Control: <select name="videoAccessControl" id="videoAccessControl" value="">
+				<option value="AllUsers" selected>All Users</option>
+				<option value="Public">Public</option>
+				<option value="Private">Private</option>
+				<option value="Channels">Channels</option>
+			</select></label>
+
+			<label for="isActive">Is Active: <input type="checkbox" name="isActive" id="isActive" checked/></label>
+			<label for="unlisted">Unlisted: <input type="checkbox" name="unlisted" id="unlisted" /></label>
+
+			<label for="file" class="full-width">Upload Video: <input type="file" name="file" id="file" required/></label>
+			<label>&nbsp;<button id="test_upload">Upload</button></label>
+		</form>
+	</body>
+</html>

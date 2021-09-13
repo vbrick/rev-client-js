@@ -32,6 +32,7 @@ async function retry(fn, shouldRetry = () => true, maxAttempts = 3, sleepMillise
             await sleep(sleepMilliseconds);
         }
     }
+    return undefined;
 }
 /**
  * delay async execution, with optional early exit using abort signal
@@ -130,6 +131,20 @@ class RevError extends Error {
         return new RevError(response, body);
     }
 }
+class ScrollError extends Error {
+    constructor(status = 408, code = 'ScrollExpired', detail = 'Timeout while fetching all results in search request') {
+        super('Search Scroll Expired');
+        this.status = status;
+        this.code = code;
+        this.detail = detail;
+    }
+    get name() {
+        return this.constructor.name;
+    }
+    get [Symbol.toStringTag]() {
+        return this.constructor.name;
+    }
+}
 
 function adminAPIFactory(rev) {
     let roles;
@@ -159,6 +174,9 @@ function adminAPIFactory(rev) {
         async getRoleByName(name, fromCache = true) {
             const roles = await adminAPI.roles(fromCache);
             const role = roles.find(r => r.name === name);
+            if (!role) {
+                throw new TypeError(`Invalid Role Name ${name}. Valid values are: ${roles.map(r => r.name).join(', ')}`);
+            }
             return {
                 id: role.id,
                 name: role.name
@@ -187,7 +205,11 @@ function adminAPIFactory(rev) {
         */
         async getCustomFieldByName(name, fromCache = true) {
             const customFields = await adminAPI.customFields(fromCache);
-            return customFields.find(cf => cf.name === name);
+            const field = customFields.find(cf => cf.name === name);
+            if (!field) {
+                throw new TypeError(`Invalid Custom Field Name ${name}. Valid values are: ${customFields.map(cf => cf.name).join(', ')}`);
+            }
+            return field;
         },
         async brandingSettings() {
             return rev.get('/api/v2/accounts/branding-settings');
@@ -284,157 +306,100 @@ function parseCSV(raw) {
 function auditAPIFactory(rev) {
     const auditAPI = {
         /**
-        * return audit endpoints as stream of items (AsyncIterator)
-        */
-        stream: {
-            /**
-            * Logs of user login / logout / failed login activity
-            */
-            accountAccess(accountId, options) {
-                return scroll(`/network/audit/accounts/${accountId}/userAccess`, 'UserAccess', options);
-            },
-            userAccess(userId, accountId, options) {
-                return scroll(`/network/audit/accounts/${accountId}/userAccess/${userId}`, `UserAccess_${userId}`, options);
-            },
-            /**
-            * Operations on User Records (create, delete, etc)
-            */
-            accountUsers(accountId, options) {
-                return scroll(`/network/audit/accounts/${accountId}/userAccess`, 'User', options);
-            },
-            user(userId, accountId, options) {
-                return scroll(`/network/audit/accounts/${accountId}/userAccess/${userId}`, 'User', options);
-            },
-            /**
-            * Operations on Group Records (create, delete, etc)
-            */
-            accountGroups(accountId, options) {
-                return scroll(`/network/audit/accounts/${accountId}/groups`, 'Groups', options);
-            },
-            group(groupId, accountId, options) {
-                return scroll(`/network/audit/accounts/${accountId}/groups/${groupId}`, 'Group', options);
-            },
-            /**
-            * Operations on Device Records (create, delete, etc)
-            */
-            accountDevices(accountId, options) {
-                return scroll(`/network/audit/accounts/${accountId}/devices`, 'Devices', options);
-            },
-            device(deviceId, accountId, options) {
-                return scroll(`/network/audit/accounts/${accountId}/devices/${deviceId}`, 'Device', options);
-            },
-            /**
-            * Operations on Video Records (create, delete, etc)
-            */
-            accountVideos(accountId, options) {
-                return scroll(`/network/audit/accounts/${accountId}/videos`, 'Videos', options);
-            },
-            video(videoId, accountId, options) {
-                return scroll(`/network/audit/accounts/${accountId}/videos/${videoId}`, 'Video', options);
-            },
-            /**
-            * Operations on Webcast Records (create, delete, etc)
-            */
-            accountWebcasts(accountId, options) {
-                return scroll(`/network/audit/accounts/${accountId}/scheduledEvents`, 'Webcasts', options);
-            },
-            webcast(eventId, accountId, options) {
-                return scroll(`/network/audit/accounts/${accountId}/scheduledEvents/${eventId}`, `Webcast`, options);
-            },
-            /**
-            * All operations a single user has made
-            */
-            principal(userId, accountId, options) {
-                return scroll(`/network/audit/accounts/${accountId}/principals/${userId}`, 'Principal', options);
-            }
-        },
-        /**
         * Logs of user login / logout / failed login activity
         */
-        async accountAccess(accountId, options) {
-            return collect(auditAPI.stream.accountAccess(accountId, options));
+        accountAccess(accountId, options) {
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess`, 'UserAccess', options);
         },
-        async userAccess(userId, accountId, options) {
-            return collect(auditAPI.stream.userAccess(userId, accountId, options));
+        userAccess(userId, accountId, options) {
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess/${userId}`, `UserAccess_${userId}`, options);
         },
         /**
         * Operations on User Records (create, delete, etc)
         */
-        async accountUsers(accountId, options) {
-            return collect(auditAPI.stream.accountUsers(accountId, options));
+        accountUsers(accountId, options) {
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess`, 'User', options);
         },
-        async user(userId, accountId, options) {
-            return collect(auditAPI.stream.user(userId, accountId, options));
+        user(userId, accountId, options) {
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess/${userId}`, 'User', options);
         },
         /**
         * Operations on Group Records (create, delete, etc)
         */
-        async accountGroups(accountId, options) {
-            return collect(auditAPI.stream.accountGroups(accountId, options));
+        accountGroups(accountId, options) {
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/groups`, 'Groups', options);
         },
-        async group(groupId, accountId, options) {
-            return collect(auditAPI.stream.group(groupId, accountId, options));
+        group(groupId, accountId, options) {
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/groups/${groupId}`, 'Group', options);
         },
         /**
         * Operations on Device Records (create, delete, etc)
         */
-        async accountDevices(accountId, options) {
-            return collect(auditAPI.stream.accountDevices(accountId, options));
+        accountDevices(accountId, options) {
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/devices`, 'Devices', options);
         },
-        async device(deviceId, accountId, options) {
-            return collect(auditAPI.stream.device(deviceId, accountId, options));
+        device(deviceId, accountId, options) {
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/devices/${deviceId}`, 'Device', options);
         },
         /**
         * Operations on Video Records (create, delete, etc)
         */
-        async accountVideos(accountId, options) {
-            return collect(auditAPI.stream.accountVideos(accountId, options));
+        accountVideos(accountId, options) {
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/videos`, 'Videos', options);
         },
-        async video(videoId, accountId, options) {
-            return collect(auditAPI.stream.video(videoId, accountId, options));
+        video(videoId, accountId, options) {
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/videos/${videoId}`, 'Video', options);
         },
         /**
         * Operations on Webcast Records (create, delete, etc)
         */
-        async accountWebcasts(accountId, options) {
-            return collect(auditAPI.stream.accountWebcasts(accountId, options));
+        accountWebcasts(accountId, options) {
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/scheduledEvents`, 'Webcasts', options);
         },
-        async webcast(eventId, accountId, options) {
-            return collect(auditAPI.stream.webcast(eventId, accountId, options));
+        webcast(eventId, accountId, options) {
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/scheduledEvents/${eventId}`, `Webcast`, options);
         },
         /**
         * All operations a single user has made
         */
-        async principal(userId, accountId, options) {
-            return collect(auditAPI.stream.principal(userId, accountId, options));
+        principal(userId, accountId, options) {
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/principals/${userId}`, 'Principal', options);
         }
     };
-    function asValidDate(val, defaultValue) {
-        if (!val) {
-            return defaultValue;
-        }
-        if (!(val instanceof Date)) {
-            val = new Date(val);
-        }
-        return isNaN(val.getTime())
-            ? defaultValue
-            : val;
+    return auditAPI;
+}
+function asValidDate(val, defaultValue) {
+    if (!val) {
+        return defaultValue;
     }
-    function parseEntry(line) {
-        return {
-            messageKey: line['MessageKey'],
-            entityKey: line['EntityKey'],
-            when: line['When'],
-            principal: tryParseJson(line['Principal']) || {},
-            message: tryParseJson(line['Message']) || {},
-            currentState: tryParseJson(line['CurrentState']) || {},
-            previousState: tryParseJson(line['PreviousState']) || {}
+    if (!(val instanceof Date)) {
+        val = new Date(val);
+    }
+    return isNaN(val.getTime())
+        ? defaultValue
+        : val;
+}
+function parseEntry(line) {
+    return {
+        messageKey: line['MessageKey'],
+        entityKey: line['EntityKey'],
+        when: line['When'],
+        principal: tryParseJson(line['Principal']) || {},
+        message: tryParseJson(line['Message']) || {},
+        currentState: tryParseJson(line['CurrentState']) || {},
+        previousState: tryParseJson(line['PreviousState']) || {}
+    };
+}
+class AuditRequest {
+    constructor(rev, endpoint, label, options = {}) {
+        const { fromDate, toDate, ...opts } = options;
+        this.options = {
+            maxResults: Infinity,
+            onProgress: (items, current, total) => {
+                rev.log('debug', `loading ${label}, ${current} of ${total}...`);
+            },
+            ...opts
         };
-    }
-    async function* scroll(endpoint, label, options = {}) {
-        const { maxResults = Infinity, onPage = (current, total) => {
-            rev.log('debug', `loading ${label}, ${current} of ${total}...`);
-        }, fromDate, toDate } = options;
         let _toDate = asValidDate(toDate, new Date());
         // default to one year older than toDate
         const defaultFrom = new Date(_toDate.setFullYear(_toDate.getFullYear() - 1));
@@ -442,53 +407,72 @@ function auditAPIFactory(rev) {
         if (_toDate < _fromDate) {
             [_toDate, _fromDate] = [_fromDate, _toDate];
         }
-        const params = {
+        this.params = {
             toDate: _toDate.toISOString(),
             fromDate: _fromDate.toISOString()
         };
-        let current = 0;
-        let total;
-        do {
-            try {
-                const response = await rev.request('GET', endpoint, { params });
-                let lines = parseCSV(response.body);
-                // limit results to specified max results
-                if (current + lines.length >= maxResults) {
-                    const delta = maxResults - current;
-                    lines = lines.slice(0, delta);
-                }
-                current += lines.length;
-                if (!total) {
-                    total = Math.min(parseInt(response.headers.get('totalRecords'), 10), maxResults);
-                }
-                onPage(current, total || 0);
-                if (lines.length === 0) {
-                    return;
-                }
-                for (let entry of lines) {
-                    yield parseEntry(entry);
-                }
-                params.nextContinuationToken = response.headers.get('nextContinuationToken');
-                params.fromDate = response.headers.get('nextfromDate');
-            }
-            catch (err) {
-                rev.log('warn', err);
-                throw err;
-            }
-        } while (params.nextContinuationToken && current < maxResults);
+        this._req = () => rev.request('GET', endpoint, { params: this.params }, { responseType: 'text' });
+        this.current = 0;
+        this.total = Infinity;
+        this.done = false;
+    }
+    async nextPage() {
+        const { maxResults, onProgress } = this.options;
+        let current = this.current;
+        const response = await this._req();
+        const { body, headers } = response;
+        let items = parseCSV(body)
+            .map(line => parseEntry(line));
+        if (!this.total) {
+            const totalRecords = parseInt(headers.get('totalRecords') || '', 10);
+            this.total = Math.min(totalRecords || 0, maxResults);
+        }
+        Object.assign(this.params, {
+            nextContinuationToken: headers.get('nextContinuationToken') || undefined,
+            fromDate: headers.get('nextfromDate') || undefined
+        });
+        if (!this.params.nextContinuationToken) {
+            this.done = true;
+        }
+        // limit results to specified max results
+        if (current + items.length >= maxResults) {
+            const delta = maxResults - current;
+            items = items.slice(0, delta);
+            this.done = true;
+        }
+        onProgress(items, current, this.total);
+        this.current += items.length;
+        if (this.current === this.total) {
+            this.done = true;
+        }
+        return {
+            current,
+            total: this.total,
+            done: this.done,
+            items
+        };
     }
     /**
-    * takes an async stream of items and collects them into an array
-    * @param stream
-    */
-    async function collect(stream) {
-        const records = [];
-        for await (let record of stream) {
-            records.push(record);
+     * Go through all pages of results and return as an array.
+     * TIP: Use the {maxResults} option to limit the maximum number of results
+     *
+     */
+    async exec() {
+        const results = [];
+        // use async iterator
+        for await (let hit of this) {
+            results.push(hit);
         }
-        return records;
+        return results;
     }
-    return auditAPI;
+    async *[Symbol.asyncIterator]() {
+        do {
+            const { items } = await this.nextPage();
+            for await (let hit of items) {
+                yield hit;
+            }
+        } while (!this.done);
+    }
 }
 
 /**
@@ -626,7 +610,7 @@ function authAPIFactory(rev) {
                 : url;
             const authCode = parsedUrl.searchParams.get('auth_code') || '';
             const state = parsedUrl.searchParams.get('state') || '';
-            const error = parsedUrl.searchParams.get('error');
+            const error = parsedUrl.searchParams.get('error') || undefined;
             return {
                 isSuccess: !error,
                 authCode,
@@ -689,17 +673,125 @@ function categoryAPIFactory(rev) {
     return categoryAPI;
 }
 
+function channelAPIFactory(rev) {
+    const channelAPI = {
+        async create(channel) {
+            const { channelId } = await rev.post('/api/v2/channels', channel, { responseType: 'json' });
+            return channelId;
+        },
+        async update(channelId, channel) {
+            return rev.put(`/api/v2/channels/${channelId}`, channel);
+        },
+        async delete(channelId) {
+            return rev.delete(`/api/v2/channels/${channelId}`);
+        },
+        /**
+         * get list of channels in system
+         * @see {@link https://revdocs.vbrick.com/reference/getchannels}
+         */
+        list(start = 0, options = {}) {
+            return new ChannelListRequest(rev, start, options);
+        },
+        async addMembers(channelId, members) {
+            const operations = members
+                .map(member => {
+                return { op: 'add', path: '/Members/-', value: member };
+            });
+            await rev.patch(`/api/v2/channels/${channelId}`, operations);
+        },
+        async removeMembers(channelId, members) {
+            const operations = members
+                .map(member => {
+                const entityId = typeof member === 'string'
+                    ? member
+                    : member.id;
+                return { op: 'remove', path: '/Members', value: entityId };
+            });
+            await rev.patch(`/api/v2/channels/${channelId}`, operations);
+        }
+    };
+    return channelAPI;
+}
+class ChannelListRequest {
+    constructor(rev, start = 0, options = {}) {
+        this.options = {
+            maxResults: Infinity,
+            pageSize: 10,
+            onProgress: (items, current, total) => {
+                rev.log('debug', `loading channels, ${current} of ${total}...`);
+            },
+            ...options
+        };
+        this.current = 0;
+        this.total = Infinity;
+        this.done = false;
+        this.currentPage = start;
+        this._req = () => {
+            const params = {
+                page: this.currentPage,
+                count: this.options.pageSize
+            };
+            return rev.get('/api/v2/channels', params, { responseType: 'json' });
+        };
+    }
+    async nextPage() {
+        const { maxResults, onProgress } = this.options;
+        let current = this.current;
+        let items = await this._req();
+        if (!Array.isArray(items) || items.length == 0) {
+            this.done = true;
+            items = [];
+        }
+        if (current + items.length >= maxResults) {
+            const delta = maxResults - current;
+            items = items.slice(0, delta);
+            this.done = true;
+        }
+        this.total = current + items.length;
+        onProgress(items, current, this.total);
+        this.current += items.length;
+        this.currentPage += 1;
+        return {
+            current,
+            total: this.total,
+            done: this.done,
+            items
+        };
+    }
+    /**
+     * Go through all pages of results and return as an array.
+     * TIP: Use the {maxResults} option to limit the maximum number of results
+     *
+     */
+    async exec() {
+        const results = [];
+        // use async iterator
+        for await (let hit of this) {
+            results.push(hit);
+        }
+        return results;
+    }
+    async *[Symbol.asyncIterator]() {
+        do {
+            const { items } = await this.nextPage();
+            for await (let hit of items) {
+                yield hit;
+            }
+        } while (!this.done);
+    }
+}
+
 function deviceAPIFactory(rev) {
     const deviceAPI = {
-        async dmes() {
+        async listDMEs() {
             const response = await rev.get('/api/v2/devices/dmes');
             return response.devices;
         },
-        async zoneDevices() {
+        async listZoneDevices() {
             const response = await rev.get('/api/v2/zonedevices');
             return response.devices;
         },
-        async presentationProfiles() {
+        async listPresentationProfiles() {
             return rev.get('/api/v2/presentation-profiles');
         },
         async add(dme) {
@@ -731,39 +823,115 @@ async function decodeBody(response, acceptType) {
     return response.body;
 }
 /**
- * Private helper function for scrolling through Search API results that return a "scrollId"
+ * Interface to iterate through results from API endpoints that return results in pages.
+ * Use in one of three ways:
+ * 1) Get all results as an array: await request.exec() == <array>
+ * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
+ * 3) Use for await to get all results one at a time: for await (let hit of request) { }
  */
-async function* searchScrollStream(rev, searchOptions, data, options) {
-    const { endpoint, totalKey, hitsKey, isPost = false } = searchOptions;
-    const { maxResults = Infinity, onPage = (items, index, total) => {
-        rev.log('debug', `searching ${hitsKey}, ${index}-${index + items.length} of ${total}...`);
-    } } = options;
-    const query = { ...data };
-    delete query.scrollId;
-    let total = maxResults;
-    let current = 0;
-    // continue until max reached
-    while (current < maxResults) {
-        const response = await isPost
-            ? rev.post(endpoint, query, { responseType: 'json' })
-            : rev.get(endpoint, query, { responseType: 'json' });
-        let { scrollId, [totalKey]: responseTotal, [hitsKey]: items } = response;
-        query.scrollId = scrollId;
-        total = Math.min(responseTotal, maxResults);
+class SearchRequest {
+    constructor(rev, searchDefinition, query = {}, options = {}) {
+        // make copy of query object
+        const { scrollId: _ignore, ...queryOpt } = query;
+        this.query = queryOpt;
+        const { hitsKey } = searchDefinition;
+        this.options = {
+            maxResults: Infinity,
+            onProgress: (items, current, total) => {
+                rev.log('debug', `searching ${hitsKey}, ${current}-${current + items.length} of ${total}...`);
+            },
+            onScrollExpired: (err => { throw err; }),
+            ...options
+        };
+        this._req = this._makeReqFunction(rev, searchDefinition);
+        this.current = 0;
+        this.total = Infinity;
+        this.done = false;
+    }
+    _makeReqFunction(rev, searchDefinition) {
+        const { endpoint, totalKey, hitsKey, isPost = false, transform } = searchDefinition;
+        return async (query) => {
+            const response = isPost
+                ? await rev.post(endpoint, query, { responseType: 'json' })
+                : await rev.get(endpoint, query, { responseType: 'json' });
+            let { scrollId, [totalKey]: total, [hitsKey]: rawItems = [], statusCode, statusDescription } = response;
+            const items = (typeof transform === 'function')
+                ? await Promise.resolve(transform(rawItems))
+                : rawItems;
+            return {
+                scrollId,
+                total,
+                pageCount: rawItems.count,
+                items,
+                statusCode,
+                statusDescription
+            };
+        };
+    }
+    /**
+     * Get the next page of results from API
+     */
+    async nextPage() {
+        const { maxResults, onProgress, onScrollExpired } = this.options;
+        if (this.done) {
+            return {
+                current: this.total,
+                total: this.total,
+                done: this.done,
+                items: []
+            };
+        }
+        let { scrollId, total = 0, items = [], pageCount = 0, statusCode, statusDescription } = await this._req(this.query);
+        this.total = Math.min(total, maxResults);
+        this.query.scrollId = scrollId;
+        if (!scrollId) {
+            this.done = true;
+        }
+        const current = this.current;
         // limit results to specified max results
-        if (current + items.length >= maxResults) {
+        if (current + pageCount >= maxResults) {
             const delta = maxResults - current;
             items = items.slice(0, delta);
+            this.done = true;
         }
-        onPage(items, current, total);
-        current += items.length;
-        for (let item of items) {
-            yield item;
+        onProgress(items, current, this.total);
+        // check for error response
+        if (statusCode >= 400 && !!statusDescription) {
+            this.done = true;
+            const err = new ScrollError(statusCode, statusDescription);
+            onScrollExpired(err);
         }
-        // if no scrollId returned then no more results to page through
-        if (!scrollId) {
-            return;
+        this.current += pageCount;
+        if (this.current === this.total) {
+            this.done = true;
         }
+        return {
+            current,
+            total: this.total,
+            done: this.done,
+            items
+        };
+    }
+    /**
+     * Go through all pages of results and return as an array.
+     * TIP: Use the {maxResults} option to limit the maximum number of results
+     *
+     */
+    async exec() {
+        const results = [];
+        // use async iterator
+        for await (let hit of this) {
+            results.push(hit);
+        }
+        return results;
+    }
+    async *[Symbol.asyncIterator]() {
+        do {
+            const { items } = await this.nextPage();
+            for await (let hit of items) {
+                yield hit;
+            }
+        } while (!this.done);
     }
 }
 
@@ -781,70 +949,76 @@ function groupAPIFactory(rev) {
         async delete(groupId) {
             await rev.delete(`/api/v2/groups/${groupId}`);
         },
+        async details(groupId) {
+            return rev.get(`/api/v2/groups/${groupId}`);
+        },
         /**
          *
          * @param {string} [searchText]
          * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
          */
-        async search(searchText, options = {}) {
+        search(searchText, options = {}) {
             const searchDefinition = {
                 endpoint: '/api/v2/search/access-entity',
                 totalKey: 'totalEntities',
-                hitsKey: 'accessEntities'
+                hitsKey: 'accessEntities',
+                transform: (hits) => hits.map(formatGroupSearchHit)
             };
             const query = { type: 'group' };
             if (searchText) {
                 query.q = searchText;
             }
-            const results = [];
-            const pager = searchScrollStream(rev, searchDefinition, query, options);
-            for await (const rawGroup of pager) {
-                results.push(rawGroup);
-            }
-            return results;
+            return new SearchRequest(rev, searchDefinition, query, options);
         },
-        async list(options = {}) {
+        list(options = {}) {
             return groupAPI.search(undefined, options);
         },
-        async listUsers(groupId, options = {}) {
+        listUsers(groupId, options = {}) {
             const searchDefinition = {
                 endpoint: `/api/v2/search/groups/${groupId}/users`,
                 totalKey: 'totalUsers',
                 hitsKey: 'userIds'
             };
-            const userIds = [];
-            const pager = searchScrollStream(rev, searchDefinition, undefined, options);
-            for await (const id of pager) {
-                userIds.push(id);
-            }
-            return userIds;
+            return new SearchRequest(rev, searchDefinition, undefined, options);
         },
         /**
-         * get all users in a group with full details as a async generator
+         * get all users in a group with full details
          * @param groupId
          * @param options
          * @returns
          */
-        async *usersDetailStream(groupId, options = {}) {
-            const { onError = (userId, error) => rev.log('warn', `Error getting user details for ${userId}`, error), ...searchOptions } = options;
+        listUserDetails(groupId, options = {}) {
             const searchDefinition = {
                 endpoint: `/api/v2/search/groups/${groupId}/users`,
                 totalKey: 'totalUsers',
-                hitsKey: 'userIds'
+                hitsKey: 'userIds',
+                transform: async (userIds) => {
+                    const result = [];
+                    for (let userId of userIds) {
+                        const out = { userId };
+                        try {
+                            const details = await rev.user.details(userId);
+                            Object.assign(out, details);
+                        }
+                        catch (error) {
+                            out.error = error;
+                        }
+                        result.push(out);
+                    }
+                    return result;
+                }
             };
-            const pager = searchScrollStream(rev, searchDefinition, undefined, searchOptions);
-            for await (const userId of pager) {
-                try {
-                    const user = await rev.user.details(userId);
-                    yield user;
-                }
-                catch (error) {
-                    onError(userId, error);
-                }
-            }
+            return new SearchRequest(rev, searchDefinition, undefined, options);
         }
     };
     return groupAPI;
+}
+function formatGroupSearchHit(hit) {
+    return {
+        id: hit.Id,
+        name: hit.Name,
+        entityType: hit.EntityType
+    };
 }
 
 function playlistAPIFactory(rev) {
@@ -1060,7 +1234,7 @@ async function uploadMultipart(rev, method, endpoint, form, useChunkedTransfer =
     const { headers: optHeaders } = options;
     useChunkedTransfer = typeof useChunkedTransfer === 'boolean'
         ? useChunkedTransfer
-        : useChunkedTransfer.useChunkedTransfer;
+        : !!useChunkedTransfer?.useChunkedTransfer;
     // coerce to Headers object, may be undefined
     const headers = new polyfills.Headers(optHeaders);
     // switches to transfer encoding upload if necessary
@@ -1076,7 +1250,7 @@ function uploadAPIFactory(rev) {
         /**
          * Upload a video, and returns the resulting video ID
          */
-        async video(file, metadata = { uploader: rev.session.username }, options = {}) {
+        async video(file, metadata = { uploader: rev.session.username ?? '' }, options = {}) {
             // prepare payload
             const form = new FormData();
             // at bare minimum the uploader needs to be defined
@@ -1142,6 +1316,9 @@ function userAPIFactory(rev) {
             const { userId } = await rev.post('/api/v2/users', user);
             return userId;
         },
+        async delete(userId) {
+            await rev.delete(`/api/v2/users/${userId}`);
+        },
         async details(userId) {
             return rev.get(`/api/v2/users/${userId}`);
         },
@@ -1187,25 +1364,34 @@ function userAPIFactory(rev) {
          * @param {string} [searchText]
          * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
          */
-        async search(searchText, options = {}) {
+        search(searchText, options = {}) {
             const searchDefinition = {
                 endpoint: '/api/v2/search/access-entity',
                 totalKey: 'totalEntities',
-                hitsKey: 'accessEntities'
+                hitsKey: 'accessEntities',
+                /**
+                 * the result of this search is uppercase keys. This transforms them to camelcase to match other API responses
+                 */
+                transform: (items) => items.map(formatUserSearchHit)
             };
             const query = { type: 'user' };
             if (searchText) {
                 query.q = searchText;
             }
-            const results = [];
-            const pager = searchScrollStream(rev, searchDefinition, query, options);
-            for await (const user of pager) {
-                results.push(user);
-            }
-            return results;
+            return new SearchRequest(rev, searchDefinition, query, options);
         }
     };
     return userAPI;
+}
+function formatUserSearchHit(hit) {
+    return {
+        userId: hit.Id,
+        entityType: hit.EntityType,
+        email: hit.Email,
+        firstname: hit.FirstName,
+        lastname: hit.LastName,
+        username: hit.UserName
+    };
 }
 
 function videoAPIFactory(rev) {
@@ -1233,20 +1419,16 @@ function videoAPIFactory(rev) {
             return rev.upload.video;
         },
         /**
-         * search for videos. leave blank to get all videos in the account
+         * search for videos, return as one big list. leave blank to get all videos in the account
          */
-        async search(query = {}, options = {}) {
+        search(query = {}, options = {}) {
             const searchDefinition = {
                 endpoint: '/api/v2/videos/search',
                 totalKey: 'totalVideos',
                 hitsKey: 'videos'
             };
-            const results = [];
-            const pager = searchScrollStream(rev, searchDefinition, query, options);
-            for await (const video of pager) {
-                results.push(video);
-            }
-            return results;
+            const request = new SearchRequest(rev, searchDefinition, query, options);
+            return request;
         },
         /**
          * Example of using the video search API to search for videos, then getting
@@ -1254,24 +1436,29 @@ function videoAPIFactory(rev) {
          * @param query
          * @param options
          */
-        async *searchDetailed(query = {}, options = {}) {
+        searchDetailed(query = {}, options = {}) {
             const searchDefinition = {
                 endpoint: '/api/v2/videos/search',
                 totalKey: 'totalVideos',
-                hitsKey: 'videos'
+                hitsKey: 'videos',
+                transform: async (videos) => {
+                    const result = [];
+                    for (let rawVideo of videos) {
+                        const out = rawVideo;
+                        try {
+                            const details = await videoAPI.details(rawVideo.id);
+                            Object.assign(out, details);
+                        }
+                        catch (error) {
+                            out.error = error;
+                        }
+                        result.push(out);
+                    }
+                    return result;
+                }
             };
-            const pager = searchScrollStream(rev, searchDefinition, query, options);
-            for await (const rawVideo of pager) {
-                const out = rawVideo;
-                try {
-                    const details = await videoAPI.details(rawVideo.id);
-                    Object.assign(out, details);
-                }
-                catch (error) {
-                    out.error = error;
-                }
-                yield out;
-            }
+            const request = new SearchRequest(rev, searchDefinition, query, options);
+            return request;
         },
         async playbackInfo(videoId) {
             const { video } = await rev.get(`/api/v2/videos/${videoId}/playback-url`);
@@ -1310,22 +1497,14 @@ function webcastAPIFactory(rev) {
         async list(options = {}) {
             return rev.get('/api/v2/scheduled-events', options, { responseType: 'json' });
         },
-        async search(query, options) {
-            const results = [];
-            const pager = webcastAPI.searchStream(query, options);
-            for await (const session of pager) {
-                results.push(session);
-            }
-            return results;
-        },
-        *searchStream(query, options) {
+        search(query, options) {
             const searchDefinition = {
                 endpoint: `/api/v2/search/scheduled-events`,
                 totalKey: 'total',
                 hitsKey: 'events',
                 isPost: true
             };
-            return searchScrollStream(rev, searchDefinition, query, options);
+            return new SearchRequest(rev, searchDefinition, query, options);
         },
         async create(event) {
             const { eventId } = await rev.post(`/api/v2/scheduled-events`, event);
@@ -1344,30 +1523,25 @@ function webcastAPIFactory(rev) {
         async editAccess(eventId, entities) {
             return rev.put(`/api/v2/scheduled-events/${eventId}/access-control`, entities);
         },
-        async attendees(eventId, runNumber, options) {
+        attendees(eventId, runNumber, options) {
             const searchDefinition = {
                 endpoint: `/api/v2/scheduled-events/${eventId}/post-event-report`,
                 totalKey: 'totalSessions',
                 hitsKey: 'sessions'
             };
-            const query = runNumber >= 0 ? { runNumber } : {};
-            const results = [];
-            const pager = searchScrollStream(rev, searchDefinition, query, options);
-            for await (const session of pager) {
-                results.push(session);
-            }
-            return results;
+            const query = runNumber && runNumber >= 0 ? { runNumber } : {};
+            return new SearchRequest(rev, searchDefinition, query, options);
         },
         async questions(eventId, runNumber) {
-            const query = runNumber >= 0 ? { runNumber } : {};
+            const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
             return rev.get(`/api/v2/scheduled-events/${eventId}/questions`, query, { responseType: 'json' });
         },
         async pollResults(eventId, runNumber) {
-            const query = runNumber >= 0 ? { runNumber } : {};
+            const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
             return rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: 'json' });
         },
         async comments(eventId, runNumber) {
-            const query = runNumber >= 0 ? { runNumber } : {};
+            const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
             return rev.get(`/api/v2/scheduled-events/${eventId}/comments`, query, { responseType: 'json' });
         },
         async status(eventId) {
@@ -1443,7 +1617,7 @@ function zonesAPIFactory(rev) {
             return rev.delete(`/api/v2/zones/${zoneId}`);
         },
         get devices() {
-            return rev.device.zoneDevices;
+            return rev.device.listZoneDevices;
         }
     };
     return zonesAPI;
@@ -1472,7 +1646,7 @@ class SessionKeepAlive {
     getNextExtendTime() {
         const { expires } = this._session;
         if (!expires) {
-            return;
+            return 0;
         }
         const { keepAliveInterval: interval, extendThresholdMilliseconds: threshold } = this.extendOptions;
         const timeTillExpiration = expires.getTime() - Date.now();
@@ -1652,6 +1826,9 @@ class SessionBase {
 class OAuthSession extends SessionBase {
     async _login() {
         const { oauthConfig, authCode } = this[_credentials];
+        if (!oauthConfig || !authCode) {
+            throw new TypeError('OAuth Config / auth code not specified');
+        }
         const { accessToken: token, expiration, refreshToken, userId } = await this.rev.auth.loginOAuth(oauthConfig, authCode);
         return { token, expiration, refreshToken, userId };
     }
@@ -1672,6 +1849,9 @@ class OAuthSession extends SessionBase {
 class UserSession extends SessionBase {
     async _login() {
         const { username, password } = this[_credentials];
+        if (!username || !password) {
+            throw new TypeError('username/password not specified');
+        }
         const { token, expiration, id: userId } = await this.rev.auth.loginUser(username, password);
         return { token, expiration, userId };
     }
@@ -1687,6 +1867,9 @@ class UserSession extends SessionBase {
 class ApiKeySession extends SessionBase {
     async _login() {
         const { apiKey, secret } = this[_credentials];
+        if (!apiKey || !secret) {
+            throw new TypeError('apiKey/secret not specified');
+        }
         return this.rev.auth.loginToken(apiKey, secret);
     }
     async _extend() {
@@ -1741,6 +1924,7 @@ class RevClient {
             audit: { value: auditAPIFactory(this), writable: false },
             auth: { value: authAPIFactory(this), writable: false },
             category: { value: categoryAPIFactory(this), writable: false },
+            channel: { value: channelAPIFactory(this), writable: false },
             device: { value: deviceAPIFactory(this), writable: false },
             group: { value: groupAPIFactory(this), writable: false },
             playlist: { value: playlistAPIFactory(this), writable: false },
@@ -1923,5 +2107,5 @@ class RevClient {
     }
 }
 
-export { RevClient, RevError, RevClient as default };
+export { RevClient, RevError, ScrollError, RevClient as default };
 //# sourceMappingURL=rev-client.js.map

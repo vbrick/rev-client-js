@@ -4,15 +4,15 @@ import type { Device } from '../types';
 
 export default function deviceAPIFactory(rev: RevClient) {
     const deviceAPI = {
-        async dmes(): Promise<Device.DmeDetails[]> {
+        async listDMEs(): Promise<Device.DmeDetails[]> {
             const response = await rev.get('/api/v2/devices/dmes');
             return response.devices;
         },
-        async zoneDevices(): Promise<Device.ZoneDevice[]> {
+        async listZoneDevices(): Promise<Device.ZoneDevice[]> {
             const response = await rev.get('/api/v2/zonedevices');
             return response.devices;
         },
-        async presentationProfiles(): Promise<Device.PresentationProfile[]> {
+        async listPresentationProfiles(): Promise<Device.PresentationProfile[]> {
             return rev.get('/api/v2/presentation-profiles');
         },
         async add(dme: Device.CreateDMERequest) {

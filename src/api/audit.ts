@@ -1,168 +1,124 @@
 import type { RevClient } from '../rev-client';
-import type { Audit } from '../types';
+import type { Audit, Rev } from '../types';
 import { tryParseJson } from '../utils';
 import { parseCSV } from '../utils/parse-csv';
 
 export default function auditAPIFactory(rev: RevClient) {
     const auditAPI = {
         /**
-        * return audit endpoints as stream of items (AsyncIterator)
-        */
-        stream: {
-            /**
-            * Logs of user login / logout / failed login activity
-            */
-            accountAccess(accountId: string, options?: Audit.Options) {
-                return scroll<'Network:UserAccess'>(`/network/audit/accounts/${accountId}/userAccess`, 'UserAccess', options);
-            },
-            userAccess(userId: string, accountId: string, options?: Audit.Options) {
-                return scroll<'Network:UserAccess'>(`/network/audit/accounts/${accountId}/userAccess/${userId}`, `UserAccess_${userId}`, options);
-            },
-            /**
-            * Operations on User Records (create, delete, etc)
-            */
-            accountUsers(accountId: string, options?: Audit.Options) {
-                return scroll<'Network:User'>(`/network/audit/accounts/${accountId}/userAccess`, 'User', options);
-            },
-            user(userId: string, accountId: string, options?: Audit.Options) {
-                return scroll<'Network:User'>(`/network/audit/accounts/${accountId}/userAccess/${userId}`, 'User', options);
-            },
-            /**
-            * Operations on Group Records (create, delete, etc)
-            */
-            accountGroups(accountId: string, options?: Audit.Options) {
-                return scroll<'Network:Group'>(`/network/audit/accounts/${accountId}/groups`, 'Groups', options);
-            },
-            group(groupId: string, accountId: string, options?: Audit.Options) {
-                return scroll<'Network:Group'>(`/network/audit/accounts/${accountId}/groups/${groupId}`, 'Group', options);
-            },
-            /**
-            * Operations on Device Records (create, delete, etc)
-            */
-            accountDevices(accountId: string, options?: Audit.Options) {
-                return scroll<Audit.DeviceKeys>(`/network/audit/accounts/${accountId}/devices`, 'Devices', options);
-            },
-            device(deviceId: string, accountId: string, options?: Audit.Options) {
-                return scroll<Audit.DeviceKeys>(`/network/audit/accounts/${accountId}/devices/${deviceId}`, 'Device', options);
-            },
-            /**
-            * Operations on Video Records (create, delete, etc)
-            */
-            accountVideos(accountId: string, options?: Audit.Options) {
-                return scroll<'Media:Video'>(`/network/audit/accounts/${accountId}/videos`, 'Videos', options);
-            },
-            video(videoId: string, accountId: string, options?: Audit.Options) {
-                return scroll<'Media:Video'>(`/network/audit/accounts/${accountId}/videos/${videoId}`, 'Video', options);
-            },
-            /**
-            * Operations on Webcast Records (create, delete, etc)
-            */
-            accountWebcasts(accountId: string, options?: Audit.Options) {
-                return scroll<'ScheduledEvents:Webcast'>(`/network/audit/accounts/${accountId}/scheduledEvents`, 'Webcasts', options);
-            },
-            webcast(eventId: string, accountId: string, options?: Audit.Options) {
-                return scroll<'ScheduledEvents:Webcast'>(`/network/audit/accounts/${accountId}/scheduledEvents/${eventId}`, `Webcast`, options);
-            },
-            /**
-            * All operations a single user has made
-            */
-            principal(userId: string, accountId: string, options?: Audit.Options) {
-                return scroll<string>(`/network/audit/accounts/${accountId}/principals/${userId}`, 'Principal', options);
-            }
-        },
-        /**
         * Logs of user login / logout / failed login activity
         */
-        async accountAccess(accountId: string, options?: Audit.Options) {
-            return collect(auditAPI.stream.accountAccess(accountId, options));
+        accountAccess(accountId: string, options?: Audit.Options<Audit.UserAccessEntry>) {
+            return new AuditRequest<Audit.UserAccessEntry>(rev, `/network/audit/accounts/${accountId}/userAccess`, 'UserAccess', options);
         },
-        async userAccess(userId: string, accountId: string, options?: Audit.Options) {
-            return collect(auditAPI.stream.userAccess(userId, accountId, options));
+        userAccess(userId: string, accountId: string, options?: Audit.Options<Audit.UserAccessEntry>) {
+            return new AuditRequest<Audit.UserAccessEntry>(rev, `/network/audit/accounts/${accountId}/userAccess/${userId}`, `UserAccess_${userId}`, options);
         },
         /**
         * Operations on User Records (create, delete, etc)
         */
-        async accountUsers(accountId: string, options?: Audit.Options) {
-            return collect(auditAPI.stream.accountUsers(accountId, options));
+        accountUsers(accountId: string, options?: Audit.Options<Audit.UserEntry>) {
+            return new AuditRequest<Audit.UserEntry>(rev, `/network/audit/accounts/${accountId}/userAccess`, 'User', options);
         },
-        async user(userId: string, accountId: string, options?: Audit.Options) {
-            return collect(auditAPI.stream.user(userId, accountId, options));
+        user(userId: string, accountId: string, options?: Audit.Options<Audit.UserEntry>) {
+            return new AuditRequest<Audit.UserEntry>(rev, `/network/audit/accounts/${accountId}/userAccess/${userId}`, 'User', options);
         },
         /**
         * Operations on Group Records (create, delete, etc)
         */
-        async accountGroups(accountId: string, options?: Audit.Options) {
-            return collect(auditAPI.stream.accountGroups(accountId, options));
+        accountGroups(accountId: string, options?: Audit.Options<Audit.GroupEntry>) {
+            return new AuditRequest<Audit.GroupEntry>(rev, `/network/audit/accounts/${accountId}/groups`, 'Groups', options);
         },
-        async group(groupId: string, accountId: string, options?: Audit.Options) {
-            return collect(auditAPI.stream.group(groupId, accountId, options));
+        group(groupId: string, accountId: string, options?: Audit.Options<Audit.GroupEntry>) {
+            return new AuditRequest<Audit.GroupEntry>(rev, `/network/audit/accounts/${accountId}/groups/${groupId}`, 'Group', options);
         },
         /**
         * Operations on Device Records (create, delete, etc)
         */
-        async accountDevices(accountId: string, options?: Audit.Options) {
-            return collect(auditAPI.stream.accountDevices(accountId, options));
+        accountDevices(accountId: string, options?: Audit.Options<Audit.DeviceEntry>) {
+            return new AuditRequest<Audit.DeviceEntry>(rev, `/network/audit/accounts/${accountId}/devices`, 'Devices', options);
         },
-        async device(deviceId: string, accountId: string, options?: Audit.Options) {
-            return collect(auditAPI.stream.device(deviceId, accountId, options));
+        device(deviceId: string, accountId: string, options?: Audit.Options<Audit.DeviceEntry>) {
+            return new AuditRequest<Audit.DeviceEntry>(rev, `/network/audit/accounts/${accountId}/devices/${deviceId}`, 'Device', options);
         },
         /**
         * Operations on Video Records (create, delete, etc)
         */
-        async accountVideos(accountId: string, options?: Audit.Options) {
-            return collect(auditAPI.stream.accountVideos(accountId, options));
+        accountVideos(accountId: string, options?: Audit.Options<Audit.VideoEntry>) {
+            return new AuditRequest<Audit.VideoEntry>(rev, `/network/audit/accounts/${accountId}/videos`, 'Videos', options);
         },
-        async video(videoId: string, accountId: string, options?: Audit.Options) {
-            return collect(auditAPI.stream.video(videoId, accountId, options));
+        video(videoId: string, accountId: string, options?: Audit.Options<Audit.VideoEntry>) {
+            return new AuditRequest<Audit.VideoEntry>(rev, `/network/audit/accounts/${accountId}/videos/${videoId}`, 'Video', options);
         },
         /**
         * Operations on Webcast Records (create, delete, etc)
         */
-        async accountWebcasts(accountId: string, options?: Audit.Options) {
-            return collect(auditAPI.stream.accountWebcasts(accountId, options));
+        accountWebcasts(accountId: string, options?: Audit.Options<Audit.WebcastEntry>) {
+            return new AuditRequest<Audit.WebcastEntry>(rev, `/network/audit/accounts/${accountId}/scheduledEvents`, 'Webcasts', options);
         },
-        async webcast(eventId: string, accountId: string, options?: Audit.Options) {
-            return collect(auditAPI.stream.webcast(eventId, accountId, options));
+        webcast(eventId: string, accountId: string, options?: Audit.Options<Audit.WebcastEntry>) {
+            return new AuditRequest<Audit.WebcastEntry>(rev, `/network/audit/accounts/${accountId}/scheduledEvents/${eventId}`, `Webcast`, options);
         },
         /**
         * All operations a single user has made
         */
-        async principal(userId: string, accountId: string, options?: Audit.Options) {
-            return collect(auditAPI.stream.principal(userId, accountId, options));
+        principal(userId: string, accountId: string, options?: Audit.Options<Audit.Entry<string>>) {
+            return new AuditRequest<Audit.Entry<string>>(rev, `/network/audit/accounts/${accountId}/principals/${userId}`, 'Principal', options);
         }
     };
-    function asValidDate(val: string | Date, defaultValue: Date): Date {
-        if (!val) {
-            return defaultValue;
-        }
-        if (!(val instanceof Date)) {
-            val = new Date(val);
-        }
-        return isNaN(val.getTime())
-        ? defaultValue
-        : val;
-    }
 
-    function parseEntry<EntityKey extends string>(line: Record<string, any>): Audit.Entry<EntityKey> {
-        return {
-            messageKey: line['MessageKey'],
-            entityKey: line['EntityKey'],
-            when: line['When'],
-            principal: tryParseJson(line['Principal']) || {},
-            message: tryParseJson(line['Message']) || {},
-            currentState: tryParseJson(line['CurrentState']) || {},
-            previousState: tryParseJson(line['PreviousState']) || {}
-        };
+    return auditAPI;
+}
+
+function asValidDate(val: string | Date | undefined, defaultValue: Date): Date {
+    if (!val) {
+        return defaultValue;
     }
-    async function* scroll<EntityKey extends string>(endpoint: string, label: string, options: Audit.Options = {}) {
+    if (!(val instanceof Date)) {
+        val = new Date(val);
+    }
+    return isNaN(val.getTime())
+    ? defaultValue
+    : val;
+}
+
+function parseEntry<T extends Audit.Entry>(line: Record<string, any>): T {
+    return {
+        messageKey: line['MessageKey'],
+        entityKey: line['EntityKey'],
+        when: line['When'],
+        principal: tryParseJson(line['Principal']) || {},
+        message: tryParseJson(line['Message']) || {},
+        currentState: tryParseJson(line['CurrentState']) || {},
+        previousState: tryParseJson(line['PreviousState']) || {}
+    } as T;
+}
+
+export class AuditRequest<T extends Audit.Entry> implements Rev.ISearchRequest<T> {
+    current: number;
+    total: number;
+    done: boolean;
+    options: Required<Omit<Audit.Options<T>, 'toDate' | 'fromDate'>>;
+    private params: {
+        toDate?: string,
+        fromDate?: string,
+        nextContinuationToken?: string;
+    }
+    private _req: () => Promise<Rev.Response<any>>;
+    constructor(rev: RevClient, endpoint: string, label: string, options: Audit.Options<T> = {}) {
         const {
-            maxResults = Infinity,
-            onPage = (current: number, total: number) => {
+            fromDate,
+            toDate,
+            ...opts
+        } = options;
+
+        this.options = {
+            maxResults: Infinity,
+            onProgress: (items: T[], current: number, total: number) => {
                 rev.log('debug', `loading ${label}, ${current} of ${total}...`);
             },
-            fromDate,
-            toDate
-        } = options;
+            ...opts
+        };
 
         let _toDate = asValidDate(toDate, new Date());
         // default to one year older than toDate
@@ -173,63 +129,91 @@ export default function auditAPIFactory(rev: RevClient) {
             [_toDate, _fromDate] = [_fromDate, _toDate];
         }
 
-        const params: {
-            toDate?: string,
-            fromDate?: string,
-            nextContinuationToken?: string;
-        } = {
+        this.params = {
             toDate: _toDate.toISOString(),
             fromDate: _fromDate.toISOString()
         };
 
-        let current: number = 0;
-        let total: number;
+        this._req = () => rev.request('GET', endpoint, { params: this.params }, { responseType: 'text' });
 
-        do {
-            try {
-                const response = await rev.request('GET', endpoint, { params });
-                let lines = parseCSV(response.body);
-
-                // limit results to specified max results
-                if (current + lines.length >= maxResults) {
-                    const delta = maxResults - current;
-                    lines = lines.slice(0, delta);
-                }
-
-                current += lines.length;
-
-                if (!total) {
-                    total = Math.min(parseInt(response.headers.get('totalRecords'), 10), maxResults);
-                }
-                onPage(current, total || 0);
-
-                if (lines.length === 0) {
-                    return;
-                }
-
-                for (let entry of lines) {
-                    yield parseEntry<EntityKey>(entry);
-                }
-
-                params.nextContinuationToken = response.headers.get('nextContinuationToken');
-                params.fromDate = response.headers.get('nextfromDate');
-            } catch (err) {
-                rev.log('warn', err);
-                throw err;
-            }
-        } while (params.nextContinuationToken && current < maxResults);
+        this.current = 0;
+        this.total = Infinity;
+        this.done = false;
     }
+    async nextPage() {
+        const {
+            maxResults,
+            onProgress
+        } = this.options;
 
-    /**
-    * takes an async stream of items and collects them into an array
-    * @param stream
-    */
-    async function collect<T>(stream: AsyncGenerator<T>): Promise<T[]> {
-        const records = [];
-        for await (let record of stream) {
-            records.push(record);
+        let current = this.current;
+
+        const response = await this._req();
+        const {
+            body,
+            headers
+        } = response;
+
+        let items = parseCSV(body)
+            .map(line => parseEntry<T>(line));
+
+        if (!this.total) {
+            const totalRecords = parseInt(headers.get('totalRecords') || '', 10);
+            this.total = Math.min(totalRecords || 0, maxResults);
         }
-        return records;
+
+        Object.assign(this.params, {
+            nextContinuationToken: headers.get('nextContinuationToken') || undefined,
+            fromDate: headers.get('nextfromDate') || undefined
+        });
+        if (!this.params.nextContinuationToken) {
+            this.done = true;
+        }
+
+        // limit results to specified max results
+        if (current + items.length >= maxResults) {
+            const delta = maxResults - current;
+            items = items.slice(0, delta);
+            this.done = true;
+        }
+
+        onProgress(items, current, this.total);
+
+        this.current += items.length;
+
+        if (this.current === this.total) {
+            this.done = true;
+        }
+
+        return {
+            current,
+            total: this.total,
+            done: this.done,
+            items
+        };
     }
-    return auditAPI;
+    /**
+     * Go through all pages of results and return as an array.
+     * TIP: Use the {maxResults} option to limit the maximum number of results
+     *
+     */
+    async exec(): Promise<T[]> {
+        const results: T[] = [];
+        // use async iterator
+        for await (let hit of this) {
+            results.push(hit);
+        }
+        return results;
+    }
+    async* [Symbol.asyncIterator]() {
+        do {
+            const {
+                items
+            } = await this.nextPage();
+
+            for await (let hit of items) {
+                yield hit;
+            }
+        } while (!this.done);
+    }
 }

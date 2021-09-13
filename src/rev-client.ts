@@ -13,20 +13,20 @@ export class RevClient {
     url: string;
     logEnabled: boolean;
     session: RevSession;
-    private readonly _log: Rev.LogFunction;
-    readonly admin: ReturnType<typeof api.admin>;
-    readonly audit: ReturnType<typeof api.audit>;
-    readonly auth: ReturnType<typeof api.auth>;
-    readonly category: ReturnType<typeof api.category>;
-    readonly device: ReturnType<typeof api.device>;
-    readonly group: ReturnType<typeof api.group>;
-    readonly playlist: ReturnType<typeof api.playlist>;
-    readonly recording: ReturnType<typeof api.recording>;
-    readonly upload: ReturnType<typeof api.upload>;
-    readonly user: ReturnType<typeof api.user>;
-    readonly video: ReturnType<typeof api.video>;
-    readonly webcast: ReturnType<typeof api.webcast>;
-    readonly zones: ReturnType<typeof api.zones>;
+    readonly admin!: ReturnType<typeof api.admin>;
+    readonly audit!: ReturnType<typeof api.audit>;
+    readonly auth!: ReturnType<typeof api.auth>;
+    readonly category!: ReturnType<typeof api.category>;
+    readonly channel!: ReturnType<typeof api.channel>;
+    readonly device!: ReturnType<typeof api.device>;
+    readonly group!: ReturnType<typeof api.group>;
+    readonly playlist!: ReturnType<typeof api.playlist>;
+    readonly recording!: ReturnType<typeof api.recording>;
+    readonly upload!: ReturnType<typeof api.upload>;
+    readonly user!: ReturnType<typeof api.user>;
+    readonly video!: ReturnType<typeof api.video>;
+    readonly webcast!: ReturnType<typeof api.webcast>;
+    readonly zones!: ReturnType<typeof api.zones>;
     constructor(options: Rev.Options) {
         if (!isPlainObject(options) || !options.url) {
             throw new TypeError('Missing configuration options for client - url and username/password or apiKey/secret');
@@ -63,6 +63,7 @@ export class RevClient {
             audit: { value: api.audit(this), writable: false },
             auth: { value: api.auth(this), writable: false },
             category: { value: api.category(this), writable: false },
+            channel: { value: api.channel(this), writable: false },
             device: { value: api.device(this), writable: false },
             group: { value: api.group(this), writable: false },
             playlist: { value: api.playlist(this), writable: false },

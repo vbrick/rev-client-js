@@ -38,6 +38,11 @@ export namespace Video {
         uploadedBy: string;
         whenUploaded: string;
         lastViewed: string;
+        owner?: {
+            fullname: string;
+            id: string;
+            username: string;
+        };
         averageRating: string;
         ratingsCount: string;
         speechResult: Array<{ time: string, text: string; }>;

@@ -44,6 +44,7 @@ async function uploadForm(form) {
     if (!rev.isConnected) {
         console.log('connecting!');
         await rev.connect();
+        console.log(`Connected. Session expires: ${rev.sessionExpires.toLocaleTimeString()}`);
     }
     /** @type {any[]} */
     const fields = [...form.elements];

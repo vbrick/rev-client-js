@@ -7,9 +7,9 @@ export function parseCSV(raw: string) {
     let cur = '';
     let inQuote = false;
     let fieldQuoted = false;
-    let field = '';
-    let row: string[] = [];
-    let out: string[][] = [];
+    let field: string | undefined = '';
+    let row: (string | undefined)[] = [];
+    let out: (string | undefined)[][] = [];
     let i: number;
     const n = raw.length;
 
@@ -53,9 +53,9 @@ export function parseCSV(raw: string) {
     row.push(field);
     out.push(row);
 
-    const headers = out.shift();
+    const headers: string[] = out.shift() as string[];
     return out
-        .map((line: string[]) => {
+        .map((line: (string | undefined)[]) => {
             const obj: Record<string, string> = { };
             line
                 .forEach((field, i) => {

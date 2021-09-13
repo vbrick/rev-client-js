@@ -1,6 +1,6 @@
 import type { RevClient } from '../rev-client';
 import { Video, Rev } from '../types';
-import { searchScrollStream } from '../utils/request-utils';
+import { SearchRequest } from '../utils/request-utils';
 
 export default function videoAPIFactory(rev: RevClient) {
     const videoAPI = {
@@ -27,22 +27,16 @@ export default function videoAPIFactory(rev: RevClient) {
             return rev.upload.video;
         },
         /**
-         * search for videos. leave blank to get all videos in the account
+         * search for videos, return as one big list. leave blank to get all videos in the account
          */
-        async search(query: Video.SearchOptions = { }, options: Rev.SearchOptions<Video.SearchHit> = { }) {
+        search(query: Video.SearchOptions = { }, options: Rev.SearchOptions<Video.SearchHit> = { }): SearchRequest<Video.SearchHit> {
             const searchDefinition = {
                 endpoint: '/api/v2/videos/search',
                 totalKey: 'totalVideos',
                 hitsKey: 'videos'
             };
-            const results: Video.SearchHit[] = [];
-            const pager = searchScrollStream<Video.SearchHit>(rev, searchDefinition, query, options);
-
-            for await (const video of pager) {
-
-                results.push(video);
-            }
-            return results;
+            const request = new SearchRequest<Video.SearchHit>(rev, searchDefinition, query, options);
+            return request;
         },
         /**
          * Example of using the video search API to search for videos, then getting
@@ -50,23 +44,28 @@ export default function videoAPIFactory(rev: RevClient) {
          * @param query
          * @param options
          */
-        async * searchDetailed(query: Video.SearchOptions = { }, options: Rev.SearchOptions<Video.SearchHit> = { }): AsyncGenerator<Video.SearchHit & (Video.Details | { error?: Error; })> {
+        searchDetailed(query: Video.SearchOptions = { }, options: Rev.SearchOptions<Video.SearchHit & (Video.Details | { error?: Error })> = { }) {
             const searchDefinition = {
                 endpoint: '/api/v2/videos/search',
                 totalKey: 'totalVideos',
-                hitsKey: 'videos'
-            };
-            const pager = searchScrollStream<Video.SearchHit>(rev, searchDefinition, query, options);
-            for await (const rawVideo of pager) {
-                const out: Video.SearchHit & (Video.Details | { error?: Error; }) = rawVideo;
-                try {
-                    const details = await videoAPI.details(rawVideo.id);
-                    Object.assign(out, details);
-                } catch (error) {
-                    out.error = error;
+                hitsKey: 'videos',
+                transform: async (videos: Video.SearchHit[]) => {
+                    const result = [];
+                    for (let rawVideo of videos) {
+                        const out: Video.SearchHit & (Video.Details & { error?: Error; }) = rawVideo as any;
+                        try {
+                            const details = await videoAPI.details(rawVideo.id);
+                            Object.assign(out, details);
+                        } catch (error: any) {
+                            out.error = error;
+                        }
+                        result.push(out);
+                    }
+                    return result;
                 }
-                yield out;
-            }
+            };
+            const request = new SearchRequest<Video.SearchHit>(rev, searchDefinition, query, options);
+            return request;
         },
         async playbackInfo(videoId: string): Promise<Video.Playback> {
             const { video } = await rev.get(`/api/v2/videos/${videoId}/playback-url`);

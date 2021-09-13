@@ -84,7 +84,7 @@ export default function authAPIFactory(rev: RevClient) {
 
             const authCode: string = parsedUrl.searchParams.get('auth_code') || '';
             const state: string = parsedUrl.searchParams.get('state') || '';
-            const error: string | null = parsedUrl.searchParams.get('error');
+            const error: string | undefined = parsedUrl.searchParams.get('error') || undefined;
 
             return {
                 isSuccess: !error,

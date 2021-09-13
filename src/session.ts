@@ -17,7 +17,7 @@ interface LoginResponse {
 }
 
 export interface RevSession {
-    token: string;
+    token?: string;
     expires: Date;
     readonly isExpired: boolean;
     readonly username: string | undefined;
@@ -30,9 +30,9 @@ export interface RevSession {
 }
 
 class SessionKeepAlive {
-    private readonly _session: SessionBase;
-    private controller: AbortController;
-    extendOptions: Rev.KeepAliveOptions;
+    private readonly _session!: SessionBase;
+    private controller?: AbortController;
+    extendOptions: Required<Rev.KeepAliveOptions>;
     error?: undefined | Error;
     private _isExtending: boolean = false;
     constructor(session: SessionBase, options: Rev.KeepAliveOptions = { }) {
@@ -54,7 +54,7 @@ class SessionKeepAlive {
     getNextExtendTime() {
         const { expires } = this._session;
         if (!expires) {
-            return;
+            return 0;
         }
         const {
             keepAliveInterval: interval,
@@ -87,7 +87,7 @@ class SessionKeepAlive {
                 // extending may re-login, so pause poll resets for now
                 this._isExtending = true;
                 await session.lazyExtend(this.extendOptions);
-            } catch (err) {
+            } catch (err: any) {
                 // swallow error, but signal stopped using abort controller
                 controller.abort();
                 this.error = err;
@@ -128,11 +128,11 @@ class SessionKeepAlive {
 }
 
 abstract class SessionBase implements RevSession {
-    token: string;
+    token?: string;
     expires: Date;
-    protected readonly rev: RevClient;
+    protected readonly rev!: RevClient;
     protected readonly [_credentials]: Rev.Credentials;
-    readonly keepAlive: SessionKeepAlive;
+    readonly keepAlive?: SessionKeepAlive;
     constructor(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions) {
         this.expires = new Date();
 
@@ -257,9 +257,12 @@ abstract class SessionBase implements RevSession {
 }
 
 export class OAuthSession extends SessionBase {
-    refreshToken: string;
+    refreshToken?: string;
     async _login() {
         const { oauthConfig, authCode } = this[_credentials];
+        if (!oauthConfig || !authCode) {
+            throw new TypeError('OAuth Config / auth code not specified');
+        }
         const {
             accessToken: token,
             expiration,
@@ -276,7 +279,7 @@ export class OAuthSession extends SessionBase {
             accessToken: token,
             expiration,
             refreshToken
-        } = await this.rev.auth.extendSessionOAuth(oauthConfig, this.refreshToken);
+        } = await this.rev.auth.extendSessionOAuth(oauthConfig as any, <string>this.refreshToken);
 
         // unlike other extend methods this updates the token + refreshToken each time
         Object.assign(this, { token, refreshToken });
@@ -289,9 +292,12 @@ export class OAuthSession extends SessionBase {
 }
 
 export class UserSession extends SessionBase {
-    userId: string;
+    userId?: string;
     async _login() {
         const { username, password } = this[_credentials];
+        if (!username || !password) {
+            throw new TypeError('username/password not specified');
+        }
         const {
             token,
             expiration,
@@ -302,27 +308,30 @@ export class UserSession extends SessionBase {
     async _extend() {
         const { userId } = this;
 
-        return this.rev.auth.extendSessionUser(userId);
+        return this.rev.auth.extendSessionUser(<string>userId);
     }
     async _logoff() {
         const { userId } = this;
 
-        return this.rev.auth.logoffUser(userId);
+        return this.rev.auth.logoffUser(<string>userId);
     }
 }
 
 export class ApiKeySession extends SessionBase {
     async _login() {
         const { apiKey, secret } = this[_credentials];
+        if (!apiKey || !secret) {
+            throw new TypeError('apiKey/secret not specified');
+        }
         return this.rev.auth.loginToken(apiKey, secret);
     }
     async _extend() {
         const { apiKey } = this[_credentials];
-        return this.rev.auth.extendSessionToken(apiKey);
+        return this.rev.auth.extendSessionToken(<string>apiKey);
     }
     async _logoff() {
         const { apiKey } = this[_credentials];
-        return this.rev.auth.logoffToken(apiKey);
+        return this.rev.auth.logoffToken(<string>apiKey);
     }
 }
 

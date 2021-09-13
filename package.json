@@ -1,7 +1,7 @@
 {
   "name": "@vbrick/rev-client",
-  "version": "0.5.0",
-  "description": "javascript Rev API client for browser and server",
+  "version": "0.6.0",
+  "description": "Vbrick Rev API client for browser and server",
   "type": "commonjs",
   "main": "dist/node/rev-client.js",
   "module": "dist/es/rev-client.mjs",
@@ -16,16 +16,17 @@
   },
   "files": [
     "dist",
-    "test"
+    "test",
+    "src"
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "rollup": "rollup -c",
     "prepublishOnly": "rollup -c"
   },
-  "private": true,
+  "private": false,
   "author": "Luke Selden",
-  "license": "ISC",
+  "license": "MIT",
   "engines": {
     "node": ">=14.13.1"
   },

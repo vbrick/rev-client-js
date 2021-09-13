@@ -3,6 +3,7 @@ import { LiteralString } from './rev';
 export type { Audit } from './audit';
 export type { Auth } from './auth';
 export type { Category } from './category';
+export type { Channel } from './channel';
 export type { Device } from './device';
 export type { Group } from './group';
 export type { Rev } from './rev';

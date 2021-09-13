@@ -33,6 +33,9 @@ export default function adminAPIFactory(rev: RevClient) {
         async getRoleByName(name: Role.RoleName, fromCache: CacheOption = true): Promise<Role> {
             const roles = await adminAPI.roles(fromCache);
             const role = roles.find(r => r.name === name);
+            if (!role) {
+                throw new TypeError(`Invalid Role Name ${name}. Valid values are: ${roles.map(r => r.name).join(', ')}`);
+            }
             return {
                 id: role.id,
                 name: role.name
@@ -61,7 +64,11 @@ export default function adminAPIFactory(rev: RevClient) {
         */
         async getCustomFieldByName(name: string, fromCache: CacheOption = true): Promise<CustomField> {
             const customFields = await adminAPI.customFields(fromCache);
-            return customFields.find(cf => cf.name === name);
+            const field = customFields.find(cf => cf.name === name);
+            if (!field) {
+                throw new TypeError(`Invalid Custom Field Name ${name}. Valid values are: ${customFields.map(cf => cf.name).join(', ')}`);
+            }
+            return field;
         },
         async brandingSettings(): Promise<BrandingSettings> {
             return rev.get('/api/v2/accounts/branding-settings');

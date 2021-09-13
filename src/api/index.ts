@@ -2,6 +2,7 @@ export { default as admin } from './admin';
 export { default as audit } from './audit';
 export { default as auth } from './auth';
 export { default as category } from './category';
+export { default as channel } from './channel';
 export { default as device } from './device';
 export { default as group } from './group';
 export { default as playlist } from './playlist';

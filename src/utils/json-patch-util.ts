@@ -7,7 +7,7 @@ function isBlank(val: any) {
     return val == undefined || val === '';
 }
 
-function coerceDateString(value: unknown): string {
+function coerceDateString(value: unknown): string | undefined {
     if (isBlank(value)) {
         return;
     }

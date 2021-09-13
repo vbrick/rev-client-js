@@ -26,13 +26,13 @@ export function isReadable<T = any>(val: unknown): val is AsyncIterable<T> {
  * @param {number} [sleepMilliseconds] milliseconds to wait between attempts
  * @returns {Promise<T>}
  */
-export async function retry<T>(fn: () => Promise<T>, shouldRetry: (err: Error, attempt: number) => boolean = () => true, maxAttempts: number = 3, sleepMilliseconds: number = 1000) {
+export async function retry<T, E extends Error>(fn: () => Promise<T>, shouldRetry: (err: E, attempt?: number) => boolean = () => true, maxAttempts: number = 3, sleepMilliseconds: number = 1000) {
     let attempt = 0;
     while (attempt < maxAttempts) {
         try {
             const result = await fn();
             return result;
-        } catch (err) {
+        } catch (err: any) {
             attempt += 1;
             if (attempt >= maxAttempts || !shouldRetry(err, attempt)) {
                 throw err;
@@ -40,6 +40,7 @@ export async function retry<T>(fn: () => Promise<T>, shouldRetry: (err: Error, a
             await sleep(sleepMilliseconds);
         }
     }
+    return undefined;
 }
 
 /**

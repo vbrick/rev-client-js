@@ -1,6 +1,6 @@
 import type { RevClient } from '../rev-client';
 import type { Rev, User } from '../types';
-import { searchScrollStream } from '../utils/request-utils';
+import { SearchRequest } from '../utils/request-utils';
 
 export default function userAPIFactory(rev: RevClient) {
     const userAPI = {
@@ -18,6 +18,9 @@ export default function userAPIFactory(rev: RevClient) {
         async create(user: User.Request): Promise<string> {
             const { userId } = await rev.post('/api/v2/users', user);
             return userId;
+        },
+        async delete(userId: string): Promise<void> {
+            await rev.delete(`/api/v2/users/${userId}`);
         },
         async details(userId: string) {
             return rev.get<User>(`/api/v2/users/${userId}`);
@@ -64,23 +67,33 @@ export default function userAPIFactory(rev: RevClient) {
          * @param {string} [searchText]
          * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
          */
-        async search(searchText?: string, options: Rev.SearchOptions<User.SearchHit> = { }) {
+        search(searchText?: string, options: Rev.SearchOptions<User.SearchHit> = { }): SearchRequest<User.SearchHit> {
             const searchDefinition = {
                 endpoint: '/api/v2/search/access-entity',
                 totalKey: 'totalEntities',
-                hitsKey: 'accessEntities'
+                hitsKey: 'accessEntities',
+                /**
+                 * the result of this search is uppercase keys. This transforms them to camelcase to match other API responses
+                 */
+                transform: (items: User.RawSearchHit[]) => items.map(formatUserSearchHit)
             };
             const query: Record<string, any> = { type: 'user' };
             if (searchText) {
                 query.q = searchText;
             }
-            const results: User.SearchHit[] = [];
-            const pager = searchScrollStream<User.SearchHit>(rev, searchDefinition, query, options);
-            for await (const user of pager) {
-                results.push(user);
-            }
-            return results;
+            return new SearchRequest(rev, searchDefinition, query, options);
         }
     };
     return userAPI;
+}
+
+function formatUserSearchHit(hit: User.RawSearchHit): User.SearchHit {
+    return {
+        userId: hit.Id,
+        entityType: hit.EntityType,
+        email: hit.Email,
+        firstname: hit.FirstName,
+        lastname: hit.LastName,
+        username: hit.UserName
+    };
 }

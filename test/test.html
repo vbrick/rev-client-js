@@ -7,6 +7,10 @@
 
 				--icon-tick: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100" height="100" viewBox="-2 -2 16 16"> <path fill="green" stroke-linejoin="round" d="M2 6L1 7l3 4 7-10h-1L4 8z"/> </svg>');
 			}
+			main {
+				max-width: 48em;
+				margin: 0 auto;
+			}
 			form {
 				display: flex;
 				flex-wrap: wrap;
@@ -16,7 +20,7 @@
 			}
 			label {
 				display: grid;
-				grid-template-columns: 10ex auto;
+				grid-template-columns: 12ex auto;
 				text-align: right;
 				flex: 1 50%;
 			}
@@ -46,39 +50,175 @@
 				background-repeat: no-repeat;
 				background-size: contain;
 			}
-			form:invalid #test_upload {
+			form:invalid #search_btn {
 				cursor: not-allowed;
 			}
+			#results {
+				display: grid;
+			}
+			.video {
+				display: grid;
+				grid-template-columns: 1fr 3fr;
+				grid-gap: 1em;
+				align-items: center;
+				width: 100%;
+			}
+			.video img {
+				width: 100%;
+			}
 		</style>
-		<script type="module" src="./test-browser.js"></script>
+		<script type="module">
+			import { RevClient } from '../dist/rev-client.js';
+			
+			let rev;
+			/**
+			 * return instance of RevClient, or initialize based on credentials form on page.
+			 * Will throw error if form isn't filled out.
+			 */
+			function getRev() {
+				if (rev) {
+					return rev;
+				}
+
+				// load config from form
+				const el = document.getElementById('credentials');
+				const revConfig = formToObject(el);
+
+				// output debug logging to the console
+				revConfig.logEnabled = true;
+				console.debug('Rev debug logging enabled - set logEnabled to false in config to suppress these logs');
+				
+				// revConfig = { url: string, apiKey: string, secret: string }
+				// OR revConfig = { url: string, username: string, password: string }
+				rev = new RevClient(revConfig);
+
+				return rev;
+			}
+			window.getRev = getRev;
+
+			
+
+			/**
+			 * Helper to quickly serialize a Form
+			 * @param {HTMLFormElement} el
+			 * @param {boolean} [includeNull] - include undefined / blank
+			 * @returns {Record<string, any>}
+			 */
+			function formToObject(el, includeNull = true) {
+				const entries = [...el.elements]
+					.filter(e => e.name)
+					.map(field => {
+						const {name, type} = field;
+						switch (type) {
+							case 'file':
+								return [name, field.files];
+							case 'checkbox':
+								return [name, !!field.checked];
+							case 'number':
+								return [name, field.valueAsNumber];
+							default:
+								return [name, field.value];
+						}
+					})
+					.filter(([k,val]) => includeNull || (val !== "" && val != undefined) );
+				return Object.fromEntries(entries);
+			}
+
+			
+			async function searchVideos(searchOptions) {
+				console.log('searching', searchOptions);
+				const rev = getRev();
+
+				if (!rev.isConnected) {
+					console.log('connecting!');
+					await rev.connect();
+					console.log(`Connected. Session expires: ${rev.sessionExpires.toLocaleTimeString()}`);
+				}
+
+				const destination = document.getElementById('results');
+				destination.innerHTML = '';
+
+				const searchRequest = rev.video.search(searchOptions);
+				while (!searchRequest.done) {
+					const page = await searchRequest.nextPage();
+					const { items } = page;
+					console.log('Searching...', page);
+					const cards = items.map(populateVideoCard);
+					destination.append(...cards);
+				}
+			}
+			window.searchVideos = searchVideos;
+
+			// super quick html escaping
+			function htmlEscape(str) {
+				return str.replace(/[&<"']/g, c => {
+					switch (c) {
+						case '&': return '&amp;';
+						case '<': return '&lt;';
+						case '"': return '&quot;';
+						default: return '&#039;';
+					}
+				});
+			}
+			
+			function populateVideoCard(video) {
+				const template = document.getElementById('video-card-template');
+				const fragment = template.content.cloneNode(true);
+				const $ = sel => fragment.querySelector(sel);
+				$('a').href = video.playbackUrl;
+				$('img').src = video.thumbnailUrl || `${rev.url}/shared/img/default-thumbnail.png`;
+				$('.title').innerHTML = htmlEscape(video.title);
+				// htmlDescription is safely escaped and can have rich content
+				$('.description').innerHTML = video.htmlDescription;
+				return fragment;
+			}
+			
+
+			window.addEventListener('load', () => {
+				document.getElementById('search_btn')
+					.addEventListener('click', event => {
+						event.preventDefault();
+						const el = document.getElementById('search_form');
+						const searchOptions = formToObject(el, false);
+						searchVideos(searchOptions);
+						return false;
+					});
+
+			});
+		</script>
 	</head>
 	<body>
-		<form id="credentials" class="grid-half">
-			<legend>Include Rev URL and <em>either</em> Username+Password or API Key/Secret</legend>
-			<label for="url" class="full-width">Rev URL: <input type="text" name="url" id="url" placeholder="https://YOUR_REV_TENANT_URL" value="" required /></label>
-			<label for="username">Username: <input type="text" name="username" id="username" value = "" /></label>
-			<label for="password">Password: <input type="text" name="password" id="password" value = "" /></label>
-			<label for="apiKey">API Key: <input type="text" name="apiKey" id="apiKey" value = "" /></label>
-			<label for="secret">Secret: <input type="text" name="secret" id="secret" value = "" /></label>
-		</form>
-		<form id="upload_form">
-			<label for="uploader">Uploader: <input type="text" name="uploader" id="uploader" value="robot" required /></label>
-			<label for="title" class="full-width">Title: <input type="text" name="title" id="title" value="test upload" /></label>
-			<label for="description" class="full-width">Description: <textarea type="text" name="description" id="description" value=""></textarea></label>
-			<label for="tags">Tags: <input type="text" name="tags" id="tags" value="" /></label>
-
-			<label for="videoAccessControl">Access Control: <select name="videoAccessControl" id="videoAccessControl" value="">
-				<option value="AllUsers" selected>All Users</option>
-				<option value="Public">Public</option>
-				<option value="Private">Private</option>
-				<option value="Channels">Channels</option>
-			</select></label>
-
-			<label for="isActive">Is Active: <input type="checkbox" name="isActive" id="isActive" checked/></label>
-			<label for="unlisted">Unlisted: <input type="checkbox" name="unlisted" id="unlisted" /></label>
-
-			<label for="file" class="full-width">Upload Video: <input type="file" name="file" id="file" required/></label>
-			<label>&nbsp;<button id="test_upload">Upload</button></label>
-		</form>
+		<main>
+			<p>This is an example of using the Rev Client library to search for videos.
+				
+			</p>
+			<form id="credentials" class="grid-half">
+				<legend>Include Rev URL and either API Key/Secret <strong><em>or</em></strong> Username+Password</legend>
+				<label for="url" class="full-width">Rev URL: <input type="text" name="url" id="url" placeholder="https://YOUR_REV_TENANT_URL" value="" required /></label>
+				<label for="apiKey">API Key: <input type="text" name="apiKey" id="apiKey" value = "" /></label>
+				<label for="secret">Secret: <input type="text" name="secret" id="secret" value = "" /></label>
+				<label for="username">Username: <input type="text" name="username" id="username" value = "" /></label>
+				<label for="password">Password: <input type="text" name="password" id="password" value = "" /></label>
+			</form>
+			<form id="search_form">
+				<label for="q" class="full-width">Search Text: <input type="text" name="q" id="q" value="" placeholder="Enter search text. Leave blank for all videos" /></label>
+				<label for="searchField">Search Field: <select name="searchField" id="searchField" value="" >
+					<option value="" selected>All</option>
+					<option value="title">Title</option>
+					<option value="tags">Tags</option>
+					<option value="categories">Categories</option>
+					<option value="uploader">Uploader</option>
+				</select></label>
+				<label for="maxResults">Max Results: <input type="number" min="0" max="10000" step="1" name="maxResults" id="maxResults" value="50" /></label>
+				<label>&nbsp;<button id="search_btn">Search</button></label>
+			</form>
+			<div id="results"></div>
+		</main>
+		<template id="video-card-template">
+			<figure class="video">
+				<a href="{{link}}" target="_blank"><img src="{{src}}" /></a>
+				<figcaption><h3 class="title">{{title}}</h3><p class="description">{{description}}</p></figcaption>
+			</figure>
+		</template>
 	</body>
 </html>

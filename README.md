@@ -2,14 +2,17 @@
 
 This is a javascript client library for interacting with the [Vbrick Rev API](https://revdocs.vbrick.com/reference). It should work in node.js 14+, evergreen browsers (i.e. not IE), and deno.
 
+This library is intended for use with **[VBrick Rev](https://vbrick.com)**.
 
 ## Installation
 
-This library isn't (yet) published to npm. In the interim:
+#### Browser/deno
+The compiled library is at `dist/rev-client.js`.
 
-* unzip archive contents into local folder
-* **Browser/deno:** The compiled library is at `dist/rev-client.js`.
-* **Node.js (v14+):** Run `npm install` before using.
+#### Node.js (v14+) 
+```sh
+npm install @vbrick/rev-client
+```
 
 ## Compatibility
 
@@ -17,17 +20,12 @@ This library isn't (yet) published to npm. In the interim:
 * **node.js** - Node.js 14 or above required. It will work with commonjs (`require`) or ES Module (`import`) projects.
 * **deno** - Should be compatible, though testing is limited. You'll need `--allow-net` permissions at minimum.
 
-This library is intended for use with **[VBrick Rev](https://vbrick.com)**.
-
-
-
-### **IMPORTANT! Browser and CORS support**
+### Browsers and CORS support**
 By default CORS (Cross Origin Resource Sharing) is **disabled** for Rev Cloud tenants. This means this library will not work out of the box in the browser. You should open a ticket with [Vbrick Support](https://portal.vbrick.com/open-a-case/) if this feature isn't yet configured.
 
 To verify if CORS is enabled for your account check the headers response from `https://YOUR_REV_TENANT_URL/api/v2/accounts/branding-settings` - it doesn't require authentication.
 
-***On-Prem note:** this library targets the latest version of Rev. Some API endpoints may not be available in older versions of Rev On-Prem.*
-
+***On-Prem note:** this library targets the latest version of Rev. Some API endpoints may not be available or work as expected in older versions of Rev On-Prem.*
 
 
 ## Example
@@ -35,6 +33,7 @@ To verify if CORS is enabled for your account check the headers response from `h
 ```js
 import {RevClient} from '/path/to/rev-client.js';
 
+// create client object
 const rev = new RevClient({
     url: 'https://my.rev.url',
     apiKey: 'my.user.apikey',
@@ -47,16 +46,15 @@ const rev = new RevClient({
 });
 
 (async () => {
-	// will throw error if invalid login
+	// call login api and start session. will throw error if invalid login
 	await rev.connect();
 
 	// create a category
-	const categoryId = await rev.category.create({
-		name: 'Created Via API'
-	});
+	const {categoryId} = await rev.category.create({ name: 'Created Via API' });
 
 	// get details about this category
 	const categoryDetails = await rev.category.details(categoryId);
+
 	console.log('category details: ', categoryDetails);
 
 	// get the account media contributor role
@@ -75,7 +73,7 @@ const rev = new RevClient({
 	const videoId = await rev.upload.video("/path/to/local/video.mp4", {
 		uploader: 'new.user',
 		title: 'video uploaded via the API',
-		categories: [categoryDetails.name],
+		categories: [categoryDetails.name], // ['Created Via API']
 		unlisted: true,
 		isActive: true
 		/// ...any additional metadata
@@ -204,7 +202,7 @@ The Response payload, already decoded based on `options.responseType`
 
 `RevClient` also wraps API functionality into separate namespaces. They mostly follow the [API Documentation](https://revdocs.vbrick.com/reference) categorization.
 
-### [Admin](https://revdocs.vbrick.com/reference#administration)
+### [Admin](https://revdocs.vbrick.com/reference/administration)
 
 #### `admin.roles()`
 #### `admin.getRoleByName(name)` - Get a specific Role `{ id: string, name: string }` based on the Role's name (i.e. 'Media Viewer')
@@ -214,7 +212,7 @@ The Response payload, already decoded based on `options.responseType`
 #### `admin.verifySystemHealth()`
 #### `admin.maintenanceSchedule()`
 
-### [Audit](https://revdocs.vbrick.com/reference#audit)
+### [Audit](https://revdocs.vbrick.com/reference/audit)
 
 #### `audit.accountAccess(accountId, options?)`
 #### `audit.accountUsers(accountId, options?)`
@@ -230,7 +228,7 @@ The Response payload, already decoded based on `options.responseType`
 #### `audit.webcast(eventId, accountId, options?)`
 #### `audit.principal(userId, accountId, options?)`
 
-### [Authentication](https://revdocs.vbrick.com/reference#authentication)
+### [Authentication](https://revdocs.vbrick.com/reference/authentication)
 
 #### `auth.loginToken(apiKey, secret)`
 #### `auth.extendSessionToken(apiKey)`
@@ -246,7 +244,7 @@ The Response payload, already decoded based on `options.responseType`
 #### `auth.loginOAuth(config, authCode)`
 #### `auth.extendSessionOAuth(config, refreshToken)`
 
-### [Categories](https://revdocs.vbrick.com/reference#getcategories)
+### [Categories](https://revdocs.vbrick.com/reference/getcategories)
 
 #### `category.create(category)`
 #### `category.details(categoryId)`
@@ -254,25 +252,34 @@ The Response payload, already decoded based on `options.responseType`
 #### `category.delete(categoryId)`
 #### `category.list(parentCategoryId?, includeAllDescendants?)`
 
-### [Devices](https://revdocs.vbrick.com/reference#devices)
+### [Channels](https://revdocs.vbrick.com/reference/getchannel)
 
-#### `device.dmes()`
-#### `device.zoneDevices()`
-#### `device.presentationProfiles()`
+#### `channel.create(channel)`
+#### `channel.update(channelId, channel)`
+#### `channel.delete(channelId)`
+#### `channel.list(start?, options?)`
+#### `channel.addMembers(channelId, members)`
+#### `channel.removeMembers(channelId, members)`
+
+### [Devices](https://revdocs.vbrick.com/reference/devices)
+
+#### `device.listDMEs()`
+#### `device.listZoneDevices()`
+#### `device.listPresentationProfiles()`
 #### `device.add(dme)`
 #### `device.healthStatus(deviceId)`
 #### `device.delete(deviceId)`
 
-### [Groups](https://revdocs.vbrick.com/reference#creategroup)
+### [Groups](https://revdocs.vbrick.com/reference/creategroup)
 
 #### `group.create(group)`
 #### `group.delete(groupId)`
 #### `group.search(searchText, options?)`
 #### `group.list(options?)`
 #### `group.listUsers(groupId, options?)`
-#### `group.usersDetailStream(groupId, options?)`
+#### `group.listUserDetails(groupId, options?)`
 
-### [Playlists](https://revdocs.vbrick.com/reference#getplaylists)
+### [Playlists](https://revdocs.vbrick.com/reference/getplaylists)
 
 #### `playlist.create(name, videoIds)`
 #### `playlist.update(playlistId, actions)`
@@ -280,7 +287,7 @@ The Response payload, already decoded based on `options.responseType`
 #### `playlist.delete(playlistId)`
 #### `playlist.list()`
 
-### [Recording](https://revdocs.vbrick.com/reference#startrecording)
+### [Recording](https://revdocs.vbrick.com/reference/startrecording)
 
 #### `recording.startVideoConferenceRecording(sipAddress, sipPin, title?)`
 #### `recording.getVideoConferenceStatus(videoId)`
@@ -291,11 +298,12 @@ The Response payload, already decoded based on `options.responseType`
 
 ### Upload
 
+#### `upload.transcription(videoId, file, language?, options?)`
 #### `upload.video(file, metadata, options?)` - Upload a video
 
 ##### Options
 * `file`: string, `stream.Readable` or `Blob` if using node.js. `File` if browser.
-* `metadata`: Video metadata - see [API docs](https://revdocs.vbrick.com/reference#uploadvideo)
+* `metadata`: Video metadata - see [API docs](https://revdocs.vbrick.com/reference/uploadvideo)
 * `options`: Additional `fetch` options
 
 ##### Returns
@@ -304,10 +312,11 @@ The ID of the video
 
 #### `upload.transcription(videoId, file, language?, options?)` - Upload a transcription / close captions file
 
-### [Users](https://revdocs.vbrick.com/reference#users-groups)
+### [Users](https://revdocs.vbrick.com/reference/users-groups)
 
 #### `user.roles()`
 #### `user.create(user)`
+#### `user.delete(userId)`
 #### `user.details(userId)`
 #### `user.getByUsername(username)`
 #### `user.getByEmail(email)`
@@ -315,20 +324,55 @@ The ID of the video
 #### `user.removeFromGroup(userId, groupId)` - Remove a user from the specified Group
 #### `user.search(searchText, options?)`
 
-### [Videos](https://revdocs.vbrick.com/reference#videos)
+### [Videos](https://revdocs.vbrick.com/reference/videos)
 
 #### `video.setTitle(videoId, title)` - Use PATCH API to change a video's title
 #### `video.status(videoId)`
 #### `video.details(videoId)`
 #### `video.upload(file, metadata, options?)` - alias to `upload.video()`
-#### `video.search(query?, options?)`
-#### `video.searchDetailed(query?, options?)`
 #### `video.playbackInfo(videoId)`
 #### `video.download(videoId)`
 #### `video.downloadTranscription(videoId, language)`
 #### `video.downloadThumbnail(query)`
+#### `video.search(query?, options?)` - Search for videos
 
-### [Webcasts](https://revdocs.vbrick.com/reference#webcasts)
+##### Options
+* `query`: See [API Docs](https://revdocs.vbrick.com/reference/searchvideo) for available search options
+* `options`: Optional, Additional options for request
+* `options.maxResults`: number, set the maximum number of results to return.
+* `options.onProgress`: `(items: <array>, current, total) => void` - callback for each time a page is queried from Rev.
+* `options.onScrollExpired`: `(err: ScrollError) => void` - Search results use a scrollID cursor that expires after 1-5 minutes from first request. If the scrollID expires then onScrollExpired will be called with a ScrollError. Default behavior is to throw the error.
+
+##### Returns - class `SearchRequest`
+
+This method returns a `SearchRequest` object, that includes the following methods:
+
+* `.exec()` - Get all results as an array
+* `.nextPage()` - `{ current, total, items, done }` - Get the search results one page at a time
+* `[async iterator]` - The class also implements `AsyncIterator`, so can be used as a `Stream` or using `for await`
+
+##### Examples
+
+```js
+// get the 10 most recent videos that match 'puppy' in the tags/keywords field
+const request = rev.video.search({ q: 'puppies', searchField: 'tags', sortField: 'whenUploaded', sortDirection: 'desc' }, { maxResults: 10 });
+const results = await request.exec();
+
+// get ALL videos in the account and report their title, reporting progress and ignoring errors
+const request = rev.video.search(undefined, {
+	onProgress(items, current, total) {
+		console.log(`PROGRESS: ${current}-${current + items.length} of ${total}`);
+	},
+	onScrollExpired(err) {
+		console.warn('Error while getting video results, ignoring: ', err);
+	}
+});
+for await (let video of request) {
+	console.log(`Video ${video.id}: ${video.title} | duration: ${video.duration}`);
+}
+```
+
+### [Webcasts](https://revdocs.vbrick.com/reference/webcasts)
 
 #### `webcasts.list(options?)`
 #### `webcasts.search(query, options?)`
@@ -352,7 +396,7 @@ The ID of the video
 #### `webcasts.linkVideo(eventId, videoId, autoRedirect?)`
 #### `webcasts.unlinkVideo(eventId)`
 
-### [Zones](https://revdocs.vbrick.com/reference#getzones)
+### [Zones](https://revdocs.vbrick.com/reference/getzones)
 
 #### `zones.list()`
 #### `zones.flatList()`
