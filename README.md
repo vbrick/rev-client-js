@@ -404,4 +404,8 @@ for await (let video of request) {
 #### `zones.edit(zoneId, zone)`
 #### `zones.delete(zoneId)`
 #### `zones.zoneDevices()`
-```
+
+---
+
+## Disclaimer
+This code is distributed "as is", with no warranty expressed or implied, and no guarantee for accuracy or applicability to your purpose.
