@@ -1,6 +1,7 @@
 import { ScrollError } from '../rev-error';
 import type { RevClient } from '../rev-client';
 import type { Rev } from '../types';
+import { IPageResponse, PagedRequest } from './paged-request';
 
 export async function decodeBody(response: Response, acceptType?: string | null) {
     const contentType = response.headers.get('Content-Type') || acceptType || '';
@@ -27,19 +28,25 @@ export async function decodeBody(response: Response, acceptType?: string | null)
  * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
  * 3) Use for await to get all results one at a time: for await (let hit of request) { }
  */
-export class SearchRequest<T> implements Rev.ISearchRequest<T> {
-    current: number;
-    total: number;
-    done: boolean;
-    options: Required<Rev.SearchOptions<T>>;
-    private _req: (...args: any[]) => any;
+export class SearchRequest<T> extends PagedRequest<T> {
+    declare options: Required<Rev.SearchOptions<T>>;
     private query: Record<string, any>;
+    private _reqImpl: () => Promise<IPageResponse<T>>;
     constructor(
         rev: RevClient,
         searchDefinition: Rev.SearchDefinition<T>,
         query: Record<string, any> = {},
         options: Rev.SearchOptions<T> = {}
     ) {
+        super({
+            onProgress: (items: T[], current: number, total?: number | undefined) => {
+                const {hitsKey} = searchDefinition;
+                rev.log('debug', `searching ${hitsKey}, ${current}-${current + items.length} of ${total}...`);
+            },
+            onError: (err => { throw err; }),
+            ...options
+        });
+
         // make copy of query object
         const {
             scrollId: _ignore,
@@ -47,26 +54,16 @@ export class SearchRequest<T> implements Rev.ISearchRequest<T> {
         } = query;
         this.query = queryOpt;
 
-        const {
-            hitsKey
-        } = searchDefinition;
-
-        this.options = {
-            maxResults: Infinity,
-            onProgress: (items, current, total) => {
-                rev.log('debug', `searching ${hitsKey}, ${current}-${current + items.length} of ${total}...`);
-            },
-            onScrollExpired: (err => { throw err; }),
-            ...options
-        };
-
-        this._req = this._makeReqFunction(rev, searchDefinition);
+        this._reqImpl = this._buildReqFunction(rev, searchDefinition);
 
         this.current = 0;
         this.total = Infinity;
         this.done = false;
     }
-    private _makeReqFunction(rev: RevClient, searchDefinition: Rev.SearchDefinition) {
+    protected _requestPage() {
+        return this._reqImpl();
+    }
+    private _buildReqFunction(rev: RevClient, searchDefinition: Rev.SearchDefinition) {
         const {
             endpoint,
             totalKey,
@@ -75,10 +72,10 @@ export class SearchRequest<T> implements Rev.ISearchRequest<T> {
             transform
         } = searchDefinition;
 
-        return async (query: Record<string, any>) => {
+        return async () => {
             const response: Record<string, any> = isPost
-                ? await rev.post(endpoint, query, { responseType: 'json' })
-                : await rev.get(endpoint, query, { responseType: 'json' });
+                ? await rev.post(endpoint, this.query, { responseType: 'json' })
+                : await rev.get(endpoint, this.query, { responseType: 'json' });
 
             let {
                 scrollId,
@@ -88,108 +85,29 @@ export class SearchRequest<T> implements Rev.ISearchRequest<T> {
                 statusDescription
             } = response;
 
+            let done = false;
+
+            this.query.scrollId = scrollId;
+            if (!scrollId) {
+                done = true;
+            }
+
             const items: T[] = (typeof transform === 'function')
                 ? await Promise.resolve(transform(rawItems))
                 : rawItems;
 
+            // check for error response
+            const error = (statusCode >= 400 && !!statusDescription)
+                ? new ScrollError(statusCode, statusDescription)
+                : undefined;
+
             return {
-                scrollId,
                 total,
+                done,
                 pageCount: rawItems.count,
                 items,
-                statusCode,
-                statusDescription
+                error
             };
         };
-    }
-    /**
-     * Get the next page of results from API
-     */
-    async nextPage(): Promise<Rev.SearchPage<T>> {
-        const {
-            maxResults,
-            onProgress,
-            onScrollExpired
-        } = this.options;
-
-        if (this.done) {
-            return {
-                current: this.total,
-                total: this.total,
-                done: this.done,
-                items: []
-            };
-        }
-
-        let {
-            scrollId,
-            total = 0,
-            items = [],
-            pageCount = 0,
-            statusCode,
-            statusDescription
-        } = await this._req(this.query);
-
-        this.total = Math.min(total, maxResults);
-
-        this.query.scrollId = scrollId;
-        if (!scrollId) {
-            this.done = true;
-        }
-
-        const current = this.current;
-
-        // limit results to specified max results
-        if (current + pageCount >= maxResults) {
-            const delta = maxResults - current;
-            items = items.slice(0, delta);
-            this.done = true;
-        }
-
-        onProgress(items, current, this.total);
-
-        // check for error response
-        if (statusCode >= 400 && !!statusDescription) {
-            this.done = true;
-            const err = new ScrollError(statusCode, statusDescription);
-            onScrollExpired(err);
-        }
-
-        this.current += pageCount;
-
-        if (this.current === this.total) {
-            this.done = true;
-        }
-
-        return {
-            current,
-            total: this.total,
-            done: this.done,
-            items
-        };
-    }
-    /**
-     * Go through all pages of results and return as an array.
-     * TIP: Use the {maxResults} option to limit the maximum number of results
-     *
-     */
-    async exec(): Promise<T[]> {
-        const results: T[] = [];
-        // use async iterator
-        for await (let hit of this) {
-            results.push(hit);
-        }
-        return results;
-    }
-    async* [Symbol.asyncIterator]() {
-        do {
-            const {
-                items
-            } = await this.nextPage();
-
-            for await (let hit of items) {
-                yield hit;
-            }
-        } while (!this.done);
     }
 }

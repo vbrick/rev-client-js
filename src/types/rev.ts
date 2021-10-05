@@ -56,7 +56,7 @@ export namespace Rev {
 
     export interface ISearchRequest<T> extends AsyncIterable<T> {
         current: number;
-        total: number;
+        total?: number;
         done: boolean;
         nextPage(): Promise<SearchPage<T>>;
         exec(): Promise<T[]>;
@@ -70,14 +70,22 @@ export namespace Rev {
         /**
          * callback per page
          */
-        onProgress?: (items: T[], current: number, total: number) => void;
+        onProgress?: (items: T[], current: number, total?: number | undefined) => void;
         /**
          * Search results use a scrollID cursor that expires after 1-5 minutes
          * from first request. If the scrollID expires then onScrollExpired
          * will be called with a ScrollError. Default behavior is to throw
-         * the error
+         * the error.
+         *
+         * Note that request level errors (like 401 or 500) will just be thrown as normal,
+         * not passed to this function
          */
-        onScrollExpired?: (err: ScrollError) => void;
+        onError?: (err: Error | ScrollError) => void;
+        /**
+         * Use onError instead
+         * @deprecated use onError instead
+         */
+        onScrollError?: (err: ScrollError) => void;
     }
 
     export interface SearchDefinition<T = any, RawType = any> {
@@ -115,7 +123,7 @@ export namespace Rev {
     export interface SearchPage<T> {
         items: T[],
         current: number,
-        total: number,
+        total?: number,
         done: boolean
     }
 

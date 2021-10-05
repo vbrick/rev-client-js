@@ -1,6 +1,8 @@
 import type { RevClient } from '../rev-client';
 import { Video, Rev } from '../types';
+import { isPlainObject } from '../utils';
 import { SearchRequest } from '../utils/request-utils';
+import { VideoReportRequest } from './video-report-request';
 
 export default function videoAPIFactory(rev: RevClient) {
     const videoAPI = {
@@ -100,6 +102,9 @@ export default function videoAPIFactory(rev: RevClient) {
 
             const { body } = await rev.request<Blob>('GET', thumbnailUrl, undefined, { responseType: 'blob' });
             return body;
+        },
+        report(options: Video.VideoReportOptions = {}) {
+            return new VideoReportRequest(rev, options);
         }
     };
     return videoAPI;

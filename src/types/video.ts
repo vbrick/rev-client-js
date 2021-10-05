@@ -252,4 +252,30 @@ export namespace Video {
         // video url for embedding in iframe
         playbackUrl: string;
     }
+
+    export interface VideoReportEntry {
+        videoId: string;
+        title: string;
+        username: string;
+        firstName: string;
+        lastName: string;
+        emailAddress: string;
+        completed: boolean;
+        zone: string;
+        device: string;
+        browser: string;
+        userDeviceType: string;
+        playbackUrl: string;
+        dateViewed: string;
+        viewingTime: string;
+        viewingStartTime: string;
+        viewingEndTime: string;
+    }
+    export interface VideoReportOptions extends Rev.SearchOptions<VideoReportEntry> {
+        videoIds?: string | string[] | undefined;
+        startDate?: Date | string;
+        endDate?: Date | string;
+        incrementDays?: number;
+        sortDirection?: Rev.SortDirection;
+    }
 }

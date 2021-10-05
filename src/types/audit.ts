@@ -1,9 +1,8 @@
+import { Rev } from '.';
 
 export namespace Audit {
 
-    export interface Options<T extends Entry> {
-        maxResults?: number,
-        onProgress?: (lines: T[], current: number, total: number) => void,
+    export interface Options<T extends Entry> extends Rev.SearchOptions<T> {
         fromDate?: string | Date,
         toDate?: string | Date;
     }

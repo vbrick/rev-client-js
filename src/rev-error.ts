@@ -75,6 +75,7 @@ export class ScrollError extends Error {
     detail: string;
     constructor(status: number = 408, code: string = 'ScrollExpired', detail: string = 'Timeout while fetching all results in search request') {
         super('Search Scroll Expired');
+        Error.captureStackTrace(this, this.constructor);
         this.status = status;
         this.code = code;
         this.detail = detail;

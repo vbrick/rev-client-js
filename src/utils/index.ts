@@ -18,6 +18,20 @@ export function isReadable<T = any>(val: unknown): val is AsyncIterable<T> {
     return typeof (val as AsyncIterable<T>)[Symbol.asyncIterator] === 'function';
 }
 
+export function asValidDate(val: string | Date | undefined): Date | undefined;
+export function asValidDate(val: string | Date | undefined, defaultValue: Date): Date;
+export function asValidDate(val: string | Date | undefined, defaultValue?: Date): Date | undefined {
+    if (!val) {
+        return defaultValue;
+    }
+    if (!(val instanceof Date)) {
+        val = new Date(val);
+    }
+    return isNaN(val.getTime())
+    ? defaultValue
+    : val;
+}
+
 /**
  * Retry a function multiple times, sleeping before attempts
  * @param {() => Promise<T>} fn function to attempt. Return value if no error thrown
