@@ -149,9 +149,27 @@ async function hmacSign(message: string, secret: string) {
     return signature;
 }
 
+class AbortError extends Error {
+    type: string = 'aborted';
+    code: number = 20;
+    ABORT_ERR: number = 20;
+    constructor(message?: string) {
+        super(message);
+        Error.captureStackTrace(this, this.constructor);
+    }
+    get name() {
+        return this.constructor.name;
+    }
+    get [Symbol.toStringTag]() {
+        return this.constructor.name;
+    }
+}
+
+
 Object.assign(polyfills, {
     AbortController,
     AbortSignal,
+    createAbortError(message: string): Error { return new AbortError(message); },
     fetch: (...args: Parameters<typeof fetch>) => fetch(...args),
     FormData,
     Headers,

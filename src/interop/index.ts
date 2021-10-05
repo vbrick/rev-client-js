@@ -23,9 +23,13 @@ async function hmacSign(message: string, secret: string) {
     return btoa(String.fromCharCode(...new Uint8Array(signed)));
 }
 
+
 export default {
     AbortController: globalThis.AbortController,
     AbortSignal: globalThis.AbortSignal,
+    createAbortError(message: string): Error {
+        return new DOMException(message, 'AbortError');
+    },
     fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args),
     FormData: globalThis.FormData,
     Headers: globalThis.Headers,
