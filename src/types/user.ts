@@ -1,3 +1,4 @@
+import { LiteralString } from './rev';
 
 export interface User {
     userId: string;
@@ -46,4 +47,5 @@ export namespace User {
         roleIds?: string[];
     }
 
+    export type DetailsLookup = LiteralString<'username' | 'email' | 'userId'>
 }

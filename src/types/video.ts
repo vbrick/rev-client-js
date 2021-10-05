@@ -1,4 +1,4 @@
-import type { AccessControlEntity, Category, CustomField } from '.';
+import type { AccessControl, Category, Admin, Rev } from '.';
 
 export namespace Video {
     export type ApprovalStatus = 'Approved' | 'PendingApproval' | 'Rejected' | 'RequiresApproval' | 'SubmittedApproval';
@@ -43,13 +43,13 @@ export namespace Video {
             id: string;
             username: string;
         };
-        averageRating: string;
-        ratingsCount: string;
+        averageRating: number;
+        ratingsCount: number;
         speechResult: Array<{ time: string, text: string; }>;
         unlisted: boolean;
         whenModified: string;
         whenPublished: string;
-        commentCount: string;
+        commentCount: number;
         score: number;
     }
     export interface UploadMetadata {
@@ -79,7 +79,7 @@ export namespace Video {
         /**
          * This provides explicit rights to a User/Group/Collection with/without CanEdit access to a  This is an array with properties; Name (entity name), Type (User/Group/Collection), CanEdit (true/false). If any value is invalid, it will be rejected while valid values are still associated with the
          */
-        accessControlEntities?: (Omit<AccessControlEntity, 'id'> | Omit<AccessControlEntity, 'name'>)[];
+        accessControlEntities?: (Omit<AccessControl.Entity, 'id'> | Omit<AccessControl.Entity, 'name'>)[];
 
         /**
          * A Password for Public Video Access Control. Use this field when the videoAccessControl is set to Public. If not this field is ignored.
@@ -135,7 +135,7 @@ export namespace Video {
         /**
          * This provides explicit rights to a User/Group/Collection with/without CanEdit access to a  This is an array with properties; Name (entity name), Type (User/Group/Collection), CanEdit (true/false). If any value is invalid, it will be rejected while valid values are still associated with the
          */
-        accessControlEntities: Array<AccessControlEntity>;
+        accessControlEntities: Array<AccessControl.Entity>;
         /**
          * A Password for Public Video Access Control. Use this field when the videoAccessControl is set to Public. If not this field is ignored.
          */
@@ -172,7 +172,7 @@ export namespace Video {
         enableComments?: boolean;
         videoAccessControl?: AccessControl;
         accessControlEntities: string | string[];
-        customFields: CustomField[];
+        customFields: Admin.CustomField[];
         unlisted?: boolean;
         userTags?: string[];
     }
@@ -231,7 +231,7 @@ export namespace Video {
         recommendedFor?: string;
 
         sortField?: 'title' | 'whenUploaded' | 'uploaderName' | 'duration' | '_score';
-        sortDirection?: 'asc' | 'desc';
+        sortDirection?: Rev.SortDirection;
 
         /**
          * search for videos matching specific custom field values.

@@ -118,4 +118,6 @@ export namespace Rev {
         total: number,
         done: boolean
     }
+
+    export type SortDirection = LiteralString<'asc' | 'desc'>;
 }

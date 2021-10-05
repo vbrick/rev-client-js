@@ -1,3 +1,4 @@
+import { Rev } from '.';
 import { LiteralString } from './rev';
 
 export interface Webcast {
@@ -27,12 +28,13 @@ export interface Webcast {
 
 export namespace Webcast {
     export type WebcastAccessControl = LiteralString<'Public' | 'TrustedPublic' | 'AllUsers' | 'Private'>;
+    export type SortField = LiteralString<'startDate' | 'title'>;
 
     export interface ListRequest {
         after?: string | Date;
         before?: string | Date;
-        sortField?: 'startDate' | 'title';
-        sortDirection?: 'asc' | 'desc';
+        sortField?: SortField;
+        sortDirection?: Rev.SortDirection;
     }
 
     export interface SearchRequest {
@@ -41,11 +43,11 @@ export namespace Webcast {
         /**
          * Name of the field in the event that will be used to sort the dataset in the response. Default is 'StartDate'
          */
-        sortField?: 'startDate' | 'title';
+        sortField?: SortField;
         /**
           * Sort direction of the dataset. Values supported: 'asc' and 'desc'. Default is 'asc'.
           */
-        sortDirection?: 'asc' | 'desc';
+        sortDirection?: Rev.SortDirection;
         /**
           * Number of records in the dataset to return per search request. Default is 100, minimum is 50 and maximum is 500.
           */
@@ -181,7 +183,7 @@ export namespace Webcast {
         bufferEvents: number;
         rebufferEvents: number;
         rebufferDuration: number;
-        attendeeType: 'Host' | 'Moderator' | 'AccountAdmin' | 'Attendee';
+        attendeeType: LiteralString<'Host' | 'Moderator' | 'AccountAdmin' | 'Attendee'>;
     }
 
     export interface Question {
@@ -215,7 +217,7 @@ export namespace Webcast {
         eventTitle: string;
         startDate: string;
         endDate: string;
-        eventStatus: 'Completed' | 'Scheduled' | 'Starting' | 'InProgress' | 'Broadcasting' | 'Deleted' | 'Recording' | 'RecordingStarting' | 'RecordingStopping' | 'VideoSourceStarting';
+        eventStatus: LiteralString<'Completed' | 'Scheduled' | 'Starting' | 'InProgress' | 'Broadcasting' | 'Deleted' | 'Recording' | 'RecordingStarting' | 'RecordingStopping' | 'VideoSourceStarting'>;
         slideUrl: string;
         isPreProduction: boolean;
     }
