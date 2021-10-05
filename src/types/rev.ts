@@ -70,6 +70,11 @@ export namespace Rev {
          * specify body type when decoding. Use 'stream' to skip parsing body completely
          */
         responseType?: 'json' | 'text' | 'blob' | 'stream';
+        /**
+         * whether to throw errors or not for HTTP error response codes.
+         * @default true
+         */
+        throwHttpErrors?: boolean
     }
 
     export interface ISearchRequest<T> extends AsyncIterable<T> {

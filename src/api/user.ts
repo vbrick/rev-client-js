@@ -1,8 +1,20 @@
 import type { RevClient } from '../rev-client';
 import type { Rev, User } from '../types';
+import { isPlainObject } from '../utils';
 import { SearchRequest } from '../utils/request-utils';
 
 export default function userAPIFactory(rev: RevClient) {
+    async function details(userId: string): Promise<User>;
+    async function details(username: string, type: 'username'): Promise<User>;
+    async function details(email: string, type: 'email'): Promise<User>;
+    async function details(userLookupValue: string, type?: User.DetailsLookup) {
+        const query = (type === 'username' || type === 'email')
+            ? { type }
+            : undefined;
+
+        return rev.get<User>(`/api/v2/users/${userLookupValue}`, query);
+    }
+
     const userAPI = {
         /**
          * get the list of roles available in the system (with role name and id)
@@ -22,18 +34,47 @@ export default function userAPIFactory(rev: RevClient) {
         async delete(userId: string): Promise<void> {
             await rev.delete(`/api/v2/users/${userId}`);
         },
-        async details(userId: string) {
-            return rev.get<User>(`/api/v2/users/${userId}`);
-        },
         /**
+         * Get details about a specific user
+         * @param userLookupValue default is search by userId
+         * @param type            specify that userLookupValue is email or
+         *                        username instead of userId
+         * @returns {User}        User details
+         */
+        details,
+        /**
+         * get user details by username
+         * @deprecated - use details(username, 'username')
          */
         async getByUsername(username: string) {
-            return rev.get<User>(`/api/v2/users/${username}`, { type: 'username' });
+            // equivalent to rev.get<User>(`/api/v2/users/${username}`, { type: 'username' });
+            return userAPI.details(username, 'username');
         },
         /**
+         * get user details by email address
+         * @deprecated - use details(email, 'email')
          */
         async getByEmail(email: string) {
-            return rev.get<User>(`/api/v2/users/${email}`, { type: 'email' });
+            return userAPI.details(email, 'email');
+        },
+        /**
+         * Check if user exists in the system. Instead of throwing on a 401/403 error if
+         * user does not exist it returns false. Returns user details if does exist,
+         * instead of just true
+         * @param userLookupValue userId, username, or email
+         * @param type
+         * @returns User if exists, otherwise false
+         */
+        async exists(userLookupValue: string, type?: User.DetailsLookup): Promise<User | false> {
+            const query = (type === 'username' || type === 'email')
+            ? { type }
+            : undefined;
+
+            const response = await rev.request<User>('GET', `/api/v2/users/${userLookupValue}`, query, { responseType: 'json', throwHttpErrors: false });
+
+            return response.statusCode === 200
+                ? response.body
+                : false;
         },
         /**
          * use PATCH API to add user to the specified group

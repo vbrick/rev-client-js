@@ -85,9 +85,10 @@ export class RevClient {
             throw new TypeError(`Invalid endpoint - must be relative to ${this.url}`);
         }
 
-        const {
+        let {
             headers: optHeaders,
             responseType,
+            throwHttpErrors = true,
             ...requestOpts
         } = options;
 
@@ -167,9 +168,13 @@ export class RevClient {
 
         // check for error response code
         if (!ok) {
+            if (throwHttpErrors) {
                 const err = await RevError.create(response);
                 throw err;
             }
+            // if not throwwing then force responseType to auto (could be text or json)
+            responseType = undefined;
+        }
 
         let body: any = response.body;
 
