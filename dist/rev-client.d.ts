@@ -15,14 +15,14 @@ declare function adminAPIFactory(rev: RevClient): {
     * get list of custom fields
     * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
     */
-    customFields(cache?: CacheOption): Promise<CustomField[]>;
+    customFields(cache?: CacheOption): Promise<Admin.CustomField[]>;
     /**
     * Get a Custom Field based on its name
     * @param name name of the Custom Field
     * @param fromCache if true then use previously cached Role listing (more efficient)
     */
-    getCustomFieldByName(name: string, fromCache?: CacheOption): Promise<CustomField>;
-    brandingSettings(): Promise<BrandingSettings>;
+    getCustomFieldByName(name: string, fromCache?: CacheOption): Promise<Admin.CustomField>;
+    brandingSettings(): Promise<Admin.BrandingSettings>;
     /**
     * get system health - returns 200 if system is active and responding, otherwise throws error
     */
@@ -146,16 +146,36 @@ declare namespace Rev {
          *     rev.disconnect() is called. Optionally, pass in keepAlive options instead of `true`
          */
         keepAlive?: boolean | KeepAliveOptions;
+        /**
+         * specify your own session control mechanism
+         */
+        session?: IRevSession;
+    }
+    interface IRevSession {
+        token?: string;
+        expires: Date;
+        readonly isExpired: boolean;
+        readonly username: string | undefined;
+        login(): Promise<void>;
+        extend(): Promise<void>;
+        logoff(): Promise<void>;
+        verify(): Promise<boolean>;
+        lazyExtend(options?: Rev.KeepAliveOptions): Promise<boolean>;
     }
     interface RequestOptions extends Partial<RequestInit> {
         /**
          * specify body type when decoding. Use 'stream' to skip parsing body completely
          */
         responseType?: 'json' | 'text' | 'blob' | 'stream';
+        /**
+         * whether to throw errors or not for HTTP error response codes.
+         * @default true
+         */
+        throwHttpErrors?: boolean;
     }
     interface ISearchRequest<T> extends AsyncIterable<T> {
         current: number;
-        total: number;
+        total?: number;
         done: boolean;
         nextPage(): Promise<SearchPage<T>>;
         exec(): Promise<T[]>;
@@ -168,14 +188,22 @@ declare namespace Rev {
         /**
          * callback per page
          */
-        onProgress?: (items: T[], current: number, total: number) => void;
+        onProgress?: (items: T[], current: number, total?: number | undefined) => void;
         /**
          * Search results use a scrollID cursor that expires after 1-5 minutes
          * from first request. If the scrollID expires then onScrollExpired
          * will be called with a ScrollError. Default behavior is to throw
-         * the error
+         * the error.
+         *
+         * Note that request level errors (like 401 or 500) will just be thrown as normal,
+         * not passed to this function
          */
-        onScrollExpired?: (err: ScrollError) => void;
+        onError?: (err: Error | ScrollError) => void;
+        /**
+         * Use onError instead
+         * @deprecated use onError instead
+         */
+        onScrollError?: (err: ScrollError) => void;
     }
     interface SearchDefinition<T = any, RawType = any> {
         endpoint: string;
@@ -210,15 +238,24 @@ declare namespace Rev {
     interface SearchPage<T> {
         items: T[];
         current: number;
-        total: number;
+        total?: number;
         done: boolean;
+    }
+    type SortDirection = LiteralString<'asc' | 'desc'>;
+}
+
+declare namespace AccessControl {
+    type EntityType = 'User' | 'Group' | 'Role' | 'Channel';
+    interface Entity {
+        id: string;
+        name: string;
+        type: EntityType;
+        canEdit: boolean;
     }
 }
 
 declare namespace Audit {
-    export interface Options<T extends Entry> {
-        maxResults?: number;
-        onProgress?: (lines: T[], current: number, total: number) => void;
+    export interface Options<T extends Entry> extends Rev.SearchOptions<T> {
         fromDate?: string | Date;
         toDate?: string | Date;
     }
@@ -754,6 +791,7 @@ declare namespace User {
         groupIds?: string[];
         roleIds?: string[];
     }
+    type DetailsLookup = LiteralString<'username' | 'email' | 'userId'>;
 }
 
 declare namespace Video {
@@ -790,8 +828,8 @@ declare namespace Video {
             id: string;
             username: string;
         };
-        averageRating: string;
-        ratingsCount: string;
+        averageRating: number;
+        ratingsCount: number;
         speechResult: Array<{
             time: string;
             text: string;
@@ -799,7 +837,7 @@ declare namespace Video {
         unlisted: boolean;
         whenModified: string;
         whenPublished: string;
-        commentCount: string;
+        commentCount: number;
         score: number;
     }
     interface UploadMetadata {
@@ -827,7 +865,7 @@ declare namespace Video {
         /**
          * This provides explicit rights to a User/Group/Collection with/without CanEdit access to a  This is an array with properties; Name (entity name), Type (User/Group/Collection), CanEdit (true/false). If any value is invalid, it will be rejected while valid values are still associated with the
          */
-        accessControlEntities?: (Omit<AccessControlEntity, 'id'> | Omit<AccessControlEntity, 'name'>)[];
+        accessControlEntities?: (Omit<AccessControl.Entity, 'id'> | Omit<AccessControl.Entity, 'name'>)[];
         /**
          * A Password for Public Video Access Control. Use this field when the videoAccessControl is set to Public. If not this field is ignored.
          */
@@ -890,7 +928,7 @@ declare namespace Video {
         /**
          * This provides explicit rights to a User/Group/Collection with/without CanEdit access to a  This is an array with properties; Name (entity name), Type (User/Group/Collection), CanEdit (true/false). If any value is invalid, it will be rejected while valid values are still associated with the
          */
-        accessControlEntities: Array<AccessControlEntity>;
+        accessControlEntities: Array<AccessControl.Entity>;
         /**
          * A Password for Public Video Access Control. Use this field when the videoAccessControl is set to Public. If not this field is ignored.
          */
@@ -929,7 +967,7 @@ declare namespace Video {
         enableComments?: boolean;
         videoAccessControl?: AccessControl;
         accessControlEntities: string | string[];
-        customFields: CustomField[];
+        customFields: Admin.CustomField[];
         unlisted?: boolean;
         userTags?: string[];
     }
@@ -981,7 +1019,7 @@ declare namespace Video {
          */
         recommendedFor?: string;
         sortField?: 'title' | 'whenUploaded' | 'uploaderName' | 'duration' | '_score';
-        sortDirection?: 'asc' | 'desc';
+        sortDirection?: Rev.SortDirection;
         /**
          * search for videos matching specific custom field values.
          * Object in the format {My_Custom_Field_Name: "MyCustomFieldValue"}
@@ -997,6 +1035,31 @@ declare namespace Video {
         tags: string[];
         thumbnailUrl: string;
         playbackUrl: string;
+    }
+    interface VideoReportEntry {
+        videoId: string;
+        title: string;
+        username: string;
+        firstName: string;
+        lastName: string;
+        emailAddress: string;
+        completed: boolean;
+        zone: string;
+        device: string;
+        browser: string;
+        userDeviceType: string;
+        playbackUrl: string;
+        dateViewed: string;
+        viewingTime: string;
+        viewingStartTime: string;
+        viewingEndTime: string;
+    }
+    interface VideoReportOptions extends Rev.SearchOptions<VideoReportEntry> {
+        videoIds?: string | string[] | undefined;
+        startDate?: Date | string;
+        endDate?: Date | string;
+        incrementDays?: number;
+        sortDirection?: Rev.SortDirection;
     }
 }
 
@@ -1078,11 +1141,12 @@ interface Webcast {
 }
 declare namespace Webcast {
     type WebcastAccessControl = LiteralString<'Public' | 'TrustedPublic' | 'AllUsers' | 'Private'>;
+    type SortField = LiteralString<'startDate' | 'title'>;
     interface ListRequest {
         after?: string | Date;
         before?: string | Date;
-        sortField?: 'startDate' | 'title';
-        sortDirection?: 'asc' | 'desc';
+        sortField?: SortField;
+        sortDirection?: Rev.SortDirection;
     }
     interface SearchRequest {
         startDate?: string | Date;
@@ -1090,11 +1154,11 @@ declare namespace Webcast {
         /**
          * Name of the field in the event that will be used to sort the dataset in the response. Default is 'StartDate'
          */
-        sortField?: 'startDate' | 'title';
+        sortField?: SortField;
         /**
           * Sort direction of the dataset. Values supported: 'asc' and 'desc'. Default is 'asc'.
           */
-        sortDirection?: 'asc' | 'desc';
+        sortDirection?: Rev.SortDirection;
         /**
           * Number of records in the dataset to return per search request. Default is 100, minimum is 50 and maximum is 500.
           */
@@ -1234,7 +1298,7 @@ declare namespace Webcast {
         bufferEvents: number;
         rebufferEvents: number;
         rebufferDuration: number;
-        attendeeType: 'Host' | 'Moderator' | 'AccountAdmin' | 'Attendee';
+        attendeeType: LiteralString<'Host' | 'Moderator' | 'AccountAdmin' | 'Attendee'>;
     }
     interface Question {
         whenAsked: string;
@@ -1264,7 +1328,7 @@ declare namespace Webcast {
         eventTitle: string;
         startDate: string;
         endDate: string;
-        eventStatus: 'Completed' | 'Scheduled' | 'Starting' | 'InProgress' | 'Broadcasting' | 'Deleted' | 'Recording' | 'RecordingStarting' | 'RecordingStopping' | 'VideoSourceStarting';
+        eventStatus: LiteralString<'Completed' | 'Scheduled' | 'Starting' | 'InProgress' | 'Broadcasting' | 'Deleted' | 'Recording' | 'RecordingStarting' | 'RecordingStopping' | 'VideoSourceStarting'>;
         slideUrl: string;
         isPreProduction: boolean;
     }
@@ -1383,34 +1447,29 @@ declare namespace Zone {
     type FlatZone = Omit<Zone, 'childZones'>;
 }
 
-declare type AccessControlEntityType = 'User' | 'Group' | 'Role' | 'Channel';
-interface AccessControlEntity {
-    id: string;
-    name: string;
-    type: AccessControlEntityType;
-    canEdit: boolean;
-}
-interface CustomField {
-    id: string;
-    name: string;
-    value: any;
-    required: boolean;
-    displayedToUsers: boolean;
-    type: string;
-    fieldType: string;
-}
-interface BrandingSettings {
-    general?: {
-        PrimaryColor?: string;
-        PrimaryFontColor?: string;
-        AccentColor?: string;
-        AccentFontColor?: string;
-        LogoUri?: string;
-    };
-    header?: {
-        BackgroundColor?: string;
-        FontColor?: string;
-    };
+declare namespace Admin {
+    interface CustomField {
+        id: string;
+        name: string;
+        value: any;
+        required: boolean;
+        displayedToUsers: boolean;
+        type: string;
+        fieldType: string;
+    }
+    interface BrandingSettings {
+        general?: {
+            PrimaryColor?: string;
+            PrimaryFontColor?: string;
+            AccentColor?: string;
+            AccentFontColor?: string;
+            LogoUri?: string;
+        };
+        header?: {
+            BackgroundColor?: string;
+            FontColor?: string;
+        };
+    }
 }
 interface Role {
     id: string;
@@ -1421,6 +1480,62 @@ declare namespace Role {
     type Details = Role & {
         description: string;
     };
+}
+
+interface IPageResponse<T> {
+    items: T[];
+    done: boolean;
+    total?: number;
+    pageCount?: number;
+    error?: Error;
+}
+/**
+ * Interface to iterate through results from API endpoints that return results in pages.
+ * Use in one of three ways:
+ * 1) Get all results as an array: await request.exec() == <array>
+ * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
+ * 3) Use for await to get all results one at a time: for await (let hit of request) { }
+ */
+declare abstract class PagedRequest<ItemType> implements Rev.ISearchRequest<ItemType> {
+    current: number;
+    total: number | undefined;
+    done: boolean;
+    options: Required<Rev.SearchOptions<ItemType>>;
+    constructor(options?: Rev.SearchOptions<ItemType>);
+    protected abstract _requestPage(): Promise<IPageResponse<ItemType>>;
+    /**
+     * Get the next page of results from API
+     */
+    nextPage(): Promise<Rev.SearchPage<ItemType>>;
+    /**
+     * update internal variables based on API response
+     * @param page
+     * @returns
+     */
+    protected _parsePage(page: IPageResponse<ItemType>): {
+        current: number;
+        total: number | undefined;
+        done: boolean;
+        error: Error | undefined;
+        items: ItemType[];
+    };
+    /**
+     * Go through all pages of results and return as an array.
+     * TIP: Use the {maxResults} option to limit the maximum number of results
+     *
+     */
+    exec(): Promise<ItemType[]>;
+    [Symbol.asyncIterator](): AsyncGenerator<ItemType, void, unknown>;
+}
+
+declare class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
+    options: Required<Omit<Audit.Options<T>, 'toDate' | 'fromDate'>>;
+    private params;
+    private _req;
+    constructor(rev: RevClient, endpoint: string, label?: string, { toDate, fromDate, ...options }?: Audit.Options<T>);
+    protected _requestPage(): Promise<IPageResponse<T>>;
+    private _buildReqFunction;
+    private _parseDates;
 }
 
 declare function auditAPIFactory(rev: RevClient): {
@@ -1459,28 +1574,6 @@ declare function auditAPIFactory(rev: RevClient): {
     */
     principal(userId: string, accountId: string, options?: Audit.Options<Audit.Entry<string>> | undefined): AuditRequest<Audit.Entry<string>>;
 };
-declare class AuditRequest<T extends Audit.Entry> implements Rev.ISearchRequest<T> {
-    current: number;
-    total: number;
-    done: boolean;
-    options: Required<Omit<Audit.Options<T>, 'toDate' | 'fromDate'>>;
-    private params;
-    private _req;
-    constructor(rev: RevClient, endpoint: string, label: string, options?: Audit.Options<T>);
-    nextPage(): Promise<{
-        current: number;
-        total: number;
-        done: boolean;
-        items: T[];
-    }>;
-    /**
-     * Go through all pages of results and return as an array.
-     * TIP: Use the {maxResults} option to limit the maximum number of results
-     *
-     */
-    exec(): Promise<T[]>;
-    [Symbol.asyncIterator](): AsyncGenerator<T, void, unknown>;
-}
 
 declare function authAPIFactory(rev: RevClient): {
     loginToken(apiKey: string, secret: string): Promise<Auth.LoginResponse>;
@@ -1573,26 +1666,13 @@ declare function deviceAPIFactory(rev: RevClient): {
  * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
  * 3) Use for await to get all results one at a time: for await (let hit of request) { }
  */
-declare class SearchRequest<T> implements Rev.ISearchRequest<T> {
-    current: number;
-    total: number;
-    done: boolean;
+declare class SearchRequest<T> extends PagedRequest<T> {
     options: Required<Rev.SearchOptions<T>>;
-    private _req;
     private query;
+    private _reqImpl;
     constructor(rev: RevClient, searchDefinition: Rev.SearchDefinition<T>, query?: Record<string, any>, options?: Rev.SearchOptions<T>);
-    private _makeReqFunction;
-    /**
-     * Get the next page of results from API
-     */
-    nextPage(): Promise<Rev.SearchPage<T>>;
-    /**
-     * Go through all pages of results and return as an array.
-     * TIP: Use the {maxResults} option to limit the maximum number of results
-     *
-     */
-    exec(): Promise<T[]>;
-    [Symbol.asyncIterator](): AsyncGenerator<T, void, unknown>;
+    protected _requestPage(): Promise<IPageResponse<T>>;
+    private _buildReqFunction;
 }
 
 declare function groupAPIFactory(rev: RevClient): {
@@ -1682,13 +1762,37 @@ declare function userAPIFactory(rev: RevClient): {
      */
     create(user: User.Request): Promise<string>;
     delete(userId: string): Promise<void>;
-    details(userId: string): Promise<User>;
     /**
+     * Get details about a specific user
+     * @param userLookupValue default is search by userId
+     * @param type            specify that userLookupValue is email or
+     *                        username instead of userId
+     * @returns {User}        User details
+     */
+    details: {
+        (userId: string): Promise<User>;
+        (username: string, type: 'username'): Promise<User>;
+        (email: string, type: 'email'): Promise<User>;
+    };
+    /**
+     * get user details by username
+     * @deprecated - use details(username, 'username')
      */
     getByUsername(username: string): Promise<User>;
     /**
+     * get user details by email address
+     * @deprecated - use details(email, 'email')
      */
     getByEmail(email: string): Promise<User>;
+    /**
+     * Check if user exists in the system. Instead of throwing on a 401/403 error if
+     * user does not exist it returns false. Returns user details if does exist,
+     * instead of just true
+     * @param userLookupValue userId, username, or email
+     * @param type
+     * @returns User if exists, otherwise false
+     */
+    exists(userLookupValue: string, type?: User.DetailsLookup | undefined): Promise<User | false>;
     /**
      * use PATCH API to add user to the specified group
      * https://revdocs.vbrick.com/reference#edituserdetails
@@ -1713,6 +1817,31 @@ declare function userAPIFactory(rev: RevClient): {
      */
     search(searchText?: string | undefined, options?: Rev.SearchOptions<User.SearchHit>): SearchRequest<User.SearchHit>;
 };
+
+declare function parseOptions(options: Video.VideoReportOptions): {
+    maxResults?: number | undefined;
+    onProgress?: ((items: Video.VideoReportEntry[], current: number, total?: number | undefined) => void) | undefined;
+    onError?: ((err: Error | ScrollError) => void) | undefined;
+    onScrollError?: ((err: ScrollError) => void) | undefined;
+    startDate: Date;
+    endDate: Date;
+    incrementDays: number;
+    sortDirection: Rev.SortDirection;
+    videoIds: string | undefined;
+};
+declare class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
+    options: Required<ReturnType<typeof parseOptions>>;
+    private _rev;
+    constructor(rev: RevClient, options?: Video.VideoReportOptions);
+    protected _requestPage(): Promise<{
+        items: Video.VideoReportEntry[];
+        done: boolean;
+    }>;
+    get startDate(): Date;
+    set startDate(value: Date);
+    get endDate(): Date;
+    set endDate(value: Date);
+}
 
 declare function videoAPIFactory(rev: RevClient): {
     /**
@@ -1748,6 +1877,7 @@ declare function videoAPIFactory(rev: RevClient): {
         videoId?: string;
         imageId?: string;
     }): Promise<Blob>;
+    report(options?: Video.VideoReportOptions): VideoReportRequest;
 };
 
 declare function webcastAPIFactory(rev: RevClient): {
@@ -1786,79 +1916,13 @@ declare function zonesAPIFactory(rev: RevClient): {
     readonly devices: () => Promise<Device.ZoneDevice[]>;
 };
 
-declare const _credentials: unique symbol;
-interface LoginResponse {
-    token: string;
-    expiration: string;
-    userId?: string;
-    refreshToken?: string;
-    apiKey?: string;
-}
-interface RevSession {
-    token?: string;
-    expires: Date;
-    readonly isExpired: boolean;
-    readonly username: string | undefined;
-    readonly keepAlive?: SessionKeepAlive;
-    login(): Promise<void>;
-    extend(): Promise<void>;
-    logoff(): Promise<void>;
-    verify(): Promise<boolean>;
-    lazyExtend(options?: Rev.KeepAliveOptions): Promise<boolean>;
-}
-declare class SessionKeepAlive {
-    private readonly _session;
-    private controller?;
-    extendOptions: Required<Rev.KeepAliveOptions>;
-    error?: undefined | Error;
-    private _isExtending;
-    constructor(session: SessionBase, options?: Rev.KeepAliveOptions);
-    getNextExtendTime(): number;
-    private _poll;
-    start(): void;
-    stop(): void;
-    private _reset;
-    get isAlive(): boolean | undefined;
-}
-declare abstract class SessionBase implements RevSession {
-    token?: string;
-    expires: Date;
-    protected readonly rev: RevClient;
-    protected readonly [_credentials]: Rev.Credentials;
-    readonly keepAlive?: SessionKeepAlive;
-    constructor(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions);
-    login(): Promise<void>;
-    extend(): Promise<void>;
-    logoff(): Promise<void>;
-    verify(): Promise<boolean>;
-    /**
-     *
-     * @returns wasExtended - whether session was extended / re-logged in
-     */
-    lazyExtend(options?: Rev.KeepAliveOptions): Promise<boolean>;
-    /**
-     * check if expiration time of session has passed
-     */
-    get isExpired(): boolean;
-    /**
-     * returns true if session isn't expired and has a token
-     */
-    get isConnected(): boolean | "" | undefined;
-    get username(): string | undefined;
-    protected abstract _login(): Promise<LoginResponse>;
-    protected abstract _extend(): Promise<{
-        expiration: string;
-    }>;
-    protected abstract _logoff(): Promise<void>;
-}
-
 declare type PayloadType = {
     [key: string]: any;
 } | Record<string, any> | any[];
 declare class RevClient {
     url: string;
     logEnabled: boolean;
-    session: RevSession;
+    session: Rev.IRevSession;
     readonly admin: ReturnType<typeof adminAPIFactory>;
     readonly audit: ReturnType<typeof auditAPIFactory>;
     readonly auth: ReturnType<typeof authAPIFactory>;
@@ -1924,4 +1988,4 @@ declare class ScrollError extends Error {
     get [Symbol.toStringTag](): string;
 }
 
-export { AccessControlEntity, AccessControlEntityType, Audit, Auth, BrandingSettings, Category, Channel, CustomField, Device, Group, Playlist, Recording, Rev, RevClient, RevError, Role, ScrollError, User, Video, Webcast, Zone, RevClient as default };
+export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, Group, Playlist, Recording, Rev, RevClient, RevError, Role, ScrollError, User, Video, Webcast, Zone, RevClient as default };

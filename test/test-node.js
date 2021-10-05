@@ -109,7 +109,7 @@ Upload: file and uploader are required
             videoStatus = status;
 
             // processing is initially false, so wait till overallProgress changes to complete
-            if (isProcessing === false && overallProgress > 0) {
+            if ((overallProgress === 1 && !isProcessing) || status === 'ProcessingFailed') {
                 // finished, break out of loop
                 break;
             }

@@ -31,6 +31,17 @@ function isBlobLike(val) {
 function isReadable(val) {
     return typeof val[Symbol.asyncIterator] === 'function';
 }
+function asValidDate(val, defaultValue) {
+    if (!val) {
+        return defaultValue;
+    }
+    if (!(val instanceof Date)) {
+        val = new Date(val);
+    }
+    return isNaN(val.getTime())
+        ? defaultValue
+        : val;
+}
 /**
  * Retry a function multiple times, sleeping before attempts
  * @param {() => Promise<T>} fn function to attempt. Return value if no error thrown
@@ -156,6 +167,7 @@ class RevError extends Error {
 class ScrollError extends Error {
     constructor(status = 408, code = 'ScrollExpired', detail = 'Timeout while fetching all results in search request') {
         super('Search Scroll Expired');
+        Error.captureStackTrace(this, this.constructor);
         this.status = status;
         this.code = code;
         this.detail = detail;
@@ -255,6 +267,124 @@ function adminAPIFactory(rev) {
 }
 
 /**
+ * Interface to iterate through results from API endpoints that return results in pages.
+ * Use in one of three ways:
+ * 1) Get all results as an array: await request.exec() == <array>
+ * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
+ * 3) Use for await to get all results one at a time: for await (let hit of request) { }
+ */
+class PagedRequest {
+    constructor(options = {}) {
+        this.options = {
+            maxResults: Infinity,
+            onProgress: (items, current, total) => { },
+            onError: (err => { throw err; }),
+            onScrollError: (err => {
+                console.warn("DEPRECATED: use onError instead of onScrollError with rev search requests");
+                this.options.onError(err);
+            }),
+            ...options
+        };
+        this.current = 0;
+        this.total = undefined;
+        this.done = false;
+    }
+    /**
+     * Get the next page of results from API
+     */
+    async nextPage() {
+        const { onProgress, onError } = this.options;
+        if (this.done) {
+            return {
+                current: this.current,
+                total: this.current,
+                done: this.done,
+                items: []
+            };
+        }
+        const page = await this._requestPage();
+        const result = this._parsePage(page);
+        let { current, items, total, done, error } = result;
+        onProgress(items, current, total);
+        if (error) {
+            onError(error);
+        }
+        return {
+            current,
+            items,
+            total,
+            done
+        };
+    }
+    /**
+     * update internal variables based on API response
+     * @param page
+     * @returns
+     */
+    _parsePage(page) {
+        const { maxResults } = this.options;
+        let { items = [], done = this.done, total, pageCount, error, } = page;
+        // let request function set done status
+        if (done) {
+            this.done = true;
+        }
+        // update total
+        if (isFinite(total)) {
+            this.total = Math.min(total, maxResults);
+        }
+        if (!pageCount) {
+            pageCount = items.length;
+        }
+        const current = this.current;
+        // limit results to specified max results
+        if (current + pageCount >= maxResults) {
+            pageCount = maxResults - current;
+            items = items.slice(0, pageCount);
+            this.done = true;
+        }
+        this.current += pageCount;
+        if (this.current === this.total) {
+            this.done = true;
+        }
+        if (this.done) {
+            // set total to current for results where not otherwise known in advance
+            this.total = this.current;
+        }
+        if (error) {
+            this.done = true;
+        }
+        return {
+            current,
+            total: this.total,
+            done: this.done,
+            error,
+            items
+        };
+    }
+    /**
+     * Go through all pages of results and return as an array.
+     * TIP: Use the {maxResults} option to limit the maximum number of results
+     *
+     */
+    async exec() {
+        const results = [];
+        // use async iterator
+        for await (let hit of this) {
+            results.push(hit);
+        }
+        return results;
+    }
+    async *[Symbol.asyncIterator]() {
+        do {
+            const { items } = await this.nextPage();
+            for await (let hit of items) {
+                yield hit;
+            }
+        } while (!this.done);
+    }
+}
+
+/**
  * simple helper function to parse CSV data into JSON
  */
 function parseCSV(raw) {
@@ -325,6 +455,64 @@ function parseCSV(raw) {
     });
 }
 
+function parseEntry(line) {
+    return {
+        messageKey: line['MessageKey'],
+        entityKey: line['EntityKey'],
+        when: line['When'],
+        principal: tryParseJson(line['Principal']) || {},
+        message: tryParseJson(line['Message']) || {},
+        currentState: tryParseJson(line['CurrentState']) || {},
+        previousState: tryParseJson(line['PreviousState']) || {}
+    };
+}
+class AuditRequest extends PagedRequest {
+    constructor(rev, endpoint, label = 'audit records', { toDate, fromDate, ...options } = {}) {
+        super({
+            onProgress: (items, current, total) => {
+                rev.log('debug', `loading ${label}, ${current} of ${total}...`);
+            },
+            ...options
+        });
+        const { from, to } = this._parseDates(fromDate, toDate);
+        this.params = {
+            toDate: to.toISOString(),
+            fromDate: from.toISOString()
+        };
+        this._req = this._buildReqFunction(rev, endpoint);
+    }
+    _requestPage() { return this._req(); }
+    _buildReqFunction(rev, endpoint) {
+        return async () => {
+            const response = await rev.request('GET', endpoint, { params: this.params }, { responseType: 'text' });
+            const { body, headers } = response;
+            let items = parseCSV(body)
+                .map(line => parseEntry(line));
+            const total = parseInt(headers.get('totalRecords') || '', 10);
+            Object.assign(this.params, {
+                nextContinuationToken: headers.get('nextContinuationToken') || undefined,
+                fromDate: headers.get('nextfromDate') || undefined
+            });
+            let done = !this.params.nextContinuationToken;
+            return {
+                items,
+                total,
+                done
+            };
+        };
+    }
+    _parseDates(fromDate, toDate) {
+        let to = asValidDate(toDate, new Date());
+        // default to one year older than toDate
+        const defaultFrom = new Date(to.setFullYear(to.getFullYear() - 1));
+        let from = asValidDate(fromDate, defaultFrom);
+        if (to < from) {
+            [to, from] = [from, to];
+        }
+        return { from, to };
+    }
+}
+
 function auditAPIFactory(rev) {
     const auditAPI = {
         /**
@@ -390,112 +578,6 @@ function auditAPIFactory(rev) {
     };
     return auditAPI;
 }
-function asValidDate(val, defaultValue) {
-    if (!val) {
-        return defaultValue;
-    }
-    if (!(val instanceof Date)) {
-        val = new Date(val);
-    }
-    return isNaN(val.getTime())
-        ? defaultValue
-        : val;
-}
-function parseEntry(line) {
-    return {
-        messageKey: line['MessageKey'],
-        entityKey: line['EntityKey'],
-        when: line['When'],
-        principal: tryParseJson(line['Principal']) || {},
-        message: tryParseJson(line['Message']) || {},
-        currentState: tryParseJson(line['CurrentState']) || {},
-        previousState: tryParseJson(line['PreviousState']) || {}
-    };
-}
-class AuditRequest {
-    constructor(rev, endpoint, label, options = {}) {
-        const { fromDate, toDate, ...opts } = options;
-        this.options = {
-            maxResults: Infinity,
-            onProgress: (items, current, total) => {
-                rev.log('debug', `loading ${label}, ${current} of ${total}...`);
-            },
-            ...opts
-        };
-        let _toDate = asValidDate(toDate, new Date());
-        // default to one year older than toDate
-        const defaultFrom = new Date(_toDate.setFullYear(_toDate.getFullYear() - 1));
-        let _fromDate = asValidDate(fromDate, defaultFrom);
-        if (_toDate < _fromDate) {
-            [_toDate, _fromDate] = [_fromDate, _toDate];
-        }
-        this.params = {
-            toDate: _toDate.toISOString(),
-            fromDate: _fromDate.toISOString()
-        };
-        this._req = () => rev.request('GET', endpoint, { params: this.params }, { responseType: 'text' });
-        this.current = 0;
-        this.total = Infinity;
-        this.done = false;
-    }
-    async nextPage() {
-        const { maxResults, onProgress } = this.options;
-        let current = this.current;
-        const response = await this._req();
-        const { body, headers } = response;
-        let items = parseCSV(body)
-            .map(line => parseEntry(line));
-        if (!this.total) {
-            const totalRecords = parseInt(headers.get('totalRecords') || '', 10);
-            this.total = Math.min(totalRecords || 0, maxResults);
-        }
-        Object.assign(this.params, {
-            nextContinuationToken: headers.get('nextContinuationToken') || undefined,
-            fromDate: headers.get('nextfromDate') || undefined
-        });
-        if (!this.params.nextContinuationToken) {
-            this.done = true;
-        }
-        // limit results to specified max results
-        if (current + items.length >= maxResults) {
-            const delta = maxResults - current;
-            items = items.slice(0, delta);
-            this.done = true;
-        }
-        onProgress(items, current, this.total);
-        this.current += items.length;
-        if (this.current === this.total) {
-            this.done = true;
-        }
-        return {
-            current,
-            total: this.total,
-            done: this.done,
-            items
-        };
-    }
-    /**
-     * Go through all pages of results and return as an array.
-     * TIP: Use the {maxResults} option to limit the maximum number of results
-     *
-     */
-    async exec() {
-        const results = [];
-        // use async iterator
-        for await (let hit of this) {
-            results.push(hit);
-        }
-        return results;
-    }
-    async *[Symbol.asyncIterator]() {
-        do {
-            const { items } = await this.nextPage();
-            for await (let hit of items) {
-                yield hit;
-            }
-        } while (!this.done);
-    }
-}
 
 /**
  * There are slight differences in handling browser and node.js environments.
@@ -515,6 +597,9 @@ async function hmacSign$1(message, secret) {
 var polyfills = {
     AbortController: globalThis.AbortController,
     AbortSignal: globalThis.AbortSignal,
+    createAbortError(message) {
+        return new DOMException(message, 'AbortError');
+    },
     fetch: (...args) => globalThis.fetch(...args),
     FormData: globalThis.FormData,
     Headers: globalThis.Headers,
@@ -851,109 +936,54 @@ async function decodeBody(response, acceptType) {
  * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
  * 3) Use for await to get all results one at a time: for await (let hit of request) { }
  */
-class SearchRequest {
+class SearchRequest extends PagedRequest {
     constructor(rev, searchDefinition, query = {}, options = {}) {
+        super({
+            onProgress: (items, current, total) => {
+                const { hitsKey } = searchDefinition;
+                rev.log('debug', `searching ${hitsKey}, ${current}-${current + items.length} of ${total}...`);
+            },
+            onError: (err => { throw err; }),
+            ...options
+        });
         // make copy of query object
         const { scrollId: _ignore, ...queryOpt } = query;
         this.query = queryOpt;
-        const { hitsKey } = searchDefinition;
-        this.options = {
-            maxResults: Infinity,
-            onProgress: (items, current, total) => {
-                rev.log('debug', `searching ${hitsKey}, ${current}-${current + items.length} of ${total}...`);
-            },
-            onScrollExpired: (err => { throw err; }),
-            ...options
-        };
-        this._req = this._makeReqFunction(rev, searchDefinition);
+        this._reqImpl = this._buildReqFunction(rev, searchDefinition);
         this.current = 0;
         this.total = Infinity;
         this.done = false;
     }
-    _makeReqFunction(rev, searchDefinition) {
+    _requestPage() {
+        return this._reqImpl();
+    }
+    _buildReqFunction(rev, searchDefinition) {
         const { endpoint, totalKey, hitsKey, isPost = false, transform } = searchDefinition;
-        return async (query) => {
+        return async () => {
             const response = isPost
-                ? await rev.post(endpoint, query, { responseType: 'json' })
-                : await rev.get(endpoint, query, { responseType: 'json' });
+                ? await rev.post(endpoint, this.query, { responseType: 'json' })
+                : await rev.get(endpoint, this.query, { responseType: 'json' });
             let { scrollId, [totalKey]: total, [hitsKey]: rawItems = [], statusCode, statusDescription } = response;
+            let done = false;
+            this.query.scrollId = scrollId;
+            if (!scrollId) {
+                done = true;
+            }
             const items = (typeof transform === 'function')
                 ? await Promise.resolve(transform(rawItems))
                 : rawItems;
+            // check for error response
+            const error = (statusCode >= 400 && !!statusDescription)
+                ? new ScrollError(statusCode, statusDescription)
+                : undefined;
             return {
-                scrollId,
                 total,
+                done,
                 pageCount: rawItems.count,
                 items,
-                statusCode,
-                statusDescription
+                error
             };
         };
-    }
-    /**
-     * Get the next page of results from API
-     */
-    async nextPage() {
-        const { maxResults, onProgress, onScrollExpired } = this.options;
-        if (this.done) {
-            return {
-                current: this.total,
-                total: this.total,
-                done: this.done,
-                items: []
-            };
-        }
-        let { scrollId, total = 0, items = [], pageCount = 0, statusCode, statusDescription } = await this._req(this.query);
-        this.total = Math.min(total, maxResults);
-        this.query.scrollId = scrollId;
-        if (!scrollId) {
-            this.done = true;
-        }
-        const current = this.current;
-        // limit results to specified max results
-        if (current + pageCount >= maxResults) {
-            const delta = maxResults - current;
-            items = items.slice(0, delta);
-            this.done = true;
-        }
-        onProgress(items, current, this.total);
-        // check for error response
-        if (statusCode >= 400 && !!statusDescription) {
-            this.done = true;
-            const err = new ScrollError(statusCode, statusDescription);
-            onScrollExpired(err);
-        }
-        this.current += pageCount;
-        if (this.current === this.total) {
-            this.done = true;
-        }
-        return {
-            current,
-            total: this.total,
-            done: this.done,
-            items
-        };
-    }
-    /**
-     * Go through all pages of results and return as an array.
-     * TIP: Use the {maxResults} option to limit the maximum number of results
-     *
-     */
-    async exec() {
-        const results = [];
-        // use async iterator
-        for await (let hit of this) {
-            results.push(hit);
-        }
-        return results;
-    }
-    async *[Symbol.asyncIterator]() {
-        do {
-            const { items } = await this.nextPage();
-            for await (let hit of items) {
-                yield hit;
-            }
-        } while (!this.done);
     }
 }
 
@@ -1322,6 +1352,12 @@ function uploadAPIFactory(rev) {
 }
 
 function userAPIFactory(rev) {
+    async function details(userLookupValue, type) {
+        const query = (type === 'username' || type === 'email')
+            ? { type }
+            : undefined;
+        return rev.get(`/api/v2/users/${userLookupValue}`, query);
+    }
     const userAPI = {
         /**
          * get the list of roles available in the system (with role name and id)
@@ -1341,18 +1377,45 @@ function userAPIFactory(rev) {
         async delete(userId) {
             await rev.delete(`/api/v2/users/${userId}`);
         },
-        async details(userId) {
-            return rev.get(`/api/v2/users/${userId}`);
-        },
         /**
+         * Get details about a specific user
+         * @param userLookupValue default is search by userId
+         * @param type            specify that userLookupValue is email or
+         *                        username instead of userId
+         * @returns {User}        User details
+         */
+        details,
+        /**
+         * get user details by username
+         * @deprecated - use details(username, 'username')
          */
         async getByUsername(username) {
-            return rev.get(`/api/v2/users/${username}`, { type: 'username' });
+            // equivalent to rev.get<User>(`/api/v2/users/${username}`, { type: 'username' });
+            return userAPI.details(username, 'username');
         },
         /**
+         * get user details by email address
+         * @deprecated - use details(email, 'email')
          */
         async getByEmail(email) {
-            return rev.get(`/api/v2/users/${email}`, { type: 'email' });
+            return userAPI.details(email, 'email');
+        },
+        /**
+         * Check if user exists in the system. Instead of throwing on a 401/403 error if
+         * user does not exist it returns false. Returns user details if does exist,
+         * instead of just true
+         * @param userLookupValue userId, username, or email
+         * @param type
+         * @returns User if exists, otherwise false
+         */
+        async exists(userLookupValue, type) {
+            const query = (type === 'username' || type === 'email')
+                ? { type }
+                : undefined;
+            const response = await rev.request('GET', `/api/v2/users/${userLookupValue}`, query, { responseType: 'json', throwHttpErrors: false });
+            return response.statusCode === 200
+                ? response.body
+                : false;
         },
         /**
          * use PATCH API to add user to the specified group
@@ -1414,6 +1477,111 @@ function formatUserSearchHit(hit) {
         lastname: hit.LastName,
         username: hit.UserName
     };
+}
+
+const DEFAULT_INCREMENT = 30;
+const DEFAULT_SORT = 'asc';
+function addDays(date, numDays) {
+    const d = new Date(date.getTime());
+    d.setDate(d.getDate() + numDays);
+    return d;
+}
+function parseOptions(options) {
+    let { incrementDays = DEFAULT_INCREMENT, sortDirection = DEFAULT_SORT, videoIds, startDate, endDate, ...otherOptions } = options;
+    // clamp increment to 1 minute - 30 days range
+    incrementDays = Math.min(Math.max(1 / 24 / 60, parseFloat(incrementDays) || DEFAULT_INCREMENT), 30);
+    // API expects videoIds as a string
+    if (Array.isArray(videoIds)) {
+        videoIds = videoIds
+            .map(s => s.trim())
+            .filter(Boolean)
+            .join(',');
+    }
+    return {
+        incrementDays, sortDirection, videoIds,
+        ...parseDates(startDate, endDate),
+        ...otherOptions
+    };
+}
+function parseDates(startArg, endArg) {
+    const now = new Date();
+    let startDate = asValidDate(startArg);
+    let endDate = asValidDate(endArg);
+    // if no end date set then use now, or startDate + 30 days
+    if (!endDate) {
+        if (startDate) {
+            endDate = addDays(startDate, 30);
+            if (endDate.getTime() > now.getTime()) {
+                endDate = now;
+            }
+        }
+        else {
+            endDate = now;
+        }
+    }
+    // if no start/beginning date then use end - 30 days
+    if (!startDate) {
+        startDate = addDays(endDate, -30);
+    }
+    // make sure times aren't swapped
+    if (startDate.getTime() > endDate.getTime()) {
+        [startDate, endDate] = [endDate, startDate];
+    }
+    return { startDate, endDate };
+}
+class VideoReportRequest extends PagedRequest {
+    constructor(rev, options = {}) {
+        super(parseOptions(options));
+        this._rev = rev;
+    }
+    async _requestPage() {
+        const { startDate, endDate } = this;
+        const { incrementDays, sortDirection, videoIds } = this.options;
+        const isAscending = sortDirection === 'asc';
+        let rangeStart = startDate;
+        let rangeEnd = endDate;
+        let done = false;
+        if (isAscending) {
+            rangeEnd = addDays(rangeStart, incrementDays);
+            //
+            if (rangeEnd >= endDate) {
+                done = true;
+                rangeEnd = endDate;
+            }
+        }
+        else {
+            rangeStart = addDays(rangeEnd, -1 * incrementDays);
+            if (rangeStart <= startDate) {
+                done = true;
+                rangeStart = startDate;
+            }
+        }
+        const query = {
+            after: rangeStart.toJSON(),
+            before: rangeEnd.toJSON()
+        };
+        if (videoIds) {
+            query.videoIds = videoIds;
+        }
+        const items = await this._rev.get("/api/v2/videos/report", query, { responseType: "json" });
+        // go to next date range
+        if (!done) {
+            if (isAscending) {
+                this.startDate = rangeEnd;
+            }
+            else {
+                this.endDate = rangeStart;
+            }
+        }
+        return {
+            items,
+            done
+        };
+    }
+    get startDate() { return this.options.startDate; }
+    set startDate(value) { this.options.startDate = value; }
+    get endDate() { return this.options.endDate; }
+    set endDate(value) { this.options.endDate = value; }
 }
 
 function videoAPIFactory(rev) {
@@ -1509,6 +1677,9 @@ function videoAPIFactory(rev) {
                 : (await videoAPI.playbackInfo(videoId)).thumbnailUrl;
             const { body } = await rev.request('GET', thumbnailUrl, undefined, { responseType: 'blob' });
             return body;
+        },
+        report(options = {}) {
+            return new VideoReportRequest(rev, options);
         }
     };
     return videoAPI;
@@ -1906,11 +2077,11 @@ class ApiKeySession extends SessionBase {
 function createSession(rev, credentials, keepAliveOptions) {
     const isOauthLogin = credentials.authCode && credentials.oauthConfig;
     const isUsernameLogin = credentials.username && credentials.password;
-    const isTokenLogin = credentials.apiKey && credentials.secret;
+    const isApiKeyLogin = credentials.apiKey && credentials.secret;
     if (isOauthLogin) {
         return new OAuthSession(rev, credentials, keepAliveOptions);
     }
-    if (isTokenLogin) {
+    if (isApiKeyLogin) {
         return new ApiKeySession(rev, credentials, keepAliveOptions);
     }
     if (isUsernameLogin) {
@@ -1924,12 +2095,12 @@ class RevClient {
         if (!isPlainObject(options) || !options.url) {
             throw new TypeError('Missing configuration options for client - url and username/password or apiKey/secret');
         }
-        const { url, log, logEnabled = false, keepAlive = true, ...credentials } = options;
+        const { url, log, logEnabled = false, keepAlive = true, session: customSession, ...credentials } = options;
         // get just the origin of provided url
         const urlObj = new URL(url);
         this.url = urlObj.origin;
         // will throw error if credentials are invalid
-        this.session = createSession(this, credentials, keepAlive);
+        this.session = customSession || createSession(this, credentials, keepAlive);
         // add logging functionality
         this.logEnabled = !!logEnabled;
         if (log) {
@@ -1967,7 +2138,7 @@ class RevClient {
         if (url.origin !== this.url) {
             throw new TypeError(`Invalid endpoint - must be relative to ${this.url}`);
         }
-        const { headers: optHeaders, responseType, ...requestOpts } = options;
+        let { headers: optHeaders, responseType, throwHttpErrors = true, ...requestOpts } = options;
         // setup headers for JSON communication (by default)
         const headers = new polyfills.Headers(optHeaders);
         // add authorization header from stored token
@@ -2033,8 +2204,12 @@ class RevClient {
         this.log('debug', `Response ${method} ${endpoint} ${statusCode} ${statusText}`);
         // check for error response code
         if (!ok) {
-            const err = await RevError.create(response);
-            throw err;
+            if (throwHttpErrors) {
+                const err = await RevError.create(response);
+                throw err;
+            }
+            // if not throwwing then force responseType to auto (could be text or json)
+            responseType = undefined;
         }
         let body = response.body;
         switch (responseType) {
@@ -2244,9 +2419,25 @@ async function hmacSign(message, secret) {
     const signature = hmac.update(message).digest('base64');
     return signature;
 }
+class AbortError extends Error {
+    constructor(message) {
+        super(message);
+        this.type = 'aborted';
+        this.code = 20;
+        this.ABORT_ERR = 20;
+        Error.captureStackTrace(this, this.constructor);
+    }
+    get name() {
+        return this.constructor.name;
+    }
+    get [Symbol.toStringTag]() {
+        return this.constructor.name;
+    }
+}
 Object.assign(polyfills, {
     AbortController: nodeAbortController.AbortController,
     AbortSignal: nodeAbortController.AbortSignal,
+    createAbortError(message) { return new AbortError(message); },
     fetch: (...args) => fetch__default['default'](...args),
     FormData: FormData__default['default'],
     Headers: fetch.Headers,

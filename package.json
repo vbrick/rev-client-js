@@ -1,6 +1,6 @@
 {
   "name": "@vbrick/rev-client",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Vbrick Rev API client for browser and server",
   "type": "commonjs",
   "main": "dist/node/rev-client.js",
@@ -22,7 +22,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "rollup": "rollup -c",
-    "prepublishOnly": "rollup -c"
+    "rollup:watch": "rollup -c -w",
+    "prepublishOnly": "rollup -c",
+    "check": "tsc --noEmit -w"
   },
   "private": false,
   "author": "Luke Selden",
