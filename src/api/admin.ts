@@ -1,4 +1,4 @@
-import { BrandingSettings, CustomField, RevError, Role } from '..';
+import { Admin, Role } from '..';
 import type { RevClient } from '../rev-client';
 
 // if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache. false means bypass cache
@@ -6,7 +6,7 @@ type CacheOption = boolean | 'Force'
 
 export default function adminAPIFactory(rev: RevClient) {
     let roles: Role.Details[];
-    let customFields: CustomField[];
+    let customFields: Admin.CustomField[];
 
     const adminAPI = {
         /**
@@ -45,7 +45,7 @@ export default function adminAPIFactory(rev: RevClient) {
         * get list of custom fields
         * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
         */
-        async customFields(cache: CacheOption = true): Promise<CustomField[]> {
+        async customFields(cache: CacheOption = true): Promise<Admin.CustomField[]> {
             // retrieve from cached values if already stored. otherwise get from API
             // if cache is 'Force' then refresh from
             if (customFields && cache === true) {
@@ -62,7 +62,7 @@ export default function adminAPIFactory(rev: RevClient) {
         * @param name name of the Custom Field
         * @param fromCache if true then use previously cached Role listing (more efficient)
         */
-        async getCustomFieldByName(name: string, fromCache: CacheOption = true): Promise<CustomField> {
+        async getCustomFieldByName(name: string, fromCache: CacheOption = true): Promise<Admin.CustomField> {
             const customFields = await adminAPI.customFields(fromCache);
             const field = customFields.find(cf => cf.name === name);
             if (!field) {
@@ -70,7 +70,7 @@ export default function adminAPIFactory(rev: RevClient) {
             }
             return field;
         },
-        async brandingSettings(): Promise<BrandingSettings> {
+        async brandingSettings(): Promise<Admin.BrandingSettings> {
             return rev.get('/api/v2/accounts/branding-settings');
         },
         /**

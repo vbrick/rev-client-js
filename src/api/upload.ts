@@ -74,5 +74,6 @@ export default function uploadAPIFactory(rev: RevClient) {
             await uploadMultipart(rev, 'POST', `/api/v2/transcription-files/${videoId}`, form, filePayload);
         }
     };
+
     return uploadAPI;
 }
