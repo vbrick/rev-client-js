@@ -16,19 +16,6 @@ interface LoginResponse {
     apiKey?: string;
 }
 
-export interface RevSession {
-    token?: string;
-    expires: Date;
-    readonly isExpired: boolean;
-    readonly username: string | undefined;
-    readonly keepAlive?: SessionKeepAlive;
-    login(): Promise<void>;
-    extend(): Promise<void>;
-    logoff(): Promise<void>;
-    verify(): Promise<boolean>;
-    lazyExtend(options?: Rev.KeepAliveOptions): Promise<boolean>;
-}
-
 class SessionKeepAlive {
     private readonly _session!: SessionBase;
     private controller?: AbortController;
@@ -127,7 +114,7 @@ class SessionKeepAlive {
     }
 }
 
-abstract class SessionBase implements RevSession {
+abstract class SessionBase implements Rev.IRevSession {
     token?: string;
     expires: Date;
     protected readonly rev!: RevClient;
@@ -338,12 +325,12 @@ export class ApiKeySession extends SessionBase {
 export function createSession(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions) {
     const isOauthLogin = credentials.authCode && credentials.oauthConfig;
     const isUsernameLogin = credentials.username && credentials.password;
-    const isTokenLogin = credentials.apiKey && credentials.secret;
+    const isApiKeyLogin = credentials.apiKey && credentials.secret;
 
     if (isOauthLogin) {
         return new OAuthSession(rev, credentials, keepAliveOptions);
     }
-    if (isTokenLogin) {
+    if (isApiKeyLogin) {
         return new ApiKeySession(rev, credentials, keepAliveOptions);
     }
     if (isUsernameLogin) {

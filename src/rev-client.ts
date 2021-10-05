@@ -5,14 +5,13 @@ import polyfills from './interop';
 import { Rev } from './types';
 import { decodeBody } from './utils/request-utils';
 import { createSession } from './session';
-import type { RevSession } from './session';
 
 type PayloadType = { [key: string]: any; } | Record<string, any> | any[];
 
 export class RevClient {
     url: string;
     logEnabled: boolean;
-    session: RevSession;
+    session: Rev.IRevSession;
     readonly admin!: ReturnType<typeof api.admin>;
     readonly audit!: ReturnType<typeof api.audit>;
     readonly auth!: ReturnType<typeof api.auth>;
@@ -36,6 +35,7 @@ export class RevClient {
             log,
             logEnabled = false,
             keepAlive = true,
+            session: customSession,
             ...credentials
         } = options;
 
@@ -44,7 +44,7 @@ export class RevClient {
         this.url = urlObj.origin;
 
         // will throw error if credentials are invalid
-        this.session = createSession(this, credentials, keepAlive);
+        this.session = customSession || createSession(this, credentials, keepAlive);
 
         // add logging functionality
         this.logEnabled = !!logEnabled;
@@ -167,9 +167,9 @@ export class RevClient {
 
         // check for error response code
         if (!ok) {
-            const err = await RevError.create(response);
-            throw err;
-        }
+                const err = await RevError.create(response);
+                throw err;
+            }
 
         let body: any = response.body;
 

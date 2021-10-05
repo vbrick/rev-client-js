@@ -45,6 +45,24 @@ export namespace Rev {
          *     rev.disconnect() is called. Optionally, pass in keepAlive options instead of `true`
          */
         keepAlive?: boolean | KeepAliveOptions;
+
+        /**
+         * specify your own session control mechanism
+         */
+        session?: IRevSession
+    }
+
+
+    export interface IRevSession {
+        token?: string;
+        expires: Date;
+        readonly isExpired: boolean;
+        readonly username: string | undefined;
+        login(): Promise<void>;
+        extend(): Promise<void>;
+        logoff(): Promise<void>;
+        verify(): Promise<boolean>;
+        lazyExtend(options?: Rev.KeepAliveOptions): Promise<boolean>;
     }
 
     export interface RequestOptions extends Partial<RequestInit> {
