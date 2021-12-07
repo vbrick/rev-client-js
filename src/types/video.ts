@@ -94,8 +94,25 @@ export namespace Video {
 
         unlisted?: boolean;
 
-        publishDate?: string;
+        publishDate?: Date | string;
         userTags?: string[];
+    }
+
+    export interface MigrateRequest {
+        /** change "uploader" value to this user */
+        userName?: string;
+        /** change "owner" to this user. Owner takes precedence over uploader in sorting/UI */
+        owner?: {
+            userId: string;
+        },
+        /** When video was first uploaded (ISO Date) */
+        whenUploaded?: Date | string;
+        /** By default, the publishDate is set to the current date the video is
+            set to Active status. You can also set the publishDate to a date in the future
+            to make the video Active at that time. If the video is already Active, the
+            publishDate can be set to a date in the past.
+        */
+        publishDate?: Date | string;
     }
 
 
@@ -119,13 +136,39 @@ export namespace Video {
         customFields: Array<{ id: string, name: string, value: string, required: boolean; }>;
         /** when video was uploaded (ISO Date) */
         whenUploaded: string;
+        /** When video was last modified (ISO Date) */
+        whenModified: string;
         /** the full name of user who uploaded video */
         uploadedBy: string;
-        /**  */
+        owner: {
+            firstName: string;
+            lastName: string;
+            userId: string;
+            userName: string;
+        }
+        /** if video is active or not */
         isActive: boolean;
         /** This is the processing status of a  */
         status: StatusEnum;
         linkedUrl: LinkedUrl | null;
+        approvalStatus: ApprovalStatus;
+        approval: {
+            status: ApprovalStatus;
+            approvalProcessId: null | string;
+            approvalProcessName: null | string;
+            steps: Array<{
+                stepId: string;
+                stepName: string;
+                approverName: string;
+                approverId: string;
+                whenRequested: string;
+                whenResponded: string;
+                status: string;
+            }>;
+            whenSubmittedForApproval: null | string;
+            stepId: null | string;
+            approvalProcessReferenced: boolean;
+        }
         /** type of video - live or VOD */
         type: VideoType;
         /**
@@ -140,24 +183,71 @@ export namespace Video {
          * A Password for Public Video Access Control. Use this field when the videoAccessControl is set to Public. If not this field is ignored.
          */
         password: string | null;
+        /**
+         * source of original video
+         */
+        sourceType: 'REV' | 'WEBEX' | 'API' | 'VIDEO CONFERENCE';
+        source: 'Upload' | 'Link' | 'ScheduledEvent' | 'Webex' | 'Upload360' | 'ScheduledRecording';
         expirationDate: string | null;
         /**
          * This sets action when video expires. This is an enum and can have the following values: Delete/Inactivate.
          */
         expirationAction: ExpirationAction | null;
+        expiration: {
+            ruleId: string | null;
+            expirationDate: string | null;
+            expiryRuleType: 'None' | 'DaysAfterUpload' | 'DaysWithoutViews';
+            numberOfDays: number | null;
+            deleteOnExpiration: boolean | null;
+        } | null;
         /**
          * date video will be published
          */
         publishDate: string | null;
         lastViewed: string;
-        approvalStatus: ApprovalStatus;
+        totalViews: number;
+        avgRating: number;
+        ratingsCount: number;
+        commentsCount: number;
+        thumbnailKey: string;
         thumbnailUrl: string;
         enableRatings: boolean;
         enableDownloads: boolean;
         enableComments: boolean;
+        closeCaptionsEnabled: boolean;
         unlisted: boolean;
         is360: boolean;
         userTags: Array<{ userId: string, displayName: string; }>;
+
+        duration: string;
+        overallProgress: number;
+        isProcessing: boolean;
+        transcodeFailed: boolean;
+        instances: Array<{
+            id: string;
+            isOriginalInstance: boolean;
+            name: string | null;
+            preset: {
+                container?: string;
+            }
+            size: number;
+            status: 'Initialized' | 'Transcoding' | 'Transcoded' | 'TranscodingFailed' | 'Storing' | 'Stored' | 'StoringFailed'
+            videoKey: string;
+        }>;
+        chapters: {
+            chapters: Array<{
+                extension: string;
+                /** can get full URL to download as
+                 * "/api/v2/media/videos/thumbnails/{{videoId}}/slides/{{imageId}}.jpg"
+                 */
+                imageId: string;
+                time: string;
+                title: string;
+            }>
+        }
+        hasAudioOnly: boolean;
+
+
     }
 
     export interface PatchRequest {
@@ -204,12 +294,12 @@ export namespace Video {
         /** list of uploader IDs separated by commas */
         uploaderIds?: string;
         status?: 'active' | 'inactive';
-        fromPublishedDate?: string;
-        toPublishedDate?: string;
-        fromUploadDate?: string;
-        toUploadDate?: string;
-        fromModifiedDate?: string;
-        toModifiedDate?: string;
+        fromPublishedDate?: Date | string;
+        toPublishedDate?: Date | string;
+        fromUploadDate?: Date | string;
+        toUploadDate?: Date | string;
+        fromModifiedDate?: Date | string;
+        toModifiedDate?: Date | string;
 
         exactMatch?: boolean;
         unlisted?: 'unlisted' | 'listed' | 'all';
@@ -277,5 +367,57 @@ export namespace Video {
         endDate?: Date | string;
         incrementDays?: number;
         sortDirection?: Rev.SortDirection;
+    }
+
+    export interface CommentRequest {
+        /**
+         * The text of the comment
+         */
+        comment: string;
+        /**
+         * Username submitting the comment. This user must exist in Rev. Unless
+         * the user has been assigned the Account Admin role, this user must
+         * also match the authenticated user making the API call.
+         */
+        userName: string;
+        /**
+         * If not provided, parent comment will be created. If parent commentId
+         * is provided, then it will create child comment to that parent. If
+         * child commentid is provided, then child comment for the corresponding
+         * parent comment will be created.
+         */
+        commentId?: string;
+    }
+    export interface Comment {
+        id: string;
+        text: string;
+        date: string;
+        username: string;
+        firstName: string;
+        lastName: string;
+        isRemoved: boolean;
+        childComments: Comment[];
+    }
+    export interface CommentListResponse {
+        id: string;
+        title: string;
+        comments: Comment[];
+    }
+
+    export interface Chapter {
+        title: string;
+        startTime: string;
+        imageUrl: string;
+    }
+
+    export interface SupplementalFile {
+        downloadUrl: string;
+        fileId: string;
+        size: number;
+        title: string;
+    }
+
+    export interface Transcription extends SupplementalFile {
+        locale: string;
     }
 }

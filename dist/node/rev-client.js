@@ -1583,6 +1583,90 @@ class VideoReportRequest extends PagedRequest {
     get endDate() { return this.options.endDate; }
     set endDate(value) { this.options.endDate = value; }
 }
+function videoReportAPI(rev) {
+    function report(videoId, options = {}) {
+        if (isPlainObject(videoId)) {
+            options = videoId;
+        }
+        else if (typeof videoId === 'string') {
+            options = {
+                ...(options ?? {}),
+                videoIds: videoId
+            };
+        }
+        return new VideoReportRequest(rev, options);
+    }
+    return {
+        report
+    };
+}
+
+function videoDownloadAPI(rev) {
+    /**
+     * Download a video. does not parse the output body. Note that content is sent as transfer-encoding: chunked;
+     * @param videoId
+     * @returns
+     */
+    async function download(videoId) {
+        const response = await rev.request('GET', `/api/v2/videos/${videoId}/download`, undefined, {
+            responseType: 'stream'
+        });
+        return response;
+    }
+    /**
+     * download specified chapter. The chapter object has an imageUrl, this just wraps the functionality and adds the authorization header
+     * @param videoId
+     * @param chapter chapter object returned from the video.chapters(videoId) API call
+     * @returns
+     */
+    async function downloadChapter(chapter) {
+        const { imageUrl } = chapter;
+        const { body } = await rev.request('GET', imageUrl, undefined, { responseType: 'blob' });
+        return body;
+    }
+    async function downloadSupplemental(videoId, fileId) {
+        const endpoint = isPlainObject(videoId)
+            ? videoId.downloadUrl
+            : `/api/v2/videos/${videoId}/supplemental-files/${fileId}`;
+        const { body } = await rev.request('GET', endpoint, undefined, { responseType: 'blob' });
+        return body;
+    }
+    async function downloadTranscription(videoId, language) {
+        const endpoint = isPlainObject(videoId)
+            ? videoId.downloadUrl
+            : `/api/v2/videos/${videoId}/transcription-files/${language}`;
+        const { body } = await rev.request('GET', endpoint, undefined, { responseType: 'blob' });
+        return body;
+    }
+    async function downloadThumbnail(query) {
+        let { videoId = '', imageId = '' } = typeof query === 'string'
+            ? { imageId: query }
+            : query;
+        if (!(videoId || imageId)) {
+            throw new TypeError('No video/image specified to download');
+        }
+        if (!imageId) {
+            // allow getting from api if only know the video ID
+            imageId = (await rev.get(`/api/v2/videos/${videoId}/playback-url`)).video.thumbnailUrl;
+        }
+        else if (!imageId.endsWith('.jpg')) {
+            // make sure id has ending file extension
+            imageId = `${imageId}.jpg`;
+        }
+        let thumbnailUrl = imageId.startsWith('http')
+            ? imageId
+            : `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
+        const { body } = await rev.request('GET', thumbnailUrl, undefined, { responseType: 'blob' });
+        return body;
+    }
+    return {
+        download,
+        downloadChapter,
+        downloadSupplemental,
+        downloadThumbnail,
+        downloadTranscription
+    };
+}
 
 function videoAPIFactory(rev) {
     const videoAPI = {
@@ -1605,8 +1689,43 @@ function videoAPIFactory(rev) {
         async details(videoId) {
             return rev.get(`/api/v2/videos/${videoId}/details`);
         },
+        /** get list of comments on a video */
+        async comments(videoId) {
+            const response = await rev.get(`/api/v2/videos/${videoId}/comments`);
+            return response.comments;
+        },
+        async chapters(videoId) {
+            try {
+                const { chapters } = await rev.get(`/api/v2/videos/${videoId}/comments`);
+                return chapters;
+            }
+            catch (err) {
+                // if no chapters then this api returns a 400 response
+                if (err instanceof RevError && err.code === "NoVideoChapters") {
+                    return [];
+                }
+                throw err;
+            }
+        },
+        async supplementalFiles(videoId) {
+            const { supplementalFiles } = await rev.get(`/api/v2/videos/${videoId}/supplemental-files`);
+            return supplementalFiles;
+        },
+        // async deleteSupplementalFiles(videoId: string, fileId: string | string[]): Promise<void> {
+        //     const fileIds = Array.isArray(fileId)
+        //         ? fileId.join(',')
+        //         : fileId
+        //     await rev.delete(`/api/v2/videos/${videoId}/supplemental-files`, { fileIds });
+        // },
+        async transcriptions(videoId) {
+            const { transcriptionFiles } = await rev.get(`/api/v2/videos/${videoId}/transcription-files`);
+            return transcriptionFiles;
+        },
         get upload() {
             return rev.upload.video;
+        },
+        async migrate(videoId, options) {
+            await rev.put(`/api/v2/videos/${videoId}/migration`, options);
         },
         /**
          * search for videos, return as one big list. leave blank to get all videos in the account
@@ -1654,33 +1773,8 @@ function videoAPIFactory(rev) {
             const { video } = await rev.get(`/api/v2/videos/${videoId}/playback-url`);
             return video;
         },
-        async download(videoId) {
-            const response = await rev.request('GET', `/api/v2/videos/${videoId}/download`, undefined, {
-                responseType: 'stream'
-            });
-            return response;
-        },
-        async downloadTranscription(videoId, language) {
-            const { body } = await rev.request('GET', `/api/v2/videos/${videoId}/transcription-files/${language}`, undefined, { responseType: 'blob' });
-            return body;
-        },
-        async downloadThumbnail(query) {
-            const { videoId = '', imageId = '' } = typeof query === 'string'
-                ? { imageId: query }
-                : query;
-            if (!(videoId || imageId)) {
-                throw new TypeError('No video/image specified to download');
-            }
-            let thumbnailUrl = imageId
-                ? `/api/v2/media/videos/thumbnails/${imageId}.jpg`
-                // allow getting from api if only know the video ID
-                : (await videoAPI.playbackInfo(videoId)).thumbnailUrl;
-            const { body } = await rev.request('GET', thumbnailUrl, undefined, { responseType: 'blob' });
-            return body;
-        },
-        report(options = {}) {
-            return new VideoReportRequest(rev, options);
-        }
+        ...videoDownloadAPI(rev),
+        ...videoReportAPI(rev)
     };
     return videoAPI;
 }
@@ -2326,7 +2420,7 @@ async function getLengthFromStream(source) {
         let timer;
         const timeout = new Promise(done => { timer = setTimeout(done, TIMEOUT_MS, {}); });
         try {
-            const stat = await Promise.race([fs__default['default'].promises.stat(filepath), timeout]);
+            const stat = await Promise.race([fs__default["default"].promises.stat(filepath), timeout]);
             if (stat?.size) {
                 return stat.size;
             }
@@ -2348,9 +2442,9 @@ async function parseFileUpload(file, options) {
     const shouldUpdateLength = !(contentLength || useChunkedTransfer);
     if (typeof file === 'string') {
         if (!filename) {
-            filename = path__default['default'].basename(file);
+            filename = path__default["default"].basename(file);
         }
-        file = fs__default['default'].createReadStream(file);
+        file = fs__default["default"].createReadStream(file);
         // get stats from disk
         if (shouldUpdateLength) {
             contentLength = await getLengthFromStream(file);
@@ -2374,7 +2468,7 @@ async function parseFileUpload(file, options) {
             // try to get filename from stream
             const streamPath = _path || _filename || _name;
             if (streamPath && typeof streamPath === 'string') {
-                filename = path__default['default'].basename(streamPath);
+                filename = path__default["default"].basename(streamPath);
             }
         }
         // try to get length from stream
@@ -2438,8 +2532,8 @@ Object.assign(polyfills, {
     AbortController: nodeAbortController.AbortController,
     AbortSignal: nodeAbortController.AbortSignal,
     createAbortError(message) { return new AbortError(message); },
-    fetch: (...args) => fetch__default['default'](...args),
-    FormData: FormData__default['default'],
+    fetch: (...args) => fetch__default["default"](...args),
+    FormData: FormData__default["default"],
     Headers: fetch.Headers,
     Request: fetch.Request,
     Response: fetch.Response,
@@ -2452,5 +2546,5 @@ Object.assign(polyfills, {
 exports.RevClient = RevClient;
 exports.RevError = RevError;
 exports.ScrollError = ScrollError;
-exports['default'] = RevClient;
+exports["default"] = RevClient;
 //# sourceMappingURL=rev-client.js.map

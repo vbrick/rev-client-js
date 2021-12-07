@@ -1,14 +1,13 @@
 import type { RevClient } from '../rev-client';
 import type { Rev, Video } from '../types';
-import { asValidDate } from '../utils';
+import { asValidDate, isPlainObject } from '../utils';
 import { IPageResponse, PagedRequest } from '../utils/paged-request';
 
 
 const DEFAULT_INCREMENT: number = 30;
 const DEFAULT_SORT: Rev.SortDirection = 'asc';
 
-function addDays(date: Date, numDays: number)
-{
+function addDays(date: Date, numDays: number) {
     const d = new Date(date.getTime());
     d.setDate(d.getDate() + numDays);
     return d;
@@ -137,4 +136,23 @@ export class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
     set startDate(value) { this.options.startDate = value; }
     get endDate() { return this.options.endDate; }
     set endDate(value) { this.options.endDate = value; }
+}
+
+export function videoReportAPI(rev: RevClient) {
+    function report(options?: Video.VideoReportOptions): VideoReportRequest;
+    function report(videoId: string, options?: Video.VideoReportOptions): VideoReportRequest;
+    function report(videoId?: string | Video.VideoReportOptions, options: Video.VideoReportOptions = {}): VideoReportRequest {
+        if (isPlainObject(videoId)) {
+            options = videoId;
+        } else if (typeof videoId === 'string') {
+            options = {
+                ...(options ?? {}),
+                videoIds: videoId
+            };
+        }
+        return new VideoReportRequest(rev, options);
+    }
+    return {
+        report
+    };
 }

@@ -331,10 +331,19 @@ The ID of the video
 #### `video.details(videoId)`
 #### `video.upload(file, metadata, options?)` - alias to `upload.video()`
 #### `video.playbackInfo(videoId)`
+#### `video.comments(videoId)`
+#### `video.chapters(videoId)`
+#### `video.supplementalFiles(videoId)`
+#### `video.transcriptions(videoId)`
+#### `video.migrate(videoId, options)`
 #### `video.download(videoId)`
 #### `video.downloadTranscription(videoId, language)`
+#### `video.downloadSupplemental(videoId, fileId)`
+#### `video.downloadChapter(chapter)`
 #### `video.downloadThumbnail(query)`
 #### `video.search(query?, options?)` - Search for videos
+
+
 
 ##### Options
 * `query`: See [API Docs](https://revdocs.vbrick.com/reference/searchvideo) for available search options

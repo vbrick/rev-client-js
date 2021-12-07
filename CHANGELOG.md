@@ -1,3 +1,13 @@
+
+## 0.8.0
+
+### Features
+* Added `rev.video.migrate`, `rev.video.chapters`, `rev.video.comments`, `rev.video.transcriptions` and `rev.video.supplementalFiles` API endpoints
+* Added additional download APIs
+
+### Other changes
+* Updated typescript types to reflect latest Rev (7.44) request/response payloads
+
 ## 0.7.0
 
 ### Features
