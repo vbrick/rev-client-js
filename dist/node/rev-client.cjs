@@ -31,6 +31,9 @@ function isBlobLike(val) {
 function isReadable(val) {
     return typeof val[Symbol.asyncIterator] === 'function';
 }
+function titleCase(val) {
+    return `${val[0]}${val.slice(1)}`;
+}
 function asValidDate(val, defaultValue) {
     if (!val) {
         return defaultValue;
@@ -180,92 +183,6 @@ class ScrollError extends Error {
     }
 }
 
-function adminAPIFactory(rev) {
-    let roles;
-    let customFields;
-    const adminAPI = {
-        /**
-        * get mapping of role names to role IDs
-        * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
-        */
-        async roles(cache = true) {
-            // retrieve from cached values if already stored. otherwise get from API
-            // if cache is 'Force' then refresh from
-            if (roles && cache === true) {
-                return roles;
-            }
-            const response = await rev.get('/api/v2/users/roles');
-            if (cache) {
-                roles = response;
-            }
-            return response;
-        },
-        /**
-        * Get a Role (with the role id) based on its name
-        * @param name Name of the Role, i.e. "Media Viewer"
-        * @param fromCache - if true then use previously cached Role listing (more efficient)
-        */
-        async getRoleByName(name, fromCache = true) {
-            const roles = await adminAPI.roles(fromCache);
-            const role = roles.find(r => r.name === name);
-            if (!role) {
-                throw new TypeError(`Invalid Role Name ${name}. Valid values are: ${roles.map(r => r.name).join(', ')}`);
-            }
-            return {
-                id: role.id,
-                name: role.name
-            };
-        },
-        /**
-        * get list of custom fields
-        * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
-        */
-        async customFields(cache = true) {
-            // retrieve from cached values if already stored. otherwise get from API
-            // if cache is 'Force' then refresh from
-            if (customFields && cache === true) {
-                return customFields;
-            }
-            const response = await rev.get('/api/v2/video-fields', undefined, { responseType: 'json' });
-            if (cache) {
-                customFields = response;
-            }
-            return response;
-        },
-        /**
-        * Get a Custom Field based on its name
-        * @param name name of the Custom Field
-        * @param fromCache if true then use previously cached Role listing (more efficient)
-        */
-        async getCustomFieldByName(name, fromCache = true) {
-            const customFields = await adminAPI.customFields(fromCache);
-            const field = customFields.find(cf => cf.name === name);
-            if (!field) {
-                throw new TypeError(`Invalid Custom Field Name ${name}. Valid values are: ${customFields.map(cf => cf.name).join(', ')}`);
-            }
-            return field;
-        },
-        async brandingSettings() {
-            return rev.get('/api/v2/accounts/branding-settings');
-        },
-        /**
-        * get system health - returns 200 if system is active and responding, otherwise throws error
-        */
-        async verifySystemHealth() {
-            await rev.get('/api/v2/system-health');
-            return true;
-        },
-        /**
-        * gets list of scheduled maintenance windows
-        */
-        async maintenanceSchedule() {
-            const { schedules } = await rev.get('/api/v2/maintenance-schedule');
-            return schedules;
-        }
-    };
-    return adminAPI;
-}
-
 /**
  * Interface to iterate through results from API endpoints that return results in pages.
  * Use in one of three ways:
@@ -382,6 +299,188 @@ class PagedRequest {
             }
         } while (!this.done);
     }
+}
+
+async function decodeBody(response, acceptType) {
+    const contentType = response.headers.get('Content-Type') || acceptType || '';
+    if (contentType.startsWith('application/json')) {
+        try {
+            return await response.json();
+        }
+        catch (err) {
+            // keep going
+        }
+    }
+    if (contentType.startsWith('text')) {
+        return response.text();
+    }
+    return response.body;
+}
+/**
+ * Interface to iterate through results from API endpoints that return results in pages.
+ * Use in one of three ways:
+ * 1) Get all results as an array: await request.exec() == <array>
+ * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
+ * 3) Use for await to get all results one at a time: for await (let hit of request) { }
+ */
+class SearchRequest extends PagedRequest {
+    constructor(rev, searchDefinition, query = {}, options = {}) {
+        super({
+            onProgress: (items, current, total) => {
+                const { hitsKey } = searchDefinition;
+                rev.log('debug', `searching ${hitsKey}, ${current}-${current + items.length} of ${total}...`);
+            },
+            onError: (err => { throw err; }),
+            ...options
+        });
+        // make copy of query object
+        const { scrollId: _ignore, ...queryOpt } = query;
+        this.query = queryOpt;
+        this._reqImpl = this._buildReqFunction(rev, searchDefinition);
+        this.current = 0;
+        this.total = Infinity;
+        this.done = false;
+    }
+    _requestPage() {
+        return this._reqImpl();
+    }
+    _buildReqFunction(rev, searchDefinition) {
+        const { endpoint, totalKey, hitsKey, isPost = false, request, transform } = searchDefinition;
+        const requestFn = request || (isPost
+            ? rev.post.bind(rev)
+            : rev.get.bind(rev));
+        return async () => {
+            const response = await requestFn(endpoint, this.query, { responseType: 'json' });
+            let { scrollId, [totalKey]: total, [hitsKey]: rawItems = [], statusCode, statusDescription } = response;
+            let done = false;
+            this.query.scrollId = scrollId;
+            if (!scrollId) {
+                done = true;
+            }
+            const items = (typeof transform === 'function')
+                ? await Promise.resolve(transform(rawItems))
+                : rawItems;
+            // check for error response
+            const error = (statusCode >= 400 && !!statusDescription)
+                ? new ScrollError(statusCode, statusDescription)
+                : undefined;
+            return {
+                total,
+                done,
+                pageCount: rawItems.length,
+                items,
+                error
+            };
+        };
+    }
+}
+
+function adminAPIFactory(rev) {
+    let roles;
+    let customFields;
+    const adminAPI = {
+        /**
+        * get mapping of role names to role IDs
+        * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
+        */
+        async roles(cache = true) {
+            // retrieve from cached values if already stored. otherwise get from API
+            // if cache is 'Force' then refresh from
+            if (roles && cache === true) {
+                return roles;
+            }
+            const response = await rev.get('/api/v2/users/roles');
+            if (cache) {
+                roles = response;
+            }
+            return response;
+        },
+        /**
+        * Get a Role (with the role id) based on its name
+        * @param name Name of the Role, i.e. "Media Viewer"
+        * @param fromCache - if true then use previously cached Role listing (more efficient)
+        */
+        async getRoleByName(name, fromCache = true) {
+            const roles = await adminAPI.roles(fromCache);
+            const role = roles.find(r => r.name === name);
+            if (!role) {
+                throw new TypeError(`Invalid Role Name ${name}. Valid values are: ${roles.map(r => r.name).join(', ')}`);
+            }
+            return {
+                id: role.id,
+                name: role.name
+            };
+        },
+        /**
+        * get list of custom fields
+        * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
+        */
+        async customFields(cache = true) {
+            // retrieve from cached values if already stored. otherwise get from API
+            // if cache is 'Force' then refresh from
+            if (customFields && cache === true) {
+                return customFields;
+            }
+            const response = await rev.get('/api/v2/video-fields', undefined, { responseType: 'json' });
+            if (cache) {
+                customFields = response;
+            }
+            return response;
+        },
+        /**
+        * Get a Custom Field based on its name
+        * @param name name of the Custom Field
+        * @param fromCache if true then use previously cached Role listing (more efficient)
+        */
+        async getCustomFieldByName(name, fromCache = true) {
+            const customFields = await adminAPI.customFields(fromCache);
+            const field = customFields.find(cf => cf.name === name);
+            if (!field) {
+                throw new TypeError(`Invalid Custom Field Name ${name}. Valid values are: ${customFields.map(cf => cf.name).join(', ')}`);
+            }
+            return field;
+        },
+        async brandingSettings() {
+            return rev.get('/api/v2/accounts/branding-settings');
+        },
+        async webcastRegistrationFields() {
+            const response = await rev.get('/api/v2/accounts/webcast-registration-fields');
+            return response.registrationFields;
+        },
+        async createWebcastRegistrationField(registrationField) {
+            const response = await rev.post('/api/v2/accounts/webcast-registration-fields', registrationField);
+            return response.fieldId;
+        },
+        async updateWebcastRegistrationField(fieldId, registrationField) {
+            return rev.put(`/api/v2/accounts/webcast-registration-fields/${fieldId}`, registrationField);
+        },
+        async deleteWebcastRegistrationField(fieldId) {
+            return rev.delete(`/api/v2/accounts/webcast-registration-fields/${fieldId}`);
+        },
+        listIQCreditsUsage(query, options) {
+            const searchDefinition = {
+                endpoint: `/api/v2/analytics/accounts/iq-credits-usage`,
+                totalKey: 'total',
+                hitsKey: 'sessions'
+            };
+            return new SearchRequest(rev, searchDefinition, query, options);
+        },
+        /**
+        * get system health - returns 200 if system is active and responding, otherwise throws error
+        */
+        async verifySystemHealth() {
+            await rev.get('/api/v2/system-health');
+            return true;
+        },
+        /**
+        * gets list of scheduled maintenance windows
+        */
+        async maintenanceSchedule() {
+            const { schedules } = await rev.get('/api/v2/maintenance-schedule');
+            return schedules;
+        }
+    };
+    return adminAPI;
 }
 
 /**
@@ -528,10 +627,10 @@ function auditAPIFactory(rev) {
         * Operations on User Records (create, delete, etc)
         */
         accountUsers(accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess`, 'User', options);
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/users`, 'User', options);
         },
         user(userId, accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess/${userId}`, 'User', options);
+            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/users/${userId}`, 'User', options);
         },
         /**
         * Operations on Group Records (create, delete, etc)
@@ -647,8 +746,56 @@ var polyfills = {
     }
 };
 
-function authAPIFactory(rev) {
+const PLACEHOLDER = 'http://rev';
+/**
+ * Constructs the query parameters for the Rev /oauth/authorization endpoint
+ * @param config OAuth signing settings, retrieved from Rev Admin -> Security -> API Keys page, along with revUrl
+ * @param state optional state to pass back to redirectUri once complete
+ * @returns A valid oauth flow endpoint + query
+ */
+async function buildOAuthAuthenticationQuery(config, oauthSecret, state = '1') {
     const { hmacSign } = polyfills;
+    const RESPONSE_TYPE = 'code';
+    const { oauthApiKey: apiKey, redirectUri } = config;
+    const timestamp = new Date();
+    const verifier = `${apiKey}::${timestamp.toISOString()}`;
+    const signature = await hmacSign(verifier, oauthSecret);
+    return {
+        apiKey,
+        signature,
+        verifier,
+        'redirect_uri': redirectUri,
+        'response_type': RESPONSE_TYPE,
+        state
+    };
+}
+/**
+ * Parse the query parameters returned to the redirectUri from Rev
+ * @param url The URL with query parameters, or object with the query parrameters
+ * @returns
+ */
+function parseOAuthRedirectResponse(url) {
+    if (typeof url === 'string') {
+        // just in case only the query string is returned, include base
+        url = new URL(url, PLACEHOLDER);
+    }
+    if (url instanceof URL) {
+        url = url.searchParams;
+    }
+    const query = (url instanceof URLSearchParams)
+        ? Object.fromEntries(url)
+        : url;
+    const { 'auth_code': authCode = '', state = '', error = undefined } = query;
+    return {
+        isSuccess: !error,
+        // URL parsing parses pluses (+) as spaces, which can cause later validation to fail
+        authCode: `${authCode}`.replace(/ /g, '+'),
+        state,
+        error
+    };
+}
+
+function authAPIFactory(rev) {
     const authAPI = {
         async loginToken(apiKey, secret) {
             return rev.post('/api/v2/authenticate', {
@@ -688,60 +835,36 @@ function authAPIFactory(rev) {
         /**
          *
          * @param config OAuth signing settings, retrieved from Rev Admin -> Security -> API Keys page
+         * @param oauthSecret Secret from Rev Admin -> Security. This is a DIFFERENT value from the
+         *                    User Secret used for API login. Do not expose client-side!
          * @param state optional state to pass back to redirectUri once complete
          * @returns A valid oauth flow URL
          */
-        async buildOAuthAuthenticateURL(config, state = '1') {
-            const RESPONSE_TYPE = 'code';
-            const { oauthApiKey, oauthSecret, redirectUri } = config;
-            const timestamp = new Date();
-            if (isNaN(timestamp.getTime())) {
-                throw new TypeError(`Invalid Timestamp ${timestamp}`);
-            }
-            const verifier = `${oauthApiKey}::${timestamp.toISOString()}`;
-            const signature = await hmacSign(oauthSecret, verifier);
+        async buildOAuthAuthenticationURL(config, oauthSecret, state = '1') {
+            const query = await buildOAuthAuthenticationQuery(config, oauthSecret, state);
             const url = new URL('/oauth/authorization', rev.url);
-            url.search = new URLSearchParams({
-                'apiKey': oauthApiKey,
-                'signature': signature,
-                'verifier': verifier,
-                'redirect_uri': redirectUri,
-                'response_type': RESPONSE_TYPE,
-                'state': state,
-            }).toString();
+            url.search = `${new URLSearchParams(query)}`;
             return `${url}`;
         },
-        parseOAuthRedirectResponse(url) {
-            const parsedUrl = typeof url === 'string'
-                ? new URL(url)
-                : url;
-            const authCode = parsedUrl.searchParams.get('auth_code') || '';
-            const state = parsedUrl.searchParams.get('state') || '';
-            const error = parsedUrl.searchParams.get('error') || undefined;
-            return {
-                isSuccess: !error,
-                authCode,
-                state,
-                error
-            };
-        },
+        buildOAuthAuthenticationQuery,
+        parseOAuthRedirectResponse,
         async loginOAuth(config, authCode) {
             const GRANT_AUTH = 'authorization_code';
             const { oauthApiKey: apiKey, redirectUri } = config;
             // sometimes the authCode can get mangled, with the pluses in the code
-            // being replaced by spaces. This is just to make sure that isn't a problem
+            // being replaced by spaces. This is just to make sure that isn't a problem (even though already done in parseOAuthRedirectResponse)
             authCode = authCode.replace(/ /g, '+');
             // COMBAK I don't think it matters if rev-client is logged in and passing Authorization headers or not.
             return rev.post('/oauth/token', {
                 authCode,
                 apiKey,
                 redirectUri,
-                grandType: GRANT_AUTH
+                grantType: GRANT_AUTH
             });
         },
         async extendSessionOAuth(config, refreshToken) {
             const GRANT_REFRESH = 'refresh_token';
-            const { oauthApiKey: apiKey, redirectUri } = config;
+            const { oauthApiKey: apiKey } = config;
             return rev.post('/oauth/token', {
                 apiKey,
                 refreshToken,
@@ -909,82 +1032,12 @@ function deviceAPIFactory(rev) {
         },
         async delete(deviceId) {
             return rev.delete(`/api/v2/devices/dmes/${deviceId}`);
+        },
+        async rebootDME(deviceId) {
+            return rev.put(`/api/v2/devices/dmes/${deviceId}`);
         }
     };
     return deviceAPI;
-}
-
-async function decodeBody(response, acceptType) {
-    const contentType = response.headers.get('Content-Type') || acceptType || '';
-    if (contentType.startsWith('application/json')) {
-        try {
-            return await response.json();
-        }
-        catch (err) {
-            // keep going
-        }
-    }
-    if (contentType.startsWith('text')) {
-        return response.text();
-    }
-    return response.body;
-}
-/**
- * Interface to iterate through results from API endpoints that return results in pages.
- * Use in one of three ways:
- * 1) Get all results as an array: await request.exec() == <array>
- * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
- * 3) Use for await to get all results one at a time: for await (let hit of request) { }
- */
-class SearchRequest extends PagedRequest {
-    constructor(rev, searchDefinition, query = {}, options = {}) {
-        super({
-            onProgress: (items, current, total) => {
-                const { hitsKey } = searchDefinition;
-                rev.log('debug', `searching ${hitsKey}, ${current}-${current + items.length} of ${total}...`);
-            },
-            onError: (err => { throw err; }),
-            ...options
-        });
-        // make copy of query object
-        const { scrollId: _ignore, ...queryOpt } = query;
-        this.query = queryOpt;
-        this._reqImpl = this._buildReqFunction(rev, searchDefinition);
-        this.current = 0;
-        this.total = Infinity;
-        this.done = false;
-    }
-    _requestPage() {
-        return this._reqImpl();
-    }
-    _buildReqFunction(rev, searchDefinition) {
-        const { endpoint, totalKey, hitsKey, isPost = false, transform } = searchDefinition;
-        return async () => {
-            const response = isPost
-                ? await rev.post(endpoint, this.query, { responseType: 'json' })
-                : await rev.get(endpoint, this.query, { responseType: 'json' });
-            let { scrollId, [totalKey]: total, [hitsKey]: rawItems = [], statusCode, statusDescription } = response;
-            let done = false;
-            this.query.scrollId = scrollId;
-            if (!scrollId) {
-                done = true;
-            }
-            const items = (typeof transform === 'function')
-                ? await Promise.resolve(transform(rawItems))
-                : rawItems;
-            // check for error response
-            const error = (statusCode >= 400 && !!statusDescription)
-                ? new ScrollError(statusCode, statusDescription)
-                : undefined;
-            return {
-                total,
-                done,
-                pageCount: rawItems.count,
-                items,
-                error
-            };
-        };
-    }
 }
 
 function groupAPIFactory(rev) {
@@ -1779,6 +1832,77 @@ function videoAPIFactory(rev) {
     return videoAPI;
 }
 
+function getSummaryFromResponse(response, hitsKey) {
+    const ignoreKeys = ['scrollId', 'statusCode', 'statusDescription'];
+    const summary = Object.fromEntries(Object.entries(response)
+        .filter(([key, value]) => {
+        // don't include arrays or scroll type keys
+        return !(key === hitsKey || ignoreKeys.includes(key) || Array.isArray(value));
+    }));
+    return summary;
+}
+class RealtimeReportRequest extends SearchRequest {
+    constructor(rev, eventId, query = {}, options = {}) {
+        const searchDefinition = {
+            endpoint: `/api/v2/scheduled-events/${eventId}/real-time/attendees`,
+            totalKey: 'total',
+            hitsKey: 'attendees',
+            // get summary from initial response
+            request: async (endpoint, query, options) => {
+                const response = await rev.post(endpoint, query, options);
+                const summary = getSummaryFromResponse(response, 'attendees');
+                Object.assign(this.summary, summary);
+                return response;
+            }
+        };
+        super(rev, searchDefinition, query, options);
+        this.summary = {};
+    }
+    /**
+     * get the aggregate statistics only, instead of actual session data.
+     * @returns {Webcast.PostEventSummary}
+     */
+    async getSummary() {
+        // set maxResults to 0 to mark request as done, since first page of sessions will be lost
+        this.options.maxResults = 0;
+        // must get first page of results to load summary data
+        await this.nextPage();
+        return this.summary;
+    }
+}
+class PostEventReportRequest extends SearchRequest {
+    constructor(rev, query, options = {}) {
+        const { eventId, runNumber } = query;
+        const runQuery = (runNumber && runNumber >= 0)
+            ? { runNumber }
+            : {};
+        const searchDefinition = {
+            endpoint: `/api/v2/scheduled-events/${eventId}/post-event-report`,
+            totalKey: 'totalSessions',
+            hitsKey: 'sessions',
+            request: async (endpoint, query, options) => {
+                const response = await rev.get(endpoint, query, options);
+                const summary = getSummaryFromResponse(response, 'sessions');
+                Object.assign(this.summary, summary);
+                return response;
+            }
+        };
+        super(rev, searchDefinition, runQuery, options);
+        this.summary = {};
+    }
+    /**
+     * get the aggregate statistics only, instead of actual session data.
+     * @returns {Webcast.PostEventSummary}
+     */
+    async getSummary() {
+        // set maxResults to 0 to mark request as done, since first page of sessions will be lost
+        this.options.maxResults = 0;
+        // must get first page of results to load summary data
+        await this.nextPage();
+        return this.summary;
+    }
+}
+
 function webcastAPIFactory(rev) {
     const webcastAPI = {
         async list(options = {}) {
@@ -1789,6 +1913,7 @@ function webcastAPIFactory(rev) {
                 endpoint: `/api/v2/search/scheduled-events`,
                 totalKey: 'total',
                 hitsKey: 'events',
+                request: (endpoint, query, options) => rev.post(endpoint, query, options),
                 isPost: true
             };
             return new SearchRequest(rev, searchDefinition, query, options);
@@ -1811,13 +1936,10 @@ function webcastAPIFactory(rev) {
             return rev.put(`/api/v2/scheduled-events/${eventId}/access-control`, entities);
         },
         attendees(eventId, runNumber, options) {
-            const searchDefinition = {
-                endpoint: `/api/v2/scheduled-events/${eventId}/post-event-report`,
-                totalKey: 'totalSessions',
-                hitsKey: 'sessions'
-            };
-            const query = runNumber && runNumber >= 0 ? { runNumber } : {};
-            return new SearchRequest(rev, searchDefinition, query, options);
+            return new PostEventReportRequest(rev, { eventId, runNumber }, options);
+        },
+        realtimeAttendees(eventId, query, options) {
+            return new RealtimeReportRequest(rev, eventId, query, options);
         },
         async questions(eventId, runNumber) {
             const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
@@ -1872,7 +1994,48 @@ function webcastAPIFactory(rev) {
         },
         async unlinkVideo(eventId) {
             return rev.delete(`/api/v2/scheduled-events/${eventId}/linked-video`);
-        }
+        },
+        /**
+         * Retrieve details of a specific guest user Public webcast registration.
+         * @param eventId - Id of the Public webcast
+         * @param registrationId - Id of guest user's registration to retrieve
+         * @returns
+         */
+        async guestRegistration(eventId, registrationId) {
+            return rev.get(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
+        },
+        /**
+         * Register one attendee/guest user for an upcoming Public webcast. Make sure you first enable Public webcast pre-registration before adding registrations.
+         * @param eventId
+         * @param registration
+         * @returns
+         */
+        async createGuestRegistration(eventId, registration) {
+            return rev.post(`/api/v2/scheduled-events/${eventId}/registrations`, registration);
+        },
+        listGuestRegistrations(eventId, query = {}, options) {
+            const searchDefinition = {
+                endpoint: `/api/v2/scheduled-events/${eventId}/registrations`,
+                /** NOTE: this API doesn't actually return a total, so this will always be undefined */
+                totalKey: 'total',
+                hitsKey: 'guestUsers'
+            };
+            return new SearchRequest(rev, searchDefinition, query, options);
+        },
+        updateGuestRegistration(eventId, registrationId, registration) {
+            return rev.put(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`, registration);
+        },
+        patchGuestRegistration(eventId, registrationId, registration) {
+            const operations = Object.entries(registration)
+                .map(([key, value]) => {
+                let path = `/${titleCase(key)}`;
+                return { op: 'replace', path, value };
+            });
+            return rev.put(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`, operations);
+        },
+        deleteGuestRegistration(eventId, registrationId) {
+            return rev.delete(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
+        },
     };
     return webcastAPI;
 }
@@ -2025,7 +2188,14 @@ class SessionBase {
         this.expires = new Date();
         const { expiration, ...session } = await this._login();
         Object.assign(this, session);
-        this.expires = new Date(expiration);
+        const expires = new Date(expiration);
+        // VERY edge case where old date could be returned - just assume 10 min expiration
+        if (expires.getTime() < this.expires.getTime()) {
+            this.expires.setUTCMinutes(this.expires.getUTCMinutes() + 10);
+        }
+        else {
+            this.expires = expires;
+        }
         if (this.keepAlive) {
             this.keepAlive.start();
         }
@@ -2104,7 +2274,7 @@ class SessionBase {
      * returns true if session isn't expired and has a token
      */
     get isConnected() {
-        return this.token && !this.isExpired;
+        return !!this.token && !this.isExpired;
     }
     get username() {
         return this[_credentials].username;
@@ -2132,6 +2302,13 @@ class OAuthSession extends SessionBase {
         // nothing to do
         return;
     }
+    toJSON() {
+        return {
+            token: this.token || '',
+            expiration: this.expires,
+            refreshToken: this.refreshToken
+        };
+    }
 }
 class UserSession extends SessionBase {
     async _login() {
@@ -2150,6 +2327,13 @@ class UserSession extends SessionBase {
         const { userId } = this;
         return this.rev.auth.logoffUser(userId);
     }
+    toJSON() {
+        return {
+            token: this.token || '',
+            expiration: this.expires,
+            userId: this.userId
+        };
+    }
 }
 class ApiKeySession extends SessionBase {
     async _login() {
@@ -2167,21 +2351,48 @@ class ApiKeySession extends SessionBase {
         const { apiKey } = this[_credentials];
         return this.rev.auth.logoffToken(apiKey);
     }
+    toJSON() {
+        return {
+            token: this.token || '',
+            expiration: this.expires,
+            apiKey: this[_credentials].apiKey
+        };
+    }
 }
 function createSession(rev, credentials, keepAliveOptions) {
-    const isOauthLogin = credentials.authCode && credentials.oauthConfig;
-    const isUsernameLogin = credentials.username && credentials.password;
-    const isApiKeyLogin = credentials.apiKey && credentials.secret;
+    let session;
+    const { session: sessionState = {}, ...creds } = credentials;
+    const { token, expiration, refreshToken, userId } = sessionState;
+    const now = Date.now();
+    const expires = new Date(expiration || now);
+    const hasSession = (token && typeof token === 'string') && (expires.getTime() > now);
+    const isOauthLogin = credentials.oauthConfig && (credentials.authCode || (hasSession && refreshToken));
+    const isApiKeyLogin = credentials.apiKey && (credentials.secret || (hasSession && !userId));
+    const isUsernameLogin = credentials.username && (credentials.password || (hasSession && userId));
+    // prefer oauth first, then apikey then username if multiple params specified
     if (isOauthLogin) {
-        return new OAuthSession(rev, credentials, keepAliveOptions);
+        session = new OAuthSession(rev, creds, keepAliveOptions);
+        if (refreshToken) {
+            session.refreshToken = refreshToken;
+        }
     }
-    if (isApiKeyLogin) {
-        return new ApiKeySession(rev, credentials, keepAliveOptions);
+    else if (isApiKeyLogin) {
+        session = new ApiKeySession(rev, creds, keepAliveOptions);
     }
-    if (isUsernameLogin) {
-        return new UserSession(rev, credentials, keepAliveOptions);
+    else if (isUsernameLogin) {
+        session = new UserSession(rev, creds, keepAliveOptions);
+        if (userId) {
+            session.userId = userId;
+        }
     }
-    throw new TypeError('Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)');
+    else {
+        throw new TypeError('Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)');
+    }
+    if (hasSession) {
+        session.token = token;
+        session.expires = expires;
+    }
+    return session;
 }
 
 class RevClient {
@@ -2189,12 +2400,12 @@ class RevClient {
         if (!isPlainObject(options) || !options.url) {
             throw new TypeError('Missing configuration options for client - url and username/password or apiKey/secret');
         }
-        const { url, log, logEnabled = false, keepAlive = true, session: customSession, ...credentials } = options;
+        const { url, log, logEnabled = false, keepAlive = true, ...credentials } = options;
         // get just the origin of provided url
         const urlObj = new URL(url);
         this.url = urlObj.origin;
         // will throw error if credentials are invalid
-        this.session = customSession || createSession(this, credentials, keepAlive);
+        this.session = createSession(this, credentials, keepAlive);
         // add logging functionality
         this.logEnabled = !!logEnabled;
         if (log) {
@@ -2219,7 +2430,12 @@ class RevClient {
             upload: { value: uploadAPIFactory(this), writable: false },
             user: { value: userAPIFactory(this), writable: false },
             video: { value: videoAPIFactory(this), writable: false },
-            webcasts: { value: webcastAPIFactory(this), writable: false },
+            webcast: { value: webcastAPIFactory(this), writable: false },
+            // COMBAK - DEPRECATED
+            webcasts: { get: () => {
+                    this.log('debug', 'webcasts is deprecated - use rev.webcast instead');
+                    return this.webcast;
+                }, enumerable: false },
             zones: { value: zonesAPIFactory(this), writable: false }
         });
     }
@@ -2381,13 +2597,25 @@ class RevClient {
         return this.session.verify();
     }
     get isConnected() {
-        return this.session.token && !this.session.isExpired;
+        return !!this.session.token && !this.session.isExpired;
     }
     get token() {
         return this.session.token;
     }
     get sessionExpires() {
         return this.session.expires;
+    }
+    get sessionState() {
+        return this.session.toJSON();
+    }
+    set sessionState(state) {
+        this.session.token = `${state.token}`;
+        this.session.expires = new Date(state.expiration);
+        for (let key of ['apiKey', 'refreshToken', 'userId']) {
+            if (key in state) {
+                this.session[key] = `${state[key] || ''}`;
+            }
+        }
     }
     log(severity, ...args) {
         if (!this.logEnabled) {
@@ -2547,4 +2775,4 @@ exports.RevClient = RevClient;
 exports.RevError = RevError;
 exports.ScrollError = ScrollError;
 exports["default"] = RevClient;
-//# sourceMappingURL=rev-client.js.map
+//# sourceMappingURL=rev-client.cjs.map

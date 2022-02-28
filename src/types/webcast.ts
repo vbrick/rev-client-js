@@ -1,4 +1,4 @@
-import { Rev } from '.';
+import { Rev, RegistrationField, Admin } from '.';
 import { LiteralString } from './rev';
 
 export interface Webcast {
@@ -9,7 +9,7 @@ export interface Webcast {
     endDate: string;
     listingType: Webcast.WebcastAccessControl;
     eventUrl: string;
-    backgroundImages: Array<{ backgroundImageUrl: string, scaleSize: string; }>;
+    backgroundImages: Array<{ url: string, scaleSize: string; }>;
     categories: Array<{ categoryId: string, name: string, fullpath: string; }>;
     tags: string[];
     unlisted: boolean;
@@ -29,6 +29,14 @@ export interface Webcast {
 export namespace Webcast {
     export type WebcastAccessControl = LiteralString<'Public' | 'TrustedPublic' | 'AllUsers' | 'Private'>;
     export type SortField = LiteralString<'startDate' | 'title'>;
+
+    export type VideoSourceType = LiteralString<
+        'Capture' | 'MicrosoftTeams' | 'PresentationProfile' | 'Rtmp' | 'WebrtcSinglePresenter' | 'SipAddress' | 'WebexTeam' | 'WebexEvents' | 'WebexLiveStream' | 'Vod' | 'Zoom'
+    >
+
+    export type RealtimeField = LiteralString<
+        'FullName' | 'Email' | 'ZoneName' | 'StreamType' | 'IpAddress' | 'Browser' | 'OsFamily' | 'StreamAccessed' | 'PlayerDevice' | 'OsName' | 'UserType' | 'Username' | 'AttendeeType'
+    >
 
     export interface ListRequest {
         after?: string | Date;
@@ -59,13 +67,35 @@ export namespace Webcast {
     }
 
     export interface CreateRequest {
-        title?: string;
+        title: string;
         description?: string;
         startDate: string | Date;
         endDate: string | Date;
 
         presentationProfileId?: string;
         vcSipAddress?: string;
+        isSecureRtmp?: boolean;
+        /** only valid for edit request - Specifies if the exiting RTMP based webcast URL and Key needs to be regenerated */
+        regenerateRtmpUrlAndKey?: boolean;
+        vcMicrosoftTeamsMeetingUrl?: string;
+        /** This field is required to create/edit WebexLiveStream event. */
+        videoSourceType?: VideoSourceType;
+
+
+        webcastType?: LiteralString<'Rev' | 'WebexEvents'>;
+        webexTeam?: {
+            roomId: string;
+            name?: string;
+        }
+        zoom?: {
+            meetingId: string;
+            meetingPassword?: string;
+        }
+        vodId?: string;
+
+        /** Internal user Id. Only required when 'WebrtcSinglePresenter' selected as a videoSourceType */
+        presenterId?: string;
+
 
         eventAdminIds: string[];
         automatedWebcast?: boolean;
@@ -77,7 +107,7 @@ export namespace Webcast {
         groupIds?: string[];
         moderatorIds?: string[];
         password?: string;
-        accessControl?: WebcastAccessControl;
+        accessControl: WebcastAccessControl;
         questionOption?: string;
         presentationFileDownloadAllowed?: boolean;
         categories?: string[];
@@ -91,13 +121,25 @@ export namespace Webcast {
             groupIds?: string[];
         };
         shortcutName?: string;
+
+        recordingUploaderUserEmail?: string;
+        recordingUploaderUserId?: string;
+        disableAutoRecording?: boolean;
+        hideShareUrl?: boolean;
+        autoplay?: boolean;
+
         linkedVideoId?: string;
         autoAssociateVod?: boolean;
         redirectVod?: boolean;
         registrationFieldIds?: string[];
         customFields?: Array<{ id?: string, value?: string; }>;
-    }
 
+        liveSubtitles?: {
+            sourceLanguage: string
+            translationLanguages: string[]
+        }
+        emailToPreRegistrants?: boolean;
+    }
 
     export interface Details {
         eventId: string;
@@ -108,6 +150,28 @@ export namespace Webcast {
 
         presentationProfileId?: string;
         vcSipAddress?: string;
+        vcMicrosoftTeamsMeetingUrl?: string;
+        videoSourceType?: VideoSourceType;
+
+
+        webcastType?: LiteralString<'Rev' | 'WebexEvents'>;
+        webexTeam?: {
+            roomId: string;
+            name?: string;
+        }
+        zoom?: {
+            meetingId: string;
+            meetingPassword?: string;
+        }
+        vodId?: string;
+        rtmp?: {
+            url: string;
+            key: string;
+        }
+        liveSubtitles?: {
+            sourceLanguage: string
+            translationLanguages: string[]
+        }
 
         eventAdminIds: string[];
         automatedWebcast: boolean;
@@ -137,29 +201,33 @@ export namespace Webcast {
         autoAssociateVod: boolean;
         redirectVod: boolean;
         recordingUploaderUserId: string;
+        disableAutoRecording?: boolean;
+        hideShareUrl?: boolean;
+        autoplay?: boolean;
+
         presentationFileDownloadAllowed: boolean;
-        registrationFields: Array<{
-            id: string;
-            name: string;
-            fieldType: string;
-            required: boolean;
-            options: string[];
-            includeInAllWebcasts: boolean;
-        }>;
-        customFields?: Array<{
-            id: string;
-            name: string;
-            value: string;
-            required: boolean;
-            displayedToUsers: boolean;
-            fieldType: string;
-        }>;
+        registrationFields: RegistrationField[];
+        customFields?: Admin.CustomField[];
+        emailToPreRegistrants?: boolean;
     }
 
     export interface EditAttendeesRequest {
         userIds?: string[];
         usernames?: string[];
         groupIds?: string[];
+    }
+
+    export interface PostEventSummary {
+        hostCount?: number;
+        moderatorCount?: number;
+        attendeeCount?: number;
+        experiencedRebufferingPercentage?: number;
+        averageExperiencedRebufferDuration?: number;
+        experiencedErrorsPerAttendees?: number;
+        multicastErrorsPerAttendees?: number;
+        totalSessions?: number;
+        totalPublicCDNTime?: string;
+        totalECDNTime?: string;
     }
 
     export interface PostEventSession {
@@ -179,11 +247,74 @@ export namespace Webcast {
         exitedDate: string; // date-time
         viewingStartTime: string; // date-time
         experiencedErrors: number;
-        multicastErrors: number;
+        multicastErrorsPerAttendees: number;
         bufferEvents: number;
         rebufferEvents: number;
         rebufferDuration: number;
         attendeeType: LiteralString<'Host' | 'Moderator' | 'AccountAdmin' | 'Attendee'>;
+    }
+
+    export interface RealtimeRequest {
+        sortField?: RealtimeField;
+        sortDirection?: Rev.SortDirection;
+        count?: number;
+        q?: string;
+        searchField?: RealtimeField;
+        runNumber?: number;
+        status?: LiteralString<'All' | 'Online' | 'Offline'>;
+        attendeeDetails?: LiteralString<'Base' | 'All' | 'Counts'>;
+    }
+
+    export interface RealtimeSummary {
+        totalSessions?: number;
+        hostCount?: number;
+        moderatorCount?: number;
+        attendeeCount?: number;
+        status?: LiteralString<'Active' | 'Initiated'>;
+        experiencedRebufferingPercentage?: number;
+        averageExperiencedRebufferDuration?: number;
+        experiencedErrorsPerAttendees?: number;
+        multicastErrorsPerAttendees?: number;
+    }
+
+    export interface RealtimeSession {
+        userId: string;
+        username: string;
+        fullName: string;
+        email: string;
+        startTime: string; // date-time
+        sessionId: string;
+    }
+
+    export interface RealtimeSessionDetail extends RealtimeSession {
+        userType: string;
+        attendeeType: LiteralString<'Host' | 'Moderator' | 'AccountAdmin' | 'Attendee'>;
+        status: LiteralString<'Online' | 'Offline'>;
+        experiencedErrors: number;
+        multicastFailovers: number;
+        experiencedBufferingDuration: number;
+        experiencedBufferingCount: number;
+        avgExperiencedBufferingDuration: number;
+        avgBitrateKbps: number;
+        avgBandwidthMbps: number;
+        viewingStartTime: number;
+        zoneId: string;
+        zoneName: string;
+        ipAddress: string;
+        streamDevice: string;
+        streamAccessed: string;
+        playerDevice: string;
+        browser: string;
+        videoPlayer: string;
+        videoFormat: string;
+        userAgent: string;
+        osName: string;
+        osFamily: string;
+        deviceId: string;
+        revConnect: boolean;
+        streamType: string;
+        sessionId: string;
+        profileImageUrl: string;
     }
 
     export interface Question {
@@ -201,6 +332,7 @@ export namespace Webcast {
         totalResponses: number;
         totalNoResponses: number;
         allowMultipleAnswers: boolean;
+        whenPollCreated: string;
         pollAnswers: Array<{
             answer: string;
             votes: 0;
@@ -237,5 +369,30 @@ export namespace Webcast {
         videoFormat: string;
         videoInstanceId: string;
         deviceId: string;
+    }
+}
+
+export interface GuestRegistration {
+    name: string,
+    email: string,
+    registrationId: string,
+    registrationFieldsAnswers: Array<{ id: string, name: string, value: string }>
+}
+
+export namespace GuestRegistration {
+    export interface Details extends GuestRegistration {
+        token: string
+    }
+
+    export interface Request {
+        name: string,
+        email: string,
+        registrationFieldsAnswers?: Array<{ id?: string, name?: string, value: string }>
+    }
+
+    export interface SearchRequest {
+        sortField?: LiteralString<'name' | 'email'>,
+        sortDirection?: Rev.SortDirection,
+        size?: number
     }
 }

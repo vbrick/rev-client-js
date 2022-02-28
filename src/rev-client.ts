@@ -4,7 +4,7 @@ import * as api from './api';
 import polyfills from './interop';
 import { Rev } from './types';
 import { decodeBody } from './utils/request-utils';
-import { createSession } from './session';
+import { createSession } from './rev-session';
 
 type PayloadType = { [key: string]: any; } | Record<string, any> | any[];
 
@@ -35,7 +35,6 @@ export class RevClient {
             log,
             logEnabled = false,
             keepAlive = true,
-            session: customSession,
             ...credentials
         } = options;
 
@@ -44,7 +43,7 @@ export class RevClient {
         this.url = urlObj.origin;
 
         // will throw error if credentials are invalid
-        this.session = customSession || createSession(this, credentials, keepAlive);
+        this.session = createSession(this, credentials, keepAlive);
 
         // add logging functionality
         this.logEnabled = !!logEnabled;
@@ -71,7 +70,12 @@ export class RevClient {
             upload: { value: api.upload(this), writable: false },
             user: { value: api.user(this), writable: false },
             video: { value: api.video(this), writable: false },
-            webcasts: { value: api.webcast(this), writable: false },
+            webcast: { value: api.webcast(this), writable: false },
+            // COMBAK - DEPRECATED
+            webcasts: { get: () => {
+                this.log('debug', 'webcasts is deprecated - use rev.webcast instead');
+                return this.webcast;
+            }, enumerable: false },
             zones: { value: api.zones(this), writable: false }
         });
     }
@@ -255,13 +259,25 @@ export class RevClient {
         return this.session.verify();
     }
     get isConnected() {
-        return this.session.token && !this.session.isExpired;
+        return !!this.session.token && !this.session.isExpired;
     }
     get token() {
         return this.session.token;
     }
     get sessionExpires() {
         return this.session.expires;
+    }
+    get sessionState() {
+        return this.session.toJSON();
+    }
+    set sessionState(state: Rev.IRevSessionState) {
+        this.session.token = `${state.token}`;
+        this.session.expires = new Date(state.expiration);
+        for (let key of ['apiKey', 'refreshToken', 'userId'] as (keyof Rev.IRevSessionState)[]) {
+            if (key in state) {
+                (this.session as any)[key] = `${state[key] || ''}`;
+            }
+        }
     }
     log(severity: Rev.LogSeverity, ...args: any[]) {
         if (!this.logEnabled) {

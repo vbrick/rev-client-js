@@ -17,10 +17,10 @@ export default function auditAPIFactory(rev: RevClient) {
         * Operations on User Records (create, delete, etc)
         */
         accountUsers(accountId: string, options?: Audit.Options<Audit.UserEntry>) {
-            return new AuditRequest<Audit.UserEntry>(rev, `/network/audit/accounts/${accountId}/userAccess`, 'User', options);
+            return new AuditRequest<Audit.UserEntry>(rev, `/network/audit/accounts/${accountId}/users`, 'User', options);
         },
         user(userId: string, accountId: string, options?: Audit.Options<Audit.UserEntry>) {
-            return new AuditRequest<Audit.UserEntry>(rev, `/network/audit/accounts/${accountId}/userAccess/${userId}`, 'User', options);
+            return new AuditRequest<Audit.UserEntry>(rev, `/network/audit/accounts/${accountId}/users/${userId}`, 'User', options);
         },
         /**
         * Operations on Group Records (create, delete, etc)

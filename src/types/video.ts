@@ -1,18 +1,15 @@
 import type { AccessControl, Category, Admin, Rev } from '.';
+import { LiteralString } from './rev';
 
 export namespace Video {
-    export type ApprovalStatus = 'Approved' | 'PendingApproval' | 'Rejected' | 'RequiresApproval' | 'SubmittedApproval';
-
-    export type VideoType = "Live" | "Vod";
-
-    export type EncodingType = "H264" | "HLS" | "HDS" | "H264TS" | "Mpeg4" | "Mpeg2" | "WM" | "Flash" | "RTP";
-
-    export type StatusEnum = "NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready";
-
-    export type AccessControl = "AllUsers" | "Public" | "Private" | "Channels";
-
-    export type ExpirationAction = 'Delete' | 'Inactivate';
-
+    export type AccessControl = LiteralString<"AllUsers" | "Public" | "Private" | "Channels">;
+    export type ApprovalStatus = LiteralString<'Approved' | 'PendingApproval' | 'Rejected' | 'RequiresApproval' | 'SubmittedApproval'>;
+    export type EncodingType = LiteralString<"H264" | "HLS" | "HDS" | "H264TS" | "Mpeg4" | "Mpeg2" | "WM" | "Flash" | "RTP">;
+    export type ExpirationAction = LiteralString<'Delete' | 'Inactivate'>;
+    export type ExpiryRule = LiteralString<'None' | 'DaysAfterUpload' | 'DaysWithoutViews'>;
+    export type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
+    export type SourceType = LiteralString<'REV' | 'WEBEX' | 'API' | 'VIDEO CONFERENCE' | 'WebexLiveStream' | 'LiveEnrichment'>
+    export type VideoType = LiteralString<"Live" | "Vod">;
 
     export interface LinkedUrl {
         Url: string;
@@ -96,6 +93,15 @@ export namespace Video {
 
         publishDate?: Date | string;
         userTags?: string[];
+
+        /** owner of video, defaults to uploader. only one key is necessary */
+        owner?: {
+            userId?: string;
+            username?: string;
+            email?: string;
+        };
+
+        sourceType?: SourceType;
     }
 
     export interface MigrateRequest {
@@ -186,8 +192,8 @@ export namespace Video {
         /**
          * source of original video
          */
-        sourceType: 'REV' | 'WEBEX' | 'API' | 'VIDEO CONFERENCE';
-        source: 'Upload' | 'Link' | 'ScheduledEvent' | 'Webex' | 'Upload360' | 'ScheduledRecording';
+        sourceType: SourceType;
+        source: LiteralString<'Upload' | 'Link' | 'ScheduledEvent' | 'Webex' | 'Upload360' | 'ScheduledRecording'>;
         expirationDate: string | null;
         /**
          * This sets action when video expires. This is an enum and can have the following values: Delete/Inactivate.
@@ -196,7 +202,7 @@ export namespace Video {
         expiration: {
             ruleId: string | null;
             expirationDate: string | null;
-            expiryRuleType: 'None' | 'DaysAfterUpload' | 'DaysWithoutViews';
+            expiryRuleType: ExpiryRule;
             numberOfDays: number | null;
             deleteOnExpiration: boolean | null;
         } | null;
@@ -231,7 +237,7 @@ export namespace Video {
                 container?: string;
             }
             size: number;
-            status: 'Initialized' | 'Transcoding' | 'Transcoded' | 'TranscodingFailed' | 'Storing' | 'Stored' | 'StoringFailed'
+            status: LiteralString<'Initialized' | 'Transcoding' | 'Transcoded' | 'TranscodingFailed' | 'Storing' | 'Stored' | 'StoringFailed'>
             videoKey: string;
         }>;
         chapters: {
@@ -293,7 +299,7 @@ export namespace Video {
         uploaders?: string;
         /** list of uploader IDs separated by commas */
         uploaderIds?: string;
-        status?: 'active' | 'inactive';
+        status?: LiteralString<'active' | 'inactive'>;
         fromPublishedDate?: Date | string;
         toPublishedDate?: Date | string;
         fromUploadDate?: Date | string;
@@ -302,7 +308,7 @@ export namespace Video {
         toModifiedDate?: Date | string;
 
         exactMatch?: boolean;
-        unlisted?: 'unlisted' | 'listed' | 'all';
+        unlisted?: LiteralString<'unlisted' | 'listed' | 'all'>;
 
         /**
          * If provided, the query results are fetched on the provided searchField only.
@@ -320,7 +326,7 @@ export namespace Video {
          */
         recommendedFor?: string;
 
-        sortField?: 'title' | 'whenUploaded' | 'uploaderName' | 'duration' | '_score';
+        sortField?: LiteralString<'title' | 'whenUploaded' | 'uploaderName' | 'duration' | '_score'>;
         sortDirection?: Rev.SortDirection;
 
         /**

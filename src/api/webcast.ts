@@ -1,7 +1,15 @@
 import { Rev } from '..';
 import type { RevClient } from '../rev-client';
-import { Webcast } from '../types/webcast';
+import { Webcast, GuestRegistration } from '../types/webcast';
 import { SearchRequest } from '../utils/request-utils';
+import { titleCase } from '../utils';
+import { PostEventReportRequest, RealtimeReportRequest } from './webcast-report-request';
+
+type RealtimeSession<T extends Webcast.RealtimeRequest | undefined> = T extends { attendeeDetails: 'All' }
+    ? Webcast.RealtimeSessionDetail
+    : T extends { attendeeDetails: 'Counts' }
+    ? never
+    : Webcast.RealtimeSession;
 
 export default function webcastAPIFactory(rev: RevClient) {
     const webcastAPI = {
@@ -9,10 +17,11 @@ export default function webcastAPIFactory(rev: RevClient) {
             return rev.get('/api/v2/scheduled-events', options, { responseType: 'json' });
         },
         search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): SearchRequest<Webcast> {
-            const searchDefinition = {
+            const searchDefinition: Rev.SearchDefinition<Webcast> = {
                 endpoint: `/api/v2/search/scheduled-events`,
                 totalKey: 'total',
                 hitsKey: 'events',
+                request: (endpoint, query, options) => rev.post(endpoint, query, options),
                 isPost: true
             };
             return new SearchRequest<Webcast>(rev, searchDefinition, query, options);
@@ -34,14 +43,19 @@ export default function webcastAPIFactory(rev: RevClient) {
         async editAccess(eventId: string, entities: Webcast.EditAttendeesRequest): Promise<void> {
             return rev.put(`/api/v2/scheduled-events/${eventId}/access-control`, entities);
         },
-        attendees(eventId: string, runNumber?: number, options?: Rev.SearchOptions<Webcast.PostEventSession>): SearchRequest<Webcast.PostEventSession> {
-            const searchDefinition = {
-                endpoint: `/api/v2/scheduled-events/${eventId}/post-event-report`,
-                totalKey: 'totalSessions',
-                hitsKey: 'sessions'
-            };
-            const query = runNumber && runNumber >= 0 ? { runNumber } : { };
-            return new SearchRequest<Webcast.PostEventSession>(rev, searchDefinition, query, options);
+        attendees(
+            eventId: string,
+            runNumber?: number,
+            options?: Rev.SearchOptions<Webcast.PostEventSession>
+        ) {
+            return new PostEventReportRequest(rev, { eventId, runNumber }, options);
+        },
+        realtimeAttendees<T extends Webcast.RealtimeRequest | undefined>(
+            eventId: string,
+            query?: T,
+            options?: Rev.SearchOptions<RealtimeSession<T>>
+        ) {
+            return new RealtimeReportRequest<RealtimeSession<T>>(rev, eventId, query, options);
         },
         async questions(eventId: string, runNumber?: number): Promise<Webcast.Question[]> {
             const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
@@ -102,7 +116,54 @@ export default function webcastAPIFactory(rev: RevClient) {
         },
         async unlinkVideo(eventId: string) {
             return rev.delete(`/api/v2/scheduled-events/${eventId}/linked-video`);
-        }
+        },
+        /**
+         * Retrieve details of a specific guest user Public webcast registration.
+         * @param eventId - Id of the Public webcast
+         * @param registrationId - Id of guest user's registration to retrieve
+         * @returns
+         */
+        async guestRegistration(eventId: string, registrationId: string): Promise<GuestRegistration.Details> {
+            return rev.get(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
+        },
+        /**
+         * Register one attendee/guest user for an upcoming Public webcast. Make sure you first enable Public webcast pre-registration before adding registrations.
+         * @param eventId
+         * @param registration
+         * @returns
+         */
+        async createGuestRegistration(eventId: string, registration: GuestRegistration.Request): Promise<GuestRegistration.Details> {
+            return rev.post(`/api/v2/scheduled-events/${eventId}/registrations`, registration);
+        },
+        listGuestRegistrations(
+            eventId: string,
+            query: GuestRegistration.SearchRequest = {},
+            options?: Rev.SearchOptions<GuestRegistration>
+        ): SearchRequest<GuestRegistration> {
+            const searchDefinition: Rev.SearchDefinition<GuestRegistration> = {
+                endpoint: `/api/v2/scheduled-events/${eventId}/registrations`,
+                /** NOTE: this API doesn't actually return a total, so this will always be undefined */
+                totalKey: 'total',
+                hitsKey: 'guestUsers'
+            };
+            return new SearchRequest<GuestRegistration>(rev, searchDefinition, query, options);
+        },
+        updateGuestRegistration(eventId: string, registrationId: string, registration: GuestRegistration.Request): Promise<void> {
+            return rev.put(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`, registration);
+        },
+        patchGuestRegistration(eventId: string, registrationId: string, registration: Partial<GuestRegistration.Request>): Promise<void> {
+            const operations = Object.entries(registration)
+                .map(([key, value]) => {
+                    let path = `/${titleCase(key)}`;
+                    return { op: 'replace', path, value };
+                });
+            return rev.put(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`, operations);
+        },
+        deleteGuestRegistration(eventId: string, registrationId: string): Promise<void> {
+            return rev.delete(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
+        },
+
     };
+
     return webcastAPI;
 }

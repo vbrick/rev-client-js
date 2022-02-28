@@ -1,5 +1,6 @@
-import { Admin, Role } from '..';
+import { Admin, Rev, Role, RegistrationField } from '..';
 import type { RevClient } from '../rev-client';
+import { SearchRequest } from '../utils/request-utils';
 
 // if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache. false means bypass cache
 type CacheOption = boolean | 'Force'
@@ -72,6 +73,28 @@ export default function adminAPIFactory(rev: RevClient) {
         },
         async brandingSettings(): Promise<Admin.BrandingSettings> {
             return rev.get('/api/v2/accounts/branding-settings');
+        },
+        async webcastRegistrationFields(): Promise<RegistrationField & { id: string }> {
+            const response = await rev.get('/api/v2/accounts/webcast-registration-fields');
+            return response.registrationFields;
+        },
+        async createWebcastRegistrationField(registrationField: RegistrationField.Request): Promise<string> {
+            const response = await rev.post('/api/v2/accounts/webcast-registration-fields', registrationField);
+            return response.fieldId;
+        },
+        async updateWebcastRegistrationField(fieldId: string, registrationField: Partial<RegistrationField.Request>): Promise<void> {
+            return rev.put(`/api/v2/accounts/webcast-registration-fields/${fieldId}`, registrationField);
+        },
+        async deleteWebcastRegistrationField(fieldId: string): Promise<void> {
+            return rev.delete(`/api/v2/accounts/webcast-registration-fields/${fieldId}`);
+        },
+        listIQCreditsUsage(query: { startDate?: string | Date, endDate?: string | Date }, options?: Rev.SearchOptions<Admin.IQCreditsSession>): SearchRequest<Admin.IQCreditsSession> {
+            const searchDefinition: Rev.SearchDefinition<Admin.IQCreditsSession> = {
+                endpoint: `/api/v2/analytics/accounts/iq-credits-usage`,
+                totalKey: 'total',
+                hitsKey: 'sessions'
+            };
+            return new SearchRequest<Admin.IQCreditsSession>(rev, searchDefinition, query, options);
         },
         /**
         * get system health - returns 200 if system is active and responding, otherwise throws error

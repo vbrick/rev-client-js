@@ -151,7 +151,15 @@ abstract class SessionBase implements Rev.IRevSession {
         } = await this._login();
 
         Object.assign(this, session);
-        this.expires = new Date(expiration);
+
+        const expires = new Date(expiration);
+        // VERY edge case where old date could be returned - just assume 10 min expiration
+        if (expires.getTime() < this.expires.getTime()) {
+            this.expires.setUTCMinutes(this.expires.getUTCMinutes() + 10);
+        } else {
+            this.expires = expires;
+        }
+
         if (this.keepAlive) {
             this.keepAlive.start();
         }
@@ -233,7 +241,7 @@ abstract class SessionBase implements Rev.IRevSession {
      * returns true if session isn't expired and has a token
      */
     get isConnected() {
-        return this.token && !this.isExpired;
+        return !!this.token && !this.isExpired;
     }
     get username() {
         return this[_credentials].username;
@@ -241,6 +249,7 @@ abstract class SessionBase implements Rev.IRevSession {
     protected abstract _login(): Promise<LoginResponse>;
     protected abstract _extend(): Promise<{ expiration: string; }>;
     protected abstract _logoff(): Promise<void>;
+    public abstract toJSON(): Rev.IRevSessionState;
 }
 
 export class OAuthSession extends SessionBase {
@@ -276,6 +285,13 @@ export class OAuthSession extends SessionBase {
         // nothing to do
         return;
     }
+    public toJSON(): Rev.IRevSessionState {
+        return {
+            token: this.token || '',
+            expiration: this.expires,
+            refreshToken: this.refreshToken
+        };
+    }
 }
 
 export class UserSession extends SessionBase {
@@ -302,6 +318,13 @@ export class UserSession extends SessionBase {
 
         return this.rev.auth.logoffUser(<string>userId);
     }
+    public toJSON(): Rev.IRevSessionState {
+        return {
+            token: this.token || '',
+            expiration: this.expires,
+            userId: this.userId
+        };
+    }
 }
 
 export class ApiKeySession extends SessionBase {
@@ -320,21 +343,60 @@ export class ApiKeySession extends SessionBase {
         const { apiKey } = this[_credentials];
         return this.rev.auth.logoffToken(<string>apiKey);
     }
+    public toJSON(): Rev.IRevSessionState {
+        return {
+            token: this.token || '',
+            expiration: this.expires,
+            apiKey: this[_credentials].apiKey
+        };
+    }
 }
 
 export function createSession(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions) {
-    const isOauthLogin = credentials.authCode && credentials.oauthConfig;
-    const isUsernameLogin = credentials.username && credentials.password;
-    const isApiKeyLogin = credentials.apiKey && credentials.secret;
+    let session: OAuthSession | UserSession | ApiKeySession;
 
+    const {
+        session: sessionState = {} as Rev.IRevSessionState,
+        ...creds
+    } = credentials;
+
+    const {
+        token,
+        expiration,
+        refreshToken,
+        userId
+    } = sessionState;
+
+    const now = Date.now();
+    const expires = new Date(expiration || now);
+    const hasSession = (token && typeof token === 'string') && (expires.getTime() > now);
+
+    const isOauthLogin = credentials.oauthConfig && (credentials.authCode || (hasSession && refreshToken));
+    const isApiKeyLogin = credentials.apiKey && (credentials.secret || (hasSession && !userId));
+    const isUsernameLogin = credentials.username && (credentials.password || (hasSession && userId));
+
+    // prefer oauth first, then apikey then username if multiple params specified
     if (isOauthLogin) {
-        return new OAuthSession(rev, credentials, keepAliveOptions);
+        session = new OAuthSession(rev, creds, keepAliveOptions);
+        if (refreshToken) {
+            (session as OAuthSession).refreshToken = refreshToken;
+        }
     }
-    if (isApiKeyLogin) {
-        return new ApiKeySession(rev, credentials, keepAliveOptions);
+    else if (isApiKeyLogin) {
+        session = new ApiKeySession(rev, creds, keepAliveOptions);
     }
-    if (isUsernameLogin) {
-        return new UserSession(rev, credentials, keepAliveOptions);
+    else if (isUsernameLogin) {
+        session = new UserSession(rev, creds, keepAliveOptions);
+        if (userId) {
+            (session as UserSession).userId = userId;
+        }
+    } else {
+        throw new TypeError('Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)');
     }
-    throw new TypeError('Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)');
+
+    if (hasSession) {
+        session.token = token;
+        session.expires = expires;
+    }
+    return session;
 }

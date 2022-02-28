@@ -30,18 +30,22 @@ export namespace OAuth {
          */
         oauthApiKey: string;
         /**
-         * Secret from Rev Admin -> Security. This is a DIFFERENT value from the
-         *     User Secret used for API login
-         */
-        oauthSecret: string;
-        /**
-         * The local URL Rev should redirect user to after logging in. This must
+         * The local URL that Rev should redirect user to after logging in. This must
          *     match EXACTLY what's specified in Rev Admin -> Security for the
          * 	   specified API key
          */
         redirectUri: string;
     }
-
+    /**
+     * Oauth configuration object for use with buildOAuthAuthenticateURL.
+     * For server-side use only.
+     */
+    export interface ServerConfig extends Config {
+        /**
+         * The URL of destination Rev server
+         */
+        revUrl?: string;
+    }
     export interface LoginResponse {
         /**
         * The Vbrick access token used as "Authorization" header for subsequent requests

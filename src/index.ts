@@ -12,12 +12,15 @@ export type {
     Channel,
     Device,
     Group,
+    GuestRegistration,
+    OAuth,
     Rev,
     Role,
     User,
     Video,
     Playlist,
     Recording,
+    RegistrationField,
     Webcast,
     Zone
 

@@ -6,8 +6,9 @@
     "module": "ES2020",
     "moduleResolution": "Node",
     "lib": [
+      "ES2020",
       "DOM",
-      "ES2020"
+      "DOM.Iterable"
     ],
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,

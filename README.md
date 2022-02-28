@@ -121,6 +121,27 @@ And **one** of following login options (`apiKey`+`secret`, `username`+`password`
 * `oauthConfig.oauthSecret`: API secret from Rev Admin -> Security. This is a DIFFERENT value from a user's `secret`
 * `oauthConfig.redirectUri`: The local URL Rev should redirect user to after logging in. This must match EXACTLY what's specified in Rev Admin -> Security for the specified API key
 
+##### Existing Sessions:
+
+You can pass in an existing `sessionState` to the constructor to reuse a session `token` (assuming it isn't expired). When you include `sessionState` the `password`, `secret` or `authCode` values aren't necessary, however if not included you won't be able to re-login, just extend the session.
+
+```js
+const initialRev = new RevClient({ url, apiKey, secret });
+await initialRev.connect();
+
+// store state for use elasewhere (like /tmp/ storage in a serverless environment)
+// has { token, expiration }
+let savedState = rev.sessionState;
+
+// ... time passes ...
+
+const revWithReusedSession = new RevClient({ url, apiKey, sessionState: savedState })
+
+// or set after initial configuration
+revWithReusedSession.sessionState = savedState
+
+```
+
 ### RevClient session methods:
 
 
@@ -139,6 +160,8 @@ And **one** of following login options (`apiKey`+`secret`, `username`+`password`
 #### `logEnabled` - Boolean value to enable/disable debug logging.
 
 #### `sessionExpires` - Date when token is set to expire
+
+#### `sessionState` - Current token/expiration session data
 
 
 ### HTTP Methods
@@ -208,7 +231,12 @@ The Response payload, already decoded based on `options.responseType`
 #### `admin.getRoleByName(name)` - Get a specific Role `{ id: string, name: string }` based on the Role's name (i.e. 'Media Viewer')
 #### `admin.customFields()`
 #### `admin.getCustomFieldByName(name)` - Get a specific Custom Field based on the Custom Field's name
+#### `admin.webcastRegistrationFields()`
+#### `admin.createWebcastRegistrationField(field)`
+#### `admin.updateWebcastRegistrationField(fieldId, field)`
+#### `admin.deleteWebcastRegistrationField(fieldId)`
 #### `admin.brandingSettings()`
+#### `admin.listIQCreditsUsage(query, options)`
 #### `admin.verifySystemHealth()`
 #### `admin.maintenanceSchedule()`
 
@@ -383,27 +411,27 @@ for await (let video of request) {
 
 ### [Webcasts](https://revdocs.vbrick.com/reference/webcasts)
 
-#### `webcasts.list(options?)`
-#### `webcasts.search(query, options?)`
-#### `webcasts.create(event)`
-#### `webcasts.details(eventId)`
-#### `webcasts.edit(eventId, event)`
-#### `webcasts.delete(eventId)`
-#### `webcasts.editAccess(eventId, entities)`
-#### `webcasts.attendees(eventId, runNumber?, options?)`
-#### `webcasts.questions(eventId, runNumber?)`
-#### `webcasts.pollResults(eventId, runNumber?)`
-#### `webcasts.comments(eventId, runNumber?)`
-#### `webcasts.status(eventId)`
-#### `webcasts.playbackUrl(eventId, options?)`
-#### `webcasts.startEvent(eventId, preProduction?)`
-#### `webcasts.stopEvent(eventId, preProduction?)`
-#### `webcasts.startBroadcast(eventId)`
-#### `webcasts.stopBroadcast(eventId)`
-#### `webcasts.startRecord(eventId)`
-#### `webcasts.stopRecord(eventId)`
-#### `webcasts.linkVideo(eventId, videoId, autoRedirect?)`
-#### `webcasts.unlinkVideo(eventId)`
+#### `webcast.list(options?)`
+#### `webcast.search(query, options?)`
+#### `webcast.create(event)`
+#### `webcast.details(eventId)`
+#### `webcast.edit(eventId, event)`
+#### `webcast.delete(eventId)`
+#### `webcast.editAccess(eventId, entities)`
+#### `webcast.attendees(eventId, runNumber?, options?)`
+#### `webcast.questions(eventId, runNumber?)`
+#### `webcast.pollResults(eventId, runNumber?)`
+#### `webcast.comments(eventId, runNumber?)`
+#### `webcast.status(eventId)`
+#### `webcast.playbackUrl(eventId, options?)`
+#### `webcast.startEvent(eventId, preProduction?)`
+#### `webcast.stopEvent(eventId, preProduction?)`
+#### `webcast.startBroadcast(eventId)`
+#### `webcast.stopBroadcast(eventId)`
+#### `webcast.startRecord(eventId)`
+#### `webcast.stopRecord(eventId)`
+#### `webcast.linkVideo(eventId, videoId, autoRedirect?)`
+#### `webcast.unlinkVideo(eventId)`
 
 ### [Zones](https://revdocs.vbrick.com/reference/getzones)
 

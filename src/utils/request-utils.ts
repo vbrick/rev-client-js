@@ -63,19 +63,24 @@ export class SearchRequest<T> extends PagedRequest<T> {
     protected _requestPage() {
         return this._reqImpl();
     }
-    private _buildReqFunction(rev: RevClient, searchDefinition: Rev.SearchDefinition) {
+    private _buildReqFunction(rev: RevClient, searchDefinition: Rev.SearchDefinition<T>) {
         const {
             endpoint,
             totalKey,
             hitsKey,
             isPost = false,
+            request,
             transform
         } = searchDefinition;
 
+        const requestFn = request || (isPost
+            ? rev.post.bind(rev)
+            : rev.get.bind(rev)
+        );
+
         return async () => {
-            const response: Record<string, any> = isPost
-                ? await rev.post(endpoint, this.query, { responseType: 'json' })
-                : await rev.get(endpoint, this.query, { responseType: 'json' });
+
+            const response: Record<string, any> = await requestFn(endpoint, this.query, { responseType: 'json' });
 
             let {
                 scrollId,
@@ -104,7 +109,7 @@ export class SearchRequest<T> extends PagedRequest<T> {
             return {
                 total,
                 done,
-                pageCount: rawItems.count,
+                pageCount: rawItems.length,
                 items,
                 error
             };

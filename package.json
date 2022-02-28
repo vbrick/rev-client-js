@@ -1,16 +1,18 @@
 {
   "name": "@vbrick/rev-client",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Vbrick Rev API client for browser and server",
-  "type": "commonjs",
-  "main": "dist/node/rev-client.js",
+  "type": "module",
+  "main": "dist/node/rev-client.cjs",
   "module": "dist/es/rev-client.mjs",
   "browser": "dist/rev-client.js",
   "types": "dist/rev-client.d.ts",
   "exports": {
     ".": {
-      "require": "./dist/node/rev-client.js",
-      "node": "./dist/es/rev-client.mjs",
+      "node": {
+        "import": "./dist/es/rev-client.mjs",
+        "require": "./dist/node/rev-client.cjs"
+      },
       "default": "./dist/rev-client.js"
     }
   },

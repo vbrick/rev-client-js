@@ -23,6 +23,9 @@ export default function deviceAPIFactory(rev: RevClient) {
         },
         async delete(deviceId: string) {
             return rev.delete(`/api/v2/devices/dmes/${deviceId}`);
+        },
+        async rebootDME(deviceId: string) {
+            return rev.put(`/api/v2/devices/dmes/${deviceId}`);
         }
     };
     return deviceAPI;

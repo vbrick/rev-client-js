@@ -1,41 +1,3 @@
-declare type CacheOption = boolean | 'Force';
-declare function adminAPIFactory(rev: RevClient): {
-    /**
-    * get mapping of role names to role IDs
-    * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
-    */
-    roles(cache?: CacheOption): Promise<Role.Details[]>;
-    /**
-    * Get a Role (with the role id) based on its name
-    * @param name Name of the Role, i.e. "Media Viewer"
-    * @param fromCache - if true then use previously cached Role listing (more efficient)
-    */
-    getRoleByName(name: Role.RoleName, fromCache?: CacheOption): Promise<Role>;
-    /**
-    * get list of custom fields
-    * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
-    */
-    customFields(cache?: CacheOption): Promise<Admin.CustomField[]>;
-    /**
-    * Get a Custom Field based on its name
-    * @param name name of the Custom Field
-    * @param fromCache if true then use previously cached Role listing (more efficient)
-    */
-    getCustomFieldByName(name: string, fromCache?: CacheOption): Promise<Admin.CustomField>;
-    brandingSettings(): Promise<Admin.BrandingSettings>;
-    /**
-    * get system health - returns 200 if system is active and responding, otherwise throws error
-    */
-    verifySystemHealth(): Promise<boolean>;
-    /**
-    * gets list of scheduled maintenance windows
-    */
-    maintenanceSchedule(): Promise<{
-        start: string;
-        end: string;
-    }[]>;
-};
-
 declare namespace Auth {
     interface LoginResponse {
         token: string;
@@ -66,16 +28,21 @@ declare namespace OAuth {
          */
         oauthApiKey: string;
         /**
-         * Secret from Rev Admin -> Security. This is a DIFFERENT value from the
-         *     User Secret used for API login
-         */
-        oauthSecret: string;
-        /**
-         * The local URL Rev should redirect user to after logging in. This must
+         * The local URL that Rev should redirect user to after logging in. This must
          *     match EXACTLY what's specified in Rev Admin -> Security for the
          * 	   specified API key
          */
         redirectUri: string;
+    }
+    /**
+     * Oauth configuration object for use with buildOAuthAuthenticateURL.
+     * For server-side use only.
+     */
+    interface ServerConfig extends Config {
+        /**
+         * The URL of destination Rev server
+         */
+        revUrl?: string;
     }
     interface LoginResponse {
         /**
@@ -119,6 +86,16 @@ declare namespace Rev {
         body: T;
         response: FetchResponse;
     }
+    interface IRevSessionState {
+        token: string;
+        expiration: Date | string;
+        /** Required if using username login */
+        userId?: string;
+        /** Required if using OAuth login */
+        refreshToken?: string;
+        /** if using ApiKey login */
+        apiKey?: string;
+    }
     interface Credentials {
         /** Username of Rev User (for login) - this or apiKey must be specified */
         username?: string;
@@ -132,6 +109,8 @@ declare namespace Rev {
         authCode?: string;
         /** oauth configuration values for oauth token management */
         oauthConfig?: OAuth.Config;
+        /** existing token/extend session details */
+        session?: Rev.IRevSessionState;
     }
     type LogSeverity = LiteralString<'debug' | 'info' | 'warn' | 'error'>;
     type LogFunction = (severity: LogSeverity, ...args: any[]) => void;
@@ -146,10 +125,6 @@ declare namespace Rev {
          *     rev.disconnect() is called. Optionally, pass in keepAlive options instead of `true`
          */
         keepAlive?: boolean | KeepAliveOptions;
-        /**
-         * specify your own session control mechanism
-         */
-        session?: IRevSession;
     }
     interface IRevSession {
         token?: string;
@@ -161,6 +136,7 @@ declare namespace Rev {
         logoff(): Promise<void>;
         verify(): Promise<boolean>;
         lazyExtend(options?: Rev.KeepAliveOptions): Promise<boolean>;
+        toJSON(): Rev.IRevSessionState;
     }
     interface RequestOptions extends Partial<RequestInit> {
         /**
@@ -210,6 +186,7 @@ declare namespace Rev {
         totalKey: string;
         hitsKey: string;
         isPost?: boolean;
+        request?: (endpoint: string, query?: Record<string, any>, options?: RequestOptions) => Promise<Record<string, any>>;
         transform?: (items: RawType[]) => T[] | Promise<T[]>;
     }
     interface KeepAliveOptions {
@@ -251,6 +228,55 @@ declare namespace AccessControl {
         name: string;
         type: EntityType;
         canEdit: boolean;
+    }
+}
+
+declare namespace Admin {
+    interface CustomField {
+        id: string;
+        name: string;
+        value: any;
+        required: boolean;
+        displayedToUsers: boolean;
+        type: string;
+        fieldType: string;
+    }
+    interface BrandingSettings {
+        general?: {
+            PrimaryColor?: string;
+            PrimaryFontColor?: string;
+            AccentColor?: string;
+            AccentFontColor?: string;
+            LogoUri?: string;
+        };
+        header?: {
+            BackgroundColor?: string;
+            FontColor?: string;
+        };
+    }
+    interface IQCreditsSession {
+        resourceId: string;
+        resourceType: string;
+        title: string;
+        duration: string;
+        initiator: {
+            userId: string;
+            firstName: string;
+            lastName: string;
+            fullName: string;
+            username: string;
+        };
+        creator: {
+            userId: string;
+            firstName: string;
+            lastName: string;
+            fullName: string;
+            username: string;
+        };
+        usage: string;
+        credits: number;
+        languages: string[];
+        when: string;
     }
 }
 
@@ -795,12 +821,14 @@ declare namespace User {
 }
 
 declare namespace Video {
-    type ApprovalStatus = 'Approved' | 'PendingApproval' | 'Rejected' | 'RequiresApproval' | 'SubmittedApproval';
-    type VideoType = "Live" | "Vod";
-    type EncodingType = "H264" | "HLS" | "HDS" | "H264TS" | "Mpeg4" | "Mpeg2" | "WM" | "Flash" | "RTP";
-    type StatusEnum = "NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready";
-    type AccessControl = "AllUsers" | "Public" | "Private" | "Channels";
-    type ExpirationAction = 'Delete' | 'Inactivate';
+    type AccessControl = LiteralString<"AllUsers" | "Public" | "Private" | "Channels">;
+    type ApprovalStatus = LiteralString<'Approved' | 'PendingApproval' | 'Rejected' | 'RequiresApproval' | 'SubmittedApproval'>;
+    type EncodingType = LiteralString<"H264" | "HLS" | "HDS" | "H264TS" | "Mpeg4" | "Mpeg2" | "WM" | "Flash" | "RTP">;
+    type ExpirationAction = LiteralString<'Delete' | 'Inactivate'>;
+    type ExpiryRule = LiteralString<'None' | 'DaysAfterUpload' | 'DaysWithoutViews'>;
+    type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
+    type SourceType = LiteralString<'REV' | 'WEBEX' | 'API' | 'VIDEO CONFERENCE' | 'WebexLiveStream' | 'LiveEnrichment'>;
+    type VideoType = LiteralString<"Live" | "Vod">;
     interface LinkedUrl {
         Url: string;
         EncodingType: EncodingType;
@@ -883,6 +911,13 @@ declare namespace Video {
         unlisted?: boolean;
         publishDate?: Date | string;
         userTags?: string[];
+        /** owner of video, defaults to uploader. only one key is necessary */
+        owner?: {
+            userId?: string;
+            username?: string;
+            email?: string;
+        };
+        sourceType?: SourceType;
     }
     interface MigrateRequest {
         /** change "uploader" value to this user */
@@ -978,8 +1013,8 @@ declare namespace Video {
         /**
          * source of original video
          */
-        sourceType: 'REV' | 'WEBEX' | 'API' | 'VIDEO CONFERENCE';
-        source: 'Upload' | 'Link' | 'ScheduledEvent' | 'Webex' | 'Upload360' | 'ScheduledRecording';
+        sourceType: SourceType;
+        source: LiteralString<'Upload' | 'Link' | 'ScheduledEvent' | 'Webex' | 'Upload360' | 'ScheduledRecording'>;
         expirationDate: string | null;
         /**
          * This sets action when video expires. This is an enum and can have the following values: Delete/Inactivate.
@@ -988,7 +1023,7 @@ declare namespace Video {
         expiration: {
             ruleId: string | null;
             expirationDate: string | null;
-            expiryRuleType: 'None' | 'DaysAfterUpload' | 'DaysWithoutViews';
+            expiryRuleType: ExpiryRule;
             numberOfDays: number | null;
             deleteOnExpiration: boolean | null;
         } | null;
@@ -1025,7 +1060,7 @@ declare namespace Video {
                 container?: string;
             };
             size: number;
-            status: 'Initialized' | 'Transcoding' | 'Transcoded' | 'TranscodingFailed' | 'Storing' | 'Stored' | 'StoringFailed';
+            status: LiteralString<'Initialized' | 'Transcoding' | 'Transcoded' | 'TranscodingFailed' | 'Storing' | 'Stored' | 'StoringFailed'>;
             videoKey: string;
         }>;
         chapters: {
@@ -1082,7 +1117,7 @@ declare namespace Video {
         uploaders?: string;
         /** list of uploader IDs separated by commas */
         uploaderIds?: string;
-        status?: 'active' | 'inactive';
+        status?: LiteralString<'active' | 'inactive'>;
         fromPublishedDate?: Date | string;
         toPublishedDate?: Date | string;
         fromUploadDate?: Date | string;
@@ -1090,7 +1125,7 @@ declare namespace Video {
         fromModifiedDate?: Date | string;
         toModifiedDate?: Date | string;
         exactMatch?: boolean;
-        unlisted?: 'unlisted' | 'listed' | 'all';
+        unlisted?: LiteralString<'unlisted' | 'listed' | 'all'>;
         /**
          * If provided, the query results are fetched on the provided searchField only.
          * If the exactMatch flag is also set along with searchField, then the results are fetched for
@@ -1104,7 +1139,7 @@ declare namespace Video {
          * must be _score. User must exist.
          */
         recommendedFor?: string;
-        sortField?: 'title' | 'whenUploaded' | 'uploaderName' | 'duration' | '_score';
+        sortField?: LiteralString<'title' | 'whenUploaded' | 'uploaderName' | 'duration' | '_score'>;
         sortDirection?: Rev.SortDirection;
         /**
          * search for videos matching specific custom field values.
@@ -1251,7 +1286,7 @@ interface Webcast {
     listingType: Webcast.WebcastAccessControl;
     eventUrl: string;
     backgroundImages: Array<{
-        backgroundImageUrl: string;
+        url: string;
         scaleSize: string;
     }>;
     categories: Array<{
@@ -1276,6 +1311,8 @@ interface Webcast {
 declare namespace Webcast {
     type WebcastAccessControl = LiteralString<'Public' | 'TrustedPublic' | 'AllUsers' | 'Private'>;
     type SortField = LiteralString<'startDate' | 'title'>;
+    type VideoSourceType = LiteralString<'Capture' | 'MicrosoftTeams' | 'PresentationProfile' | 'Rtmp' | 'WebrtcSinglePresenter' | 'SipAddress' | 'WebexTeam' | 'WebexEvents' | 'WebexLiveStream' | 'Vod' | 'Zoom'>;
+    type RealtimeField = LiteralString<'FullName' | 'Email' | 'ZoneName' | 'StreamType' | 'IpAddress' | 'Browser' | 'OsFamily' | 'StreamAccessed' | 'PlayerDevice' | 'OsName' | 'UserType' | 'Username' | 'AttendeeType'>;
     interface ListRequest {
         after?: string | Date;
         before?: string | Date;
@@ -1309,12 +1346,30 @@ declare namespace Webcast {
         }>;
     }
     interface CreateRequest {
-        title?: string;
+        title: string;
         description?: string;
         startDate: string | Date;
         endDate: string | Date;
         presentationProfileId?: string;
         vcSipAddress?: string;
+        isSecureRtmp?: boolean;
+        /** only valid for edit request - Specifies if the exiting RTMP based webcast URL and Key needs to be regenerated */
+        regenerateRtmpUrlAndKey?: boolean;
+        vcMicrosoftTeamsMeetingUrl?: string;
+        /** This field is required to create/edit WebexLiveStream event. */
+        videoSourceType?: VideoSourceType;
+        webcastType?: LiteralString<'Rev' | 'WebexEvents'>;
+        webexTeam?: {
+            roomId: string;
+            name?: string;
+        };
+        zoom?: {
+            meetingId: string;
+            meetingPassword?: string;
+        };
+        vodId?: string;
+        /** Internal user Id. Only required when 'WebrtcSinglePresenter' selected as a videoSourceType */
+        presenterId?: string;
         eventAdminIds: string[];
         automatedWebcast?: boolean;
         closedCaptionsEnabled?: boolean;
@@ -1325,7 +1380,7 @@ declare namespace Webcast {
         groupIds?: string[];
         moderatorIds?: string[];
         password?: string;
-        accessControl?: WebcastAccessControl;
+        accessControl: WebcastAccessControl;
         questionOption?: string;
         presentationFileDownloadAllowed?: boolean;
         categories?: string[];
@@ -1339,6 +1394,11 @@ declare namespace Webcast {
             groupIds?: string[];
         };
         shortcutName?: string;
+        recordingUploaderUserEmail?: string;
+        recordingUploaderUserId?: string;
+        disableAutoRecording?: boolean;
+        hideShareUrl?: boolean;
+        autoplay?: boolean;
         linkedVideoId?: string;
         autoAssociateVod?: boolean;
         redirectVod?: boolean;
@@ -1347,6 +1407,11 @@ declare namespace Webcast {
             id?: string;
             value?: string;
         }>;
+        liveSubtitles?: {
+            sourceLanguage: string;
+            translationLanguages: string[];
+        };
+        emailToPreRegistrants?: boolean;
     }
     interface Details {
         eventId: string;
@@ -1356,6 +1421,26 @@ declare namespace Webcast {
         endDate: string;
         presentationProfileId?: string;
         vcSipAddress?: string;
+        vcMicrosoftTeamsMeetingUrl?: string;
+        videoSourceType?: VideoSourceType;
+        webcastType?: LiteralString<'Rev' | 'WebexEvents'>;
+        webexTeam?: {
+            roomId: string;
+            name?: string;
+        };
+        zoom?: {
+            meetingId: string;
+            meetingPassword?: string;
+        };
+        vodId?: string;
+        rtmp?: {
+            url: string;
+            key: string;
+        };
+        liveSubtitles?: {
+            sourceLanguage: string;
+            translationLanguages: string[];
+        };
         eventAdminIds: string[];
         automatedWebcast: boolean;
         closedCaptionsEnabled: boolean;
@@ -1388,28 +1473,30 @@ declare namespace Webcast {
         autoAssociateVod: boolean;
         redirectVod: boolean;
         recordingUploaderUserId: string;
+        disableAutoRecording?: boolean;
+        hideShareUrl?: boolean;
+        autoplay?: boolean;
         presentationFileDownloadAllowed: boolean;
-        registrationFields: Array<{
-            id: string;
-            name: string;
-            fieldType: string;
-            required: boolean;
-            options: string[];
-            includeInAllWebcasts: boolean;
-        }>;
-        customFields?: Array<{
-            id: string;
-            name: string;
-            value: string;
-            required: boolean;
-            displayedToUsers: boolean;
-            fieldType: string;
-        }>;
+        registrationFields: RegistrationField[];
+        customFields?: Admin.CustomField[];
+        emailToPreRegistrants?: boolean;
     }
     interface EditAttendeesRequest {
         userIds?: string[];
         usernames?: string[];
         groupIds?: string[];
+    }
+    interface PostEventSummary {
+        hostCount?: number;
+        moderatorCount?: number;
+        attendeeCount?: number;
+        experiencedRebufferingPercentage?: number;
+        averageExperiencedRebufferDuration?: number;
+        experiencedErrorsPerAttendees?: number;
+        multicastErrorsPerAttendees?: number;
+        totalSessions?: number;
+        totalPublicCDNTime?: string;
+        totalECDNTime?: string;
     }
     interface PostEventSession {
         userType: string;
@@ -1428,11 +1515,70 @@ declare namespace Webcast {
         exitedDate: string;
         viewingStartTime: string;
         experiencedErrors: number;
-        multicastErrors: number;
+        multicastErrorsPerAttendees: number;
         bufferEvents: number;
         rebufferEvents: number;
         rebufferDuration: number;
         attendeeType: LiteralString<'Host' | 'Moderator' | 'AccountAdmin' | 'Attendee'>;
+    }
+    interface RealtimeRequest {
+        sortField?: RealtimeField;
+        sortDirection?: Rev.SortDirection;
+        count?: number;
+        q?: string;
+        searchField?: RealtimeField;
+        runNumber?: number;
+        status?: LiteralString<'All' | 'Online' | 'Offline'>;
+        attendeeDetails?: LiteralString<'Base' | 'All' | 'Counts'>;
+    }
+    interface RealtimeSummary {
+        totalSessions?: number;
+        hostCount?: number;
+        moderatorCount?: number;
+        attendeeCount?: number;
+        status?: LiteralString<'Active' | 'Initiated'>;
+        experiencedRebufferingPercentage?: number;
+        averageExperiencedRebufferDuration?: number;
+        experiencedErrorsPerAttendees?: number;
+        multicastErrorsPerAttendees?: number;
+    }
+    interface RealtimeSession {
+        userId: string;
+        username: string;
+        fullName: string;
+        email: string;
+        startTime: string;
+        sessionId: string;
+    }
+    interface RealtimeSessionDetail extends RealtimeSession {
+        userType: string;
+        attendeeType: LiteralString<'Host' | 'Moderator' | 'AccountAdmin' | 'Attendee'>;
+        status: LiteralString<'Online' | 'Offline'>;
+        experiencedErrors: number;
+        multicastFailovers: number;
+        experiencedBufferingDuration: number;
+        experiencedBufferingCount: number;
+        avgExperiencedBufferingDuration: number;
+        avgBitrateKbps: number;
+        avgBandwidthMbps: number;
+        viewingStartTime: number;
+        zoneId: string;
+        zoneName: string;
+        ipAddress: string;
+        streamDevice: string;
+        streamAccessed: string;
+        playerDevice: string;
+        browser: string;
+        videoPlayer: string;
+        videoFormat: string;
+        userAgent: string;
+        osName: string;
+        osFamily: string;
+        deviceId: string;
+        revConnect: boolean;
+        streamType: string;
+        sessionId: string;
+        profileImageUrl: string;
     }
     interface Question {
         whenAsked: string;
@@ -1448,6 +1594,7 @@ declare namespace Webcast {
         totalResponses: number;
         totalNoResponses: number;
         allowMultipleAnswers: boolean;
+        whenPollCreated: string;
         pollAnswers: Array<{
             answer: string;
             votes: 0;
@@ -1480,6 +1627,35 @@ declare namespace Webcast {
         videoFormat: string;
         videoInstanceId: string;
         deviceId: string;
+    }
+}
+interface GuestRegistration {
+    name: string;
+    email: string;
+    registrationId: string;
+    registrationFieldsAnswers: Array<{
+        id: string;
+        name: string;
+        value: string;
+    }>;
+}
+declare namespace GuestRegistration {
+    interface Details extends GuestRegistration {
+        token: string;
+    }
+    interface Request {
+        name: string;
+        email: string;
+        registrationFieldsAnswers?: Array<{
+            id?: string;
+            name?: string;
+            value: string;
+        }>;
+    }
+    interface SearchRequest {
+        sortField?: LiteralString<'name' | 'email'>;
+        sortDirection?: Rev.SortDirection;
+        size?: number;
     }
 }
 
@@ -1581,30 +1757,6 @@ declare namespace Zone {
     type FlatZone = Omit<Zone, 'childZones'>;
 }
 
-declare namespace Admin {
-    interface CustomField {
-        id: string;
-        name: string;
-        value: any;
-        required: boolean;
-        displayedToUsers: boolean;
-        type: string;
-        fieldType: string;
-    }
-    interface BrandingSettings {
-        general?: {
-            PrimaryColor?: string;
-            PrimaryFontColor?: string;
-            AccentColor?: string;
-            AccentFontColor?: string;
-            LogoUri?: string;
-        };
-        header?: {
-            BackgroundColor?: string;
-            FontColor?: string;
-        };
-    }
-}
 interface Role {
     id: string;
     name: Role.RoleName;
@@ -1614,6 +1766,25 @@ declare namespace Role {
     type Details = Role & {
         description: string;
     };
+}
+interface RegistrationField {
+    id: string;
+    name: string;
+    fieldType: LiteralString<'Text' | 'Select'>;
+    required: boolean;
+    options?: string[];
+    includeInAllWebcasts: boolean;
+}
+declare namespace RegistrationField {
+    interface Request {
+        name: string;
+        /** @default: text */
+        fieldType?: LiteralString<'Text' | 'Select'>;
+        /** @default: false */
+        required?: boolean;
+        options?: string[];
+        includeInAllWebcasts?: boolean;
+    }
 }
 
 interface IPageResponse<T> {
@@ -1662,6 +1833,70 @@ declare abstract class PagedRequest<ItemType> implements Rev.ISearchRequest<Item
     [Symbol.asyncIterator](): AsyncGenerator<ItemType, void, unknown>;
 }
 
+/**
+ * Interface to iterate through results from API endpoints that return results in pages.
+ * Use in one of three ways:
+ * 1) Get all results as an array: await request.exec() == <array>
+ * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
+ * 3) Use for await to get all results one at a time: for await (let hit of request) { }
+ */
+declare class SearchRequest<T> extends PagedRequest<T> {
+    options: Required<Rev.SearchOptions<T>>;
+    private query;
+    private _reqImpl;
+    constructor(rev: RevClient, searchDefinition: Rev.SearchDefinition<T>, query?: Record<string, any>, options?: Rev.SearchOptions<T>);
+    protected _requestPage(): Promise<IPageResponse<T>>;
+    private _buildReqFunction;
+}
+
+declare type CacheOption = boolean | 'Force';
+declare function adminAPIFactory(rev: RevClient): {
+    /**
+    * get mapping of role names to role IDs
+    * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
+    */
+    roles(cache?: CacheOption): Promise<Role.Details[]>;
+    /**
+    * Get a Role (with the role id) based on its name
+    * @param name Name of the Role, i.e. "Media Viewer"
+    * @param fromCache - if true then use previously cached Role listing (more efficient)
+    */
+    getRoleByName(name: Role.RoleName, fromCache?: CacheOption): Promise<Role>;
+    /**
+    * get list of custom fields
+    * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
+    */
+    customFields(cache?: CacheOption): Promise<Admin.CustomField[]>;
+    /**
+    * Get a Custom Field based on its name
+    * @param name name of the Custom Field
+    * @param fromCache if true then use previously cached Role listing (more efficient)
+    */
+    getCustomFieldByName(name: string, fromCache?: CacheOption): Promise<Admin.CustomField>;
+    brandingSettings(): Promise<Admin.BrandingSettings>;
+    webcastRegistrationFields(): Promise<RegistrationField & {
+        id: string;
+    }>;
+    createWebcastRegistrationField(registrationField: RegistrationField.Request): Promise<string>;
+    updateWebcastRegistrationField(fieldId: string, registrationField: Partial<RegistrationField.Request>): Promise<void>;
+    deleteWebcastRegistrationField(fieldId: string): Promise<void>;
+    listIQCreditsUsage(query: {
+        startDate?: string | Date;
+        endDate?: string | Date;
+    }, options?: Rev.SearchOptions<Admin.IQCreditsSession> | undefined): SearchRequest<Admin.IQCreditsSession>;
+    /**
+    * get system health - returns 200 if system is active and responding, otherwise throws error
+    */
+    verifySystemHealth(): Promise<boolean>;
+    /**
+    * gets list of scheduled maintenance windows
+    */
+    maintenanceSchedule(): Promise<{
+        start: string;
+        end: string;
+    }[]>;
+};
+
 declare class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
     options: Required<Omit<Audit.Options<T>, 'toDate' | 'fromDate'>>;
     private params;
@@ -1709,6 +1944,27 @@ declare function auditAPIFactory(rev: RevClient): {
     principal(userId: string, accountId: string, options?: Audit.Options<Audit.Entry<string>> | undefined): AuditRequest<Audit.Entry<string>>;
 };
 
+/**
+ * Constructs the query parameters for the Rev /oauth/authorization endpoint
+ * @param config OAuth signing settings, retrieved from Rev Admin -> Security -> API Keys page, along with revUrl
+ * @param state optional state to pass back to redirectUri once complete
+ * @returns A valid oauth flow endpoint + query
+ */
+declare function buildOAuthAuthenticationQuery(config: OAuth.Config, oauthSecret: string, state?: string): Promise<{
+    apiKey: string;
+    signature: string;
+    verifier: string;
+    redirect_uri: string;
+    response_type: string;
+    state: string;
+}>;
+/**
+ * Parse the query parameters returned to the redirectUri from Rev
+ * @param url The URL with query parameters, or object with the query parrameters
+ * @returns
+ */
+declare function parseOAuthRedirectResponse(url: string | URL | URLSearchParams | Record<string, string>): OAuth.RedirectResponse;
+
 declare function authAPIFactory(rev: RevClient): {
     loginToken(apiKey: string, secret: string): Promise<Auth.LoginResponse>;
     extendSessionToken(apiKey: string): Promise<Auth.ExtendResponse>;
@@ -1728,11 +1984,14 @@ declare function authAPIFactory(rev: RevClient): {
     /**
      *
      * @param config OAuth signing settings, retrieved from Rev Admin -> Security -> API Keys page
+     * @param oauthSecret Secret from Rev Admin -> Security. This is a DIFFERENT value from the
+     *                    User Secret used for API login. Do not expose client-side!
      * @param state optional state to pass back to redirectUri once complete
      * @returns A valid oauth flow URL
      */
-    buildOAuthAuthenticateURL(config: OAuth.Config, state?: string): Promise<string>;
-    parseOAuthRedirectResponse(url: string | URL): OAuth.RedirectResponse;
+    buildOAuthAuthenticationURL(config: OAuth.Config, oauthSecret: string, state?: string): Promise<string>;
+    buildOAuthAuthenticationQuery: typeof buildOAuthAuthenticationQuery;
+    parseOAuthRedirectResponse: typeof parseOAuthRedirectResponse;
     loginOAuth(config: OAuth.Config, authCode: string): Promise<OAuth.LoginResponse>;
     extendSessionOAuth(config: OAuth.Config, refreshToken: string): Promise<OAuth.LoginResponse>;
 };
@@ -1791,23 +2050,8 @@ declare function deviceAPIFactory(rev: RevClient): {
     add(dme: Device.CreateDMERequest): Promise<any>;
     healthStatus(deviceId: string): Promise<Device.DmeHealthStatus>;
     delete(deviceId: string): Promise<void>;
+    rebootDME(deviceId: string): Promise<any>;
 };
-
-/**
- * Interface to iterate through results from API endpoints that return results in pages.
- * Use in one of three ways:
- * 1) Get all results as an array: await request.exec() == <array>
- * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
- * 3) Use for await to get all results one at a time: for await (let hit of request) { }
- */
-declare class SearchRequest<T> extends PagedRequest<T> {
-    options: Required<Rev.SearchOptions<T>>;
-    private query;
-    private _reqImpl;
-    constructor(rev: RevClient, searchDefinition: Rev.SearchDefinition<T>, query?: Record<string, any>, options?: Rev.SearchOptions<T>);
-    protected _requestPage(): Promise<IPageResponse<T>>;
-    private _buildReqFunction;
-}
 
 declare function groupAPIFactory(rev: RevClient): {
     /**
@@ -2036,6 +2280,33 @@ declare function videoAPIFactory(rev: RevClient): {
     playbackInfo(videoId: string): Promise<Video.Playback>;
 };
 
+declare class RealtimeReportRequest<T extends Webcast.RealtimeSession = Webcast.RealtimeSession> extends SearchRequest<T> {
+    summary: Webcast.RealtimeSummary;
+    constructor(rev: RevClient, eventId: string, query?: Webcast.RealtimeRequest, options?: Rev.SearchOptions<T>);
+    /**
+     * get the aggregate statistics only, instead of actual session data.
+     * @returns {Webcast.PostEventSummary}
+     */
+    getSummary(): Promise<Webcast.RealtimeSummary>;
+}
+declare class PostEventReportRequest extends SearchRequest<Webcast.PostEventSession> {
+    summary: Webcast.PostEventSummary;
+    constructor(rev: RevClient, query: {
+        eventId: string;
+        runNumber?: number;
+    }, options?: Rev.SearchOptions<Webcast.PostEventSession>);
+    /**
+     * get the aggregate statistics only, instead of actual session data.
+     * @returns {Webcast.PostEventSummary}
+     */
+    getSummary(): Promise<Webcast.PostEventSummary>;
+}
+
+declare type RealtimeSession<T extends Webcast.RealtimeRequest | undefined> = T extends {
+    attendeeDetails: 'All';
+} ? Webcast.RealtimeSessionDetail : T extends {
+    attendeeDetails: 'Counts';
+} ? never : Webcast.RealtimeSession;
 declare function webcastAPIFactory(rev: RevClient): {
     list(options?: Webcast.ListRequest): Promise<Webcast[]>;
     search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast> | undefined): SearchRequest<Webcast>;
@@ -2044,7 +2315,8 @@ declare function webcastAPIFactory(rev: RevClient): {
     edit(eventId: string, event: Webcast.CreateRequest): Promise<void>;
     delete(eventId: string): Promise<void>;
     editAccess(eventId: string, entities: Webcast.EditAttendeesRequest): Promise<void>;
-    attendees(eventId: string, runNumber?: number | undefined, options?: Rev.SearchOptions<Webcast.PostEventSession> | undefined): SearchRequest<Webcast.PostEventSession>;
+    attendees(eventId: string, runNumber?: number | undefined, options?: Rev.SearchOptions<Webcast.PostEventSession> | undefined): PostEventReportRequest;
+    realtimeAttendees<T extends Webcast.RealtimeRequest | undefined>(eventId: string, query?: T | undefined, options?: Rev.SearchOptions<RealtimeSession<T>> | undefined): RealtimeReportRequest<RealtimeSession<T>>;
     questions(eventId: string, runNumber?: number | undefined): Promise<Webcast.Question[]>;
     pollResults(eventId: string, runNumber?: number | undefined): Promise<Webcast.PollResults[]>;
     comments(eventId: string, runNumber?: number | undefined): Promise<Webcast.Comment[]>;
@@ -2058,6 +2330,24 @@ declare function webcastAPIFactory(rev: RevClient): {
     stopRecord(eventId: string): Promise<void>;
     linkVideo(eventId: string, videoId: string, autoRedirect?: boolean): Promise<any>;
     unlinkVideo(eventId: string): Promise<void>;
+    /**
+     * Retrieve details of a specific guest user Public webcast registration.
+     * @param eventId - Id of the Public webcast
+     * @param registrationId - Id of guest user's registration to retrieve
+     * @returns
+     */
+    guestRegistration(eventId: string, registrationId: string): Promise<GuestRegistration.Details>;
+    /**
+     * Register one attendee/guest user for an upcoming Public webcast. Make sure you first enable Public webcast pre-registration before adding registrations.
+     * @param eventId
+     * @param registration
+     * @returns
+     */
+    createGuestRegistration(eventId: string, registration: GuestRegistration.Request): Promise<GuestRegistration.Details>;
+    listGuestRegistrations(eventId: string, query?: GuestRegistration.SearchRequest, options?: Rev.SearchOptions<GuestRegistration> | undefined): SearchRequest<GuestRegistration>;
+    updateGuestRegistration(eventId: string, registrationId: string, registration: GuestRegistration.Request): Promise<void>;
+    patchGuestRegistration(eventId: string, registrationId: string, registration: Partial<GuestRegistration.Request>): Promise<void>;
+    deleteGuestRegistration(eventId: string, registrationId: string): Promise<void>;
 };
 
 declare function zonesAPIFactory(rev: RevClient): {
@@ -2117,9 +2407,11 @@ declare class RevClient {
      * @returns Promise<boolean>
      */
     verifySession(): Promise<boolean>;
-    get isConnected(): boolean | "" | undefined;
+    get isConnected(): boolean;
     get token(): string | undefined;
     get sessionExpires(): Date;
+    get sessionState(): Rev.IRevSessionState;
+    set sessionState(state: Rev.IRevSessionState);
     log(severity: Rev.LogSeverity, ...args: any[]): void;
 }
 
@@ -2144,4 +2436,4 @@ declare class ScrollError extends Error {
     get [Symbol.toStringTag](): string;
 }
 
-export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, Group, Playlist, Recording, Rev, RevClient, RevError, Role, ScrollError, User, Video, Webcast, Zone, RevClient as default };
+export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, Group, GuestRegistration, OAuth, Playlist, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, User, Video, Webcast, Zone, RevClient as default };

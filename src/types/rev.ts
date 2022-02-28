@@ -15,6 +15,17 @@ export namespace Rev {
         response: FetchResponse;
     }
 
+    export interface IRevSessionState {
+        token: string;
+        expiration: Date | string;
+        /** Required if using username login */
+        userId?: string;
+        /** Required if using OAuth login */
+        refreshToken?: string;
+        /** if using ApiKey login */
+        apiKey?: string;
+    }
+
     export interface Credentials {
         /** Username of Rev User (for login) - this or apiKey must be specified */
         username?: string;
@@ -28,6 +39,8 @@ export namespace Rev {
         authCode?: string;
         /** oauth configuration values for oauth token management */
         oauthConfig?: OAuth.Config;
+        /** existing token/extend session details */
+        session?: Rev.IRevSessionState;
     }
     export type LogSeverity = LiteralString<'debug' | 'info' | 'warn' | 'error'>;
     export type LogFunction = (severity: LogSeverity, ...args: any[]) => void;
@@ -45,13 +58,7 @@ export namespace Rev {
          *     rev.disconnect() is called. Optionally, pass in keepAlive options instead of `true`
          */
         keepAlive?: boolean | KeepAliveOptions;
-
-        /**
-         * specify your own session control mechanism
-         */
-        session?: IRevSession
     }
-
 
     export interface IRevSession {
         token?: string;
@@ -63,6 +70,7 @@ export namespace Rev {
         logoff(): Promise<void>;
         verify(): Promise<boolean>;
         lazyExtend(options?: Rev.KeepAliveOptions): Promise<boolean>;
+        toJSON(): Rev.IRevSessionState;
     }
 
     export interface RequestOptions extends Partial<RequestInit> {
@@ -116,6 +124,7 @@ export namespace Rev {
         totalKey: string,
         hitsKey: string,
         isPost?: boolean;
+        request?: (endpoint: string, query?: Record<string, any>, options?: RequestOptions) => Promise<Record<string, any>>;
         transform?: (items: RawType[]) => T[] | Promise<T[]>;
     }
 
