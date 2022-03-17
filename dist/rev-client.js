@@ -12,6 +12,157 @@ function isBlobLike(val) {
 function titleCase(val) {
     return `${val[0]}${val.slice(1)}`;
 }
+
+/**
+ * There are slight differences in handling browser and node.js environments.
+ * This folder wraps all components that get polyfilled in node.js, as well as
+ * allowing uploading a video from the local filesystem on node.js
+ */
+/**
+ * used to sign the verifier in OAuth workflow
+ */
+async function hmacSign(message, secret) {
+    const enc = new TextEncoder();
+    const cryptoKey = await crypto.subtle
+        .importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']);
+    const signed = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(message));
+    return btoa(String.fromCharCode(...new Uint8Array(signed)));
+}
+var polyfills = {
+    AbortController: globalThis.AbortController,
+    AbortSignal: globalThis.AbortSignal,
+    createAbortError(message) {
+        return new DOMException(message, 'AbortError');
+    },
+    fetch: (...args) => globalThis.fetch(...args),
+    FormData: globalThis.FormData,
+    Headers: globalThis.Headers,
+    Request: globalThis.Request,
+    Response: globalThis.Response,
+    hmacSign,
+    /**
+     *
+     * @param file
+     * @param filename
+     * @param contentType
+     * @returns
+     */
+    async parseFileUpload(file, options) {
+        let { filename, contentType, contentLength } = options;
+        if (isBlobLike(file)) {
+            const { type, name, size } = file;
+            if (type && !contentType) {
+                contentType = type;
+            }
+            if (name && !filename) {
+                filename = name;
+            }
+            if (size && !contentLength) {
+                contentLength = size;
+            }
+            return {
+                file,
+                options: {
+                    ...options,
+                    filename,
+                    contentType,
+                    contentLength
+                }
+            };
+        }
+        throw new TypeError('Only Blob / Files are supported for file uploads. Pass a File/Blob object');
+    },
+    appendFileToForm(form, fieldName, payload) {
+        const { file, options: { filename } } = payload;
+        form.append(fieldName, file, filename);
+    },
+    async prepareUploadHeaders(form, headers, useChunkedTransfer) {
+        // nothing - this is used for fixing node's form-data behavior
+    }
+};
+
+const ONE_MINUTE$1 = 60 * 1000;
+// adapted from https://github.com/sindresorhus/p-throttle
+function rateLimit(fn, options = {}) {
+    if (fn && (typeof fn === 'object')) {
+        options = Object.assign({}, fn, options);
+        fn = undefined;
+    }
+    if (!fn) {
+        fn = options.fn;
+    }
+    if (typeof fn !== 'function') {
+        throw new TypeError('Rate limit function is not a function');
+    }
+    const { perSecond, perMinute, perHour, signal } = options;
+    let limit = parseFloat(options.limit) || 1;
+    let interval = parseInt(options.interval, 10);
+    if (perSecond) {
+        limit = parseFloat(perSecond);
+        interval = 1000;
+    }
+    if (perMinute) {
+        limit = parseFloat(perMinute);
+        interval = ONE_MINUTE$1;
+    }
+    if (perHour) {
+        limit = parseFloat(perHour);
+        interval = ONE_MINUTE$1 * 60;
+    }
+    if (limit < 1) {
+        interval *= limit;
+        limit = 1;
+    }
+    else {
+        // just make sure it isn't a faction for some silly reason
+        limit = Math.floor(limit);
+    }
+    if (!Number.isFinite(limit)) {
+        throw new TypeError(`Invalid limit ${limit}`);
+    }
+    if (!Number.isFinite(interval) || interval <= 0) {
+        throw new TypeError('Invalid interval option');
+    }
+    const queue = new Map();
+    let currentTick = 0;
+    let activeCount = 0;
+    const throttled = function (...args) {
+        let timeout;
+        return new Promise((resolve, reject) => {
+            const execute = () => {
+                resolve(fn.apply(null, args));
+                queue.delete(timeout);
+            };
+            const now = Date.now();
+            if ((now - currentTick) > interval) {
+                activeCount = 1;
+                currentTick = now;
+            }
+            else if (activeCount < limit) {
+                activeCount++;
+            }
+            else {
+                currentTick += interval;
+                activeCount = 1;
+            }
+            timeout = setTimeout(execute, currentTick - now);
+            // used for sending cancel error
+            queue.set(timeout, reject);
+        });
+    };
+    throttled.abort = (message = 'Cancelled rate-limit queue') => {
+        for (const [timeout, reject] of queue.entries()) {
+            clearTimeout(timeout);
+            reject(polyfills.createAbortError(message));
+        }
+        queue.clear();
+    };
+    if (signal) {
+        signal.addEventListener('abort', () => throttled.abort());
+    }
+    return throttled;
+}
+
 function asValidDate(val, defaultValue) {
     if (!val) {
         return defaultValue;
@@ -656,74 +807,6 @@ function auditAPIFactory(rev) {
     return auditAPI;
 }
 
-/**
- * There are slight differences in handling browser and node.js environments.
- * This folder wraps all components that get polyfilled in node.js, as well as
- * allowing uploading a video from the local filesystem on node.js
- */
-/**
- * used to sign the verifier in OAuth workflow
- */
-async function hmacSign(message, secret) {
-    const enc = new TextEncoder();
-    const cryptoKey = await crypto.subtle
-        .importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']);
-    const signed = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(message));
-    return btoa(String.fromCharCode(...new Uint8Array(signed)));
-}
-var polyfills = {
-    AbortController: globalThis.AbortController,
-    AbortSignal: globalThis.AbortSignal,
-    createAbortError(message) {
-        return new DOMException(message, 'AbortError');
-    },
-    fetch: (...args) => globalThis.fetch(...args),
-    FormData: globalThis.FormData,
-    Headers: globalThis.Headers,
-    Request: globalThis.Request,
-    Response: globalThis.Response,
-    hmacSign,
-    /**
-     *
-     * @param file
-     * @param filename
-     * @param contentType
-     * @returns
-     */
-    async parseFileUpload(file, options) {
-        let { filename, contentType, contentLength } = options;
-        if (isBlobLike(file)) {
-            const { type, name, size } = file;
-            if (type && !contentType) {
-                contentType = type;
-            }
-            if (name && !filename) {
-                filename = name;
-            }
-            if (size && !contentLength) {
-                contentLength = size;
-            }
-            return {
-                file,
-                options: {
-                    ...options,
-                    filename,
-                    contentType,
-                    contentLength
-                }
-            };
-        }
-        throw new TypeError('Only Blob / Files are supported for file uploads. Pass a File/Blob object');
-    },
-    appendFileToForm(form, fieldName, payload) {
-        const { file, options: { filename } } = payload;
-        form.append(fieldName, file, filename);
-    },
-    async prepareUploadHeaders(form, headers, useChunkedTransfer) {
-        // nothing - this is used for fixing node's form-data behavior
-    }
-};
-
 const PLACEHOLDER = 'http://rev';
 /**
  * Constructs the query parameters for the Rev /oauth/authorization endpoint
@@ -1327,6 +1410,13 @@ async function uploadMultipart(rev, method, endpoint, form, useChunkedTransfer =
     return body;
 }
 
+function splitOptions(options) {
+    const { signal, ...uploadOptions } = options;
+    return {
+        requestOptions: signal ? { signal } : {},
+        uploadOptions
+    };
+}
 function uploadAPIFactory(rev) {
     const { FormData } = polyfills;
     const uploadAPI = {
@@ -1334,6 +1424,7 @@ function uploadAPIFactory(rev) {
          * Upload a video, and returns the resulting video ID
          */
         async video(file, metadata = { uploader: rev.session.username ?? '' }, options = {}) {
+            const { uploadOptions, requestOptions } = splitOptions(options);
             // prepare payload
             const form = new FormData();
             // at bare minimum the uploader needs to be defined
@@ -1350,12 +1441,13 @@ function uploadAPIFactory(rev) {
             // add video metadata to body (as json)
             appendJSONToForm(form, 'video', metadata);
             // append file (works around some node's form-data library quirks)
-            const filePayload = await appendFileToForm(form, 'VideoFile', file, options);
+            const filePayload = await appendFileToForm(form, 'VideoFile', file, uploadOptions);
             rev.log('info', `Uploading ${filePayload.filename} (${filePayload.contentType})`);
-            const { videoId } = await uploadMultipart(rev, 'POST', '/api/v2/uploads/videos', form, filePayload);
+            const { videoId } = await uploadMultipart(rev, 'POST', '/api/v2/uploads/videos', form, filePayload, requestOptions);
             return videoId;
         },
         async transcription(videoId, file, language = 'en', options = {}) {
+            const { uploadOptions, requestOptions } = splitOptions(options);
             // validate language
             // TODO put this in a constants file somewhere
             const supportedLanguages = ['de', 'en', 'en-gb', 'es-es', 'es-419', 'es', 'fr', 'fr-ca', 'id', 'it', 'ko', 'ja', 'nl', 'no', 'pl', 'pt', 'pt-br', 'th', 'tr', 'fi', 'sv', 'ru', 'el', 'zh', 'zh-tw', 'zh-cmn-hans'];
@@ -1368,7 +1460,7 @@ function uploadAPIFactory(rev) {
                 }
             }
             const form = new FormData();
-            const filePayload = await appendFileToForm(form, 'File', file, options);
+            const filePayload = await appendFileToForm(form, 'File', file, uploadOptions);
             const metadata = {
                 files: [
                     { language: lang, fileName: filePayload.filename }
@@ -1376,7 +1468,61 @@ function uploadAPIFactory(rev) {
             };
             appendJSONToForm(form, 'TranscriptionFiles', metadata);
             rev.log('info', `Uploading transcription to ${videoId} (${lang} ${filePayload.filename} (${filePayload.contentType})`);
-            await uploadMultipart(rev, 'POST', `/api/v2/transcription-files/${videoId}`, form, filePayload);
+            await uploadMultipart(rev, 'POST', `/api/v2/uploads/transcription-files/${videoId}`, form, filePayload, requestOptions);
+        },
+        async supplementalFile(videoId, file, options = {}) {
+            const { uploadOptions, requestOptions } = splitOptions(options);
+            const form = new FormData();
+            const filePayload = await appendFileToForm(form, 'File', file, uploadOptions);
+            const metadata = {
+                files: [
+                    { fileName: filePayload.filename }
+                ]
+            };
+            appendJSONToForm(form, 'SupplementalFiles', metadata);
+            rev.log('info', `Uploading supplemental content to ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+            await uploadMultipart(rev, 'POST', `/api/v2/uploads/supplemental-files/${videoId}`, form, filePayload, requestOptions);
+        },
+        /**
+         *
+         * @param videoId id of video to add chapters to
+         * @param chapters list of chapters. Must have time value and one of title or imageFile
+         * @param action replace = POST/replace existing with this payload
+         *               append = PUT/add or edit without removing existing
+         * @param options  additional upload + request options
+         */
+        async chapters(videoId, chapters, action = 'replace', options = {}) {
+            const { uploadOptions, requestOptions } = splitOptions(options);
+            const form = new FormData();
+            const metadata = {
+                chapters: []
+            };
+            for (let chapter of chapters) {
+                const { title, time, imageFile } = chapter;
+                if (imageFile) {
+                    await appendFileToForm(form, 'File', imageFile, uploadOptions);
+                }
+            }
+            appendJSONToForm(form, 'Chapters', metadata);
+            rev.log('info', `${action === 'replace' ? 'Uploading' : 'Updating'} ${metadata.chapters.length} chapters to ${videoId}`);
+            const method = action === 'replace'
+                ? 'POST'
+                : 'PUT';
+            await uploadMultipart(rev, method, `/api/v2/uploads/chapters/${videoId}`, form, uploadOptions, requestOptions);
+        },
+        async thumbnail(videoId, file, options = {}) {
+            const { uploadOptions, requestOptions } = splitOptions(options);
+            const form = new FormData();
+            const filePayload = await appendFileToForm(form, 'ThumbnailFile', file, uploadOptions);
+            rev.log('info', `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+            await uploadMultipart(rev, 'POST', `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
+        },
+        async presentationChapters(videoId, file, options = {}) {
+            const { uploadOptions, requestOptions } = splitOptions(options);
+            const form = new FormData();
+            const filePayload = await appendFileToForm(form, 'ThumbnailFile', file, uploadOptions);
+            rev.log('info', `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+            await uploadMultipart(rev, 'POST', `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
         }
     };
     return uploadAPI;
@@ -1638,8 +1784,9 @@ function videoDownloadAPI(rev) {
      * @param videoId
      * @returns
      */
-    async function download(videoId) {
+    async function download(videoId, options = {}) {
         const response = await rev.request('GET', `/api/v2/videos/${videoId}/download`, undefined, {
+            ...options,
             responseType: 'stream'
         });
         return response;
@@ -2604,5 +2751,11 @@ class RevClient {
     }
 }
 
-export { RevClient, RevError, ScrollError, RevClient as default };
+const utils = {
+    rateLimit,
+    getExtensionForMime,
+    getMimeForExtension
+};
+
+export { RevClient, RevError, ScrollError, RevClient as default, utils };
 //# sourceMappingURL=rev-client.js.map

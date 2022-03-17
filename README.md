@@ -326,13 +326,45 @@ The Response payload, already decoded based on `options.responseType`
 
 ### Upload
 
+##### Shared Options
+
+All upload functions take in a `file` argument and an `options` argument.
+
+* `file`:  `string`, `stream.Readable` or `Blob` if using node.js. `File` if browser. If `string` *(and using node.js)* then treat as a file path and load the file from disk.
+* `options`:
+  * Any `fetch` options *(most importantly `signal` for passing in an `AbortSignal`)*
+  * `filename?`: `string` - the filename used in the `Content-Disposition` field header.
+  * `contentType?`: `string` - the content type of the file
+  * `contentLength?`: `number` - the known content length of the file. This is rarely needed, but can be used if passing along a HTTP Stream
+  * `useChunkedTransfer?`: `boolean` - tell upload to not calculate a content length automatically, and just send as `Transfer-Encoding: chunked`
+
+**Note:** Rev expects the file extension and content-type to agree. This library will attempt to automatically fix the filename/content-type as needed.
+
+#### `upload.chapters(videoId, chapters, action?, options?)`
+
+##### Options
+
+* `videoId`: string, videoId of the video in question
+* `chapters`: array of Chapter objects. At least one of `title` or `imageFile` must be specified
+  * `time`: *(required)* `string`
+  * `title`: `string`
+  * `imageFile`: `string`, `stream.Readable` or `Blob` if using node.js. `File` if browser. See `file` in the Shared Options section above.
+* `action`: One of two string values (default: `replace`):
+  * `"append"`: [Update Video Chapters](https://revdocs.vbrick.com/reference/uploadvideochaptersupdate))
+  * `"replace"`: [Upload Video Chapters](https://revdocs.vbrick.com/reference/uploadvideochapters)
+* `options`: Additional `fetch` options
+
+#### `upload.presentationChapters(videoId, file, options?)`
+#### `upload.supplementalFile(videoId, file, options?)`
 #### `upload.transcription(videoId, file, language?, options?)`
+#### `upload.thumbnail(videoId, file, options?)`
+
 #### `upload.video(file, metadata, options?)` - Upload a video
 
 ##### Options
-* `file`: string, `stream.Readable` or `Blob` if using node.js. `File` if browser.
-* `metadata`: Video metadata - see [API docs](https://revdocs.vbrick.com/reference/uploadvideo)
-* `options`: Additional `fetch` options
+* `file`: `string`, `stream.Readable` or `Blob` if using node.js. `File` if browser. See `file` in the Shared Options section above.
+* `metadata`: Video metadata - see [API docs](https://revdocs.vbrick.com/reference/uploadvideo). Note that at minimum `uploader` MUST be included.
+* `options`: See Shared Options section above.
 
 ##### Returns
 
@@ -363,15 +395,13 @@ The ID of the video
 #### `video.chapters(videoId)`
 #### `video.supplementalFiles(videoId)`
 #### `video.transcriptions(videoId)`
-#### `video.migrate(videoId, options)`
-#### `video.download(videoId)`
+#### `video.migrate(videoId, migratePayload)`
+#### `video.download(videoId, options?)`
 #### `video.downloadTranscription(videoId, language)`
 #### `video.downloadSupplemental(videoId, fileId)`
 #### `video.downloadChapter(chapter)`
 #### `video.downloadThumbnail(query)`
 #### `video.search(query?, options?)` - Search for videos
-
-
 
 ##### Options
 * `query`: See [API Docs](https://revdocs.vbrick.com/reference/searchvideo) for available search options
@@ -441,6 +471,80 @@ for await (let video of request) {
 #### `zones.edit(zoneId, zone)`
 #### `zones.delete(zoneId)`
 #### `zones.zoneDevices()`
+
+### Utilities
+
+The library exposes some additional utilities:
+
+#### `utils.rateLimit(fn: async function, options)` or `rateLimit(options)`
+
+The Rev API includes rate limiting for some API endpoints. If you exceed the limit then you'll receive a `429` error response. This function can help to automatically avoid that threshold.
+
+See the [API Documentation on Rate Limiting](https://revdocs.vbrick.com/reference/rate-limiting) for current limits.
+
+##### Options
+
+* `fn`: function to be rate-limited
+* `options`:
+  * `fn`: function to be rate-limited *(if not set as first argument)*
+  * `perSecond`: set limit to `X` executions **per second**
+  * `perMinute`: set limit to `X` executions **per minute**
+  * `perHour`: set limit to `X` executions **per hour**
+  * `limit`: allow `limit` executions per `interval` milliseconds
+  * `interval`: allow `limit` executions per `interval` milliseconds
+  * `signal`: `AbortSignal` to cancel all pending executions.
+
+##### Returns
+
+Wrapped function with same arguments as passed in `fn`, with added:
+
+* `.abort()` - cancel all pending executions
+
+##### Example
+
+```js
+import { RevClient, rateLimit } from '@vbrick/rev-client';
+const rev = new RevClient(options);
+
+// assumes this tool is only tool in the account using API uploads
+const throttledUpload = rateLimit({
+	fn: (...args) => rev.upload.video(...args),
+	perMinute: 30
+});
+
+const numberOfVideos = 100;
+for (let i = 0; i < numberOfVideos; i++) {
+	// same arguments as rev.upload.video
+	const videoId = await throttledUpload(file, {title: `video ${i}`, uploader: `my.username` });
+}
+```
+
+#### `utils.getExtensionForMime(contentType, defaultExtension?)`
+
+Get the expected extension for a mime-type supported by Rev for upload. If none found it will return the `defaultExtension` *(or `.mp4` if none specified)*
+
+#### `utils.getMimeForExtension(extension?, defaultType?)`
+
+Get the expected mime-type for the specified extension (`.ext`). If none found it will return the `defaultType` *(or `video/mp4` if none specified)*
+
+### Error Classes
+
+### `RevError`
+
+Custom error returned for error status code responses
+
+#### Properties
+
+* `status`: `number` - http status code
+* `url`: `string` - original URL of request
+* `code`: `string` - Rev-specified error string, for example `MalformedRequest`, `RequiredFieldMissing` or `InvalidFileType`
+* `detail`: `string` - Additional details about error (if passed).
+
+### `ScrollError`
+
+Custom error returned if a paged search request has expired `(usually because more than 1 minute has passed between requests for more pages of data)`
+
+
 
 ---
 

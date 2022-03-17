@@ -1,3 +1,19 @@
+## 0.10.0
+
+### Features
+
+* Added more missing upload functions (i.e. `upload.thumbnail`, `upload.chapters`)
+* Support passing `signal` to upload/download functions to abort early.
+* Added additional `utils` export.
+
+### Breaking Changes
+
+* Namespaced some Typescript types, for example `Video.CommentRequest` became `Video.Comment.Request`
+
+### Bugfixes
+
+* Minor Typescript types cleanup
+
 ## 0.9.0
 
 ### Deprecations

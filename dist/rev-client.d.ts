@@ -235,11 +235,28 @@ declare namespace Admin {
     interface CustomField {
         id: string;
         name: string;
-        value: any;
-        required: boolean;
-        displayedToUsers: boolean;
-        type: string;
-        fieldType: string;
+        value: string;
+        required?: boolean;
+    }
+    namespace CustomField {
+        type Request = {
+            id: string;
+            name?: string;
+            value: string;
+        } | {
+            id?: string;
+            name: string;
+            value: string;
+        };
+        interface Detail {
+            id: string;
+            name: string;
+            value: any;
+            required: boolean;
+            displayedToUsers: boolean;
+            type: string;
+            fieldType: string;
+        }
     }
     interface BrandingSettings {
         general?: {
@@ -820,6 +837,22 @@ declare namespace User {
     type DetailsLookup = LiteralString<'username' | 'email' | 'userId'>;
 }
 
+declare type FileUploadType = string | File | Blob | AsyncIterable<any>;
+interface UploadFileOptions {
+    /** specify filename of video as reported to Rev */
+    filename?: string;
+    /** specify content type of video */
+    contentType?: string;
+    /** if content length is known this will avoid needing to detect it */
+    contentLength?: number;
+    /** node-only - bypass dealing with content length and just upload as transfer-encoding: chunked */
+    useChunkedTransfer?: boolean;
+    /** An AbortSignal to set request's signal. */
+    signal?: AbortSignal | null;
+}
+declare function getMimeForExtension(extension?: string, defaultType?: string): string;
+declare function getExtensionForMime(contentType: string, defaultExtension?: string): string;
+
 declare namespace Video {
     type AccessControl = LiteralString<"AllUsers" | "Public" | "Private" | "Channels">;
     type ApprovalStatus = LiteralString<'Approved' | 'PendingApproval' | 'Rejected' | 'RequiresApproval' | 'SubmittedApproval'>;
@@ -899,13 +932,7 @@ declare namespace Video {
          */
         password?: string;
         /** An array of customFields that is attached to the  */
-        customFields?: ({
-            id: string;
-            value: string;
-        } | {
-            name: string;
-            value: string;
-        })[];
+        customFields?: Admin.CustomField.Request[];
         doNotTranscode?: boolean;
         is360?: boolean;
         unlisted?: boolean;
@@ -922,7 +949,7 @@ declare namespace Video {
     interface MigrateRequest {
         /** change "uploader" value to this user */
         userName?: string;
-        /** change "owner" to this user. Owner takes precedence over uploader in sorting/UI */
+        /** change "owner" to this user. Owner takes precedence over Uploader field in sorting/UI */
         owner?: {
             userId: string;
         };
@@ -955,12 +982,7 @@ declare namespace Video {
             fullPath: string;
         }>;
         /** An array of customFields that is attached to the  */
-        customFields: Array<{
-            id: string;
-            name: string;
-            value: string;
-            required: boolean;
-        }>;
+        customFields: Admin.CustomField[];
         /** when video was uploaded (ISO Date) */
         whenUploaded: string;
         /** When video was last modified (ISO Date) */
@@ -1088,7 +1110,7 @@ declare namespace Video {
         enableComments?: boolean;
         videoAccessControl?: AccessControl;
         accessControlEntities: string | string[];
-        customFields: Admin.CustomField[];
+        customFields: Admin.CustomField.Request[];
         unlisted?: boolean;
         userTags?: string[];
     }
@@ -1182,25 +1204,6 @@ declare namespace Video {
         incrementDays?: number;
         sortDirection?: Rev.SortDirection;
     }
-    interface CommentRequest {
-        /**
-         * The text of the comment
-         */
-        comment: string;
-        /**
-         * Username submitting the comment. This user must exist in Rev. Unless
-         * the user has been assigned the Account Admin role, this user must
-         * also match the authenticated user making the API call.
-         */
-        userName: string;
-        /**
-         * If not provided, parent comment will be created. If parent commentId
-         * is provided, then it will create child comment to that parent. If
-         * child commentid is provided, then child comment for the corresponding
-         * parent comment will be created.
-         */
-        commentId?: string;
-    }
     interface Comment {
         id: string;
         text: string;
@@ -1211,15 +1214,46 @@ declare namespace Video {
         isRemoved: boolean;
         childComments: Comment[];
     }
-    interface CommentListResponse {
-        id: string;
-        title: string;
-        comments: Comment[];
+    namespace Comment {
+        interface Request {
+            /**
+             * The text of the comment
+             */
+            comment: string;
+            /**
+             * Username submitting the comment. This user must exist in Rev. Unless
+             * the user has been assigned the Account Admin role, this user must
+             * also match the authenticated user making the API call.
+             */
+            userName: string;
+            /**
+             * If not provided, parent comment will be created. If parent commentId
+             * is provided, then it will create child comment to that parent. If
+             * child commentid is provided, then child comment for the corresponding
+             * parent comment will be created.
+             */
+            commentId?: string;
+        }
+        interface ListResponse {
+            id: string;
+            title: string;
+            comments: Comment[];
+        }
     }
     interface Chapter {
         title: string;
         startTime: string;
         imageUrl: string;
+    }
+    namespace Chapter {
+        interface Request {
+            /**
+             * time in 00:00:00 format
+             */
+            time: string;
+            title?: string;
+            imageFile?: FileUploadType;
+        }
     }
     interface SupplementalFile {
         downloadUrl: string;
@@ -1229,6 +1263,9 @@ declare namespace Video {
     }
     interface Transcription extends SupplementalFile {
         locale: string;
+    }
+    namespace Transcription {
+        type SupportedLanguages = LiteralString<'de' | 'en' | 'en-gb' | 'es-es' | 'es-419' | 'es' | 'fr' | 'fr-ca' | 'id' | 'it' | 'ko' | 'ja' | 'nl' | 'no' | 'pl' | 'pt' | 'pt-br' | 'th' | 'tr' | 'fi' | 'sv' | 'ru' | 'el' | 'zh' | 'zh-tw' | 'zh-cmn-hans'>;
     }
 }
 
@@ -1337,13 +1374,7 @@ declare namespace Webcast {
         /**
           * List of custom fields to use when searching for events. All of the fields provided are concatenated as AND in the search request. The value to the property 'Value' is required.
           */
-        customFields?: Array<{
-            id: string;
-            value: string;
-        } & {
-            name: string;
-            value: string;
-        }>;
+        customFields?: Admin.CustomField.Request[];
     }
     interface CreateRequest {
         title: string;
@@ -1403,10 +1434,7 @@ declare namespace Webcast {
         autoAssociateVod?: boolean;
         redirectVod?: boolean;
         registrationFieldIds?: string[];
-        customFields?: Array<{
-            id?: string;
-            value?: string;
-        }>;
+        customFields?: Admin.CustomField.Request[];
         liveSubtitles?: {
             sourceLanguage: string;
             translationLanguages: string[];
@@ -2106,26 +2134,33 @@ declare function recordingAPIFactory(rev: RevClient): {
     stopPresentationProfileRecording(recordingId: string): Promise<Recording.StopPresentationProfileResponse>;
 };
 
-declare type FileUploadType = string | File | Blob | AsyncIterable<any>;
-interface UploadFileOptions {
-    /** specify filename of video as reported to Rev */
-    filename?: string;
-    /** specify content type of video */
-    contentType?: string;
-    /** if content length is known this will avoid needing to detect it */
-    contentLength?: number;
-    /** node-only - bypass dealing with content length and just upload as transfer-encoding: chunked */
-    useChunkedTransfer?: boolean;
-}
-
+declare type PresentationChaptersOptions = Rev.RequestOptions & UploadFileOptions & {
+    contentType?: 'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+};
+declare type TranscriptionOptions = Rev.RequestOptions & UploadFileOptions & {
+    contentType?: 'text/plain' | 'application/x-subrip';
+};
+declare type ChaptersOptions = Rev.RequestOptions & Omit<UploadFileOptions, 'filename' | 'contentLength'> & {
+    contentType?: 'application/x-7z-compressed' | 'text/csv' | 'application/msword' | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' | 'image/gif' | 'image/jpeg' | 'application/pdf' | 'image/png' | 'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation' | 'application/x-rar-compressed' | 'image/svg+xml' | 'text/plain' | 'application/vnd.ms-excel' | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' | 'application/zip';
+};
 declare function uploadAPIFactory(rev: RevClient): {
     /**
      * Upload a video, and returns the resulting video ID
      */
     video(file: FileUploadType, metadata?: Video.UploadMetadata, options?: UploadFileOptions): Promise<string>;
-    transcription(videoId: string, file: FileUploadType, language?: string, options?: UploadFileOptions & {
-        contentType?: 'text/plain' | 'application/x-subrip';
-    }): Promise<void>;
+    transcription(videoId: string, file: FileUploadType, language?: Video.Transcription.SupportedLanguages, options?: TranscriptionOptions): Promise<void>;
+    supplementalFile(videoId: string, file: FileUploadType, options?: Rev.RequestOptions & UploadFileOptions): Promise<void>;
+    /**
+     *
+     * @param videoId id of video to add chapters to
+     * @param chapters list of chapters. Must have time value and one of title or imageFile
+     * @param action replace = POST/replace existing with this payload
+     *               append = PUT/add or edit without removing existing
+     * @param options  additional upload + request options
+     */
+    chapters(videoId: string, chapters: Video.Chapter.Request[], action?: 'append' | 'replace', options?: ChaptersOptions): Promise<void>;
+    thumbnail(videoId: string, file: FileUploadType, options?: Rev.RequestOptions & UploadFileOptions): Promise<void>;
+    presentationChapters(videoId: string, file: FileUploadType, options?: PresentationChaptersOptions): Promise<void>;
 };
 
 declare function userAPIFactory(rev: RevClient): {
@@ -2221,15 +2256,18 @@ declare class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
     set endDate(value: Date);
 }
 
+declare type VideoSearchDetailedItem = Video.SearchHit & (Video.Details | {
+    error?: Error;
+});
 declare function videoAPIFactory(rev: RevClient): {
     report: {
         (options?: Video.VideoReportOptions | undefined): VideoReportRequest;
         (videoId: string, options?: Video.VideoReportOptions | undefined): VideoReportRequest;
     };
-    download: (videoId: string) => Promise<Rev.Response<ReadableStream<any>>>;
+    download: (videoId: string, options?: Rev.RequestOptions) => Promise<Rev.Response<ReadableStream<any>>>;
     downloadChapter: (chapter: Video.Chapter) => Promise<Blob>;
     downloadSupplemental: {
-        (transcription: Video.SupplementalFile): Promise<Blob>;
+        (file: Video.SupplementalFile): Promise<Blob>;
         (videoId: string, fileId: string): Promise<Blob>;
     };
     downloadThumbnail: {
@@ -2267,16 +2305,14 @@ declare function videoAPIFactory(rev: RevClient): {
     /**
      * search for videos, return as one big list. leave blank to get all videos in the account
      */
-    search(query?: Video.SearchOptions, options?: Rev.SearchOptions<Video.SearchHit>): SearchRequest<Video.SearchHit>;
+    search(query?: Video.SearchOptions, options?: Rev.SearchOptions<Video.SearchHit>): Rev.ISearchRequest<Video.SearchHit>;
     /**
      * Example of using the video search API to search for videos, then getting
      * the details of each video
      * @param query
      * @param options
      */
-    searchDetailed(query?: Video.SearchOptions, options?: Rev.SearchOptions<Video.SearchHit & (Video.Details | {
-        error?: Error;
-    })>): SearchRequest<Video.SearchHit>;
+    searchDetailed(query?: Video.SearchOptions, options?: Rev.SearchOptions<VideoSearchDetailedItem>): Rev.ISearchRequest<VideoSearchDetailedItem>;
     playbackInfo(videoId: string): Promise<Video.Playback>;
 };
 
@@ -2436,4 +2472,53 @@ declare class ScrollError extends Error {
     get [Symbol.toStringTag](): string;
 }
 
-export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, Group, GuestRegistration, OAuth, Playlist, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, User, Video, Webcast, Zone, RevClient as default };
+interface RateLimitOptions {
+    /**
+     * how many to allow in parallel in any given interval
+     * @default 1
+     */
+    limit?: number;
+    /**
+     * interval in milliseconds
+     */
+    interval?: number;
+    /**
+     * set limit to X per second
+     */
+    perSecond?: number;
+    /**
+     * set limit to X per minute (can be fraction, i.e. 0.5 for 1 every 2 minutes)
+     */
+    perMinute?: number;
+    /**
+     * set limit to X per hour
+     */
+    perHour?: number;
+    /**
+     * cancel with AbortController
+     */
+    signal?: AbortSignal;
+}
+declare type ThrottledFunction<T extends (...args: any[]) => any> = ((...args: Parameters<T>) => ReturnType<T> extends PromiseLike<infer Return> ? Promise<Return> : Promise<ReturnType<T>>) & {
+    /**
+    Abort pending executions. All unresolved promises are rejected with a `CancelError` error.
+    */
+    abort: () => void;
+};
+interface RateLimitOptionsWithFn<T> extends RateLimitOptions {
+    /**
+     * function to rate limit
+     */
+    fn: T;
+}
+declare function rateLimit<T extends (...args: any) => any>(options: RateLimitOptionsWithFn<T>): ThrottledFunction<T>;
+declare function rateLimit<T extends (...args: any) => any>(fn: T, options: RateLimitOptions): ThrottledFunction<T>;
+declare function rateLimit<T extends (...args: any) => any>(fn: T | RateLimitOptionsWithFn<T>, options?: RateLimitOptions): ThrottledFunction<T>;
+
+declare const utils: {
+    rateLimit: typeof rateLimit;
+    getExtensionForMime: typeof getExtensionForMime;
+    getMimeForExtension: typeof getMimeForExtension;
+};
+
+export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, Group, GuestRegistration, OAuth, Playlist, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, User, Video, Webcast, Zone, RevClient as default, utils };
