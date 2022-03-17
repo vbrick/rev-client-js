@@ -13,6 +13,8 @@ export interface UploadFileOptions {
     contentLength?: number;
     /** node-only - bypass dealing with content length and just upload as transfer-encoding: chunked */
     useChunkedTransfer?: boolean;
+    /** An AbortSignal to set request's signal. */
+    signal?: AbortSignal | null;
 }
 export interface FileUploadPayloadInternal {
     file: FileUploadType;
