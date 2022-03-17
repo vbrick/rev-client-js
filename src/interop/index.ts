@@ -3,7 +3,7 @@
  * This folder wraps all components that get polyfilled in node.js, as well as
  * allowing uploading a video from the local filesystem on node.js
  */
-import { isBlobLike } from '../utils';
+import { isBlobLike } from '../utils/is-utils';
 import type { UploadFileOptions, FileUploadPayloadInternal, FileUploadType } from '../utils/file-utils';
 
 /**

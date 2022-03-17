@@ -1,5 +1,5 @@
 import polyfills from '../interop';
-import { isBlobLike } from '.';
+import { isBlobLike } from './is-utils';
 import type { RevClient } from '../rev-client';
 import type { Rev } from '../types';
 
@@ -131,7 +131,7 @@ export async function appendFileToForm(form: FormData, fieldName: string, file: 
     return payload.options;
 }
 
-export async function prepareFileUploadHeaders(form: FormData, headers: Headers, useChunkedTransfer?: boolean) {
+async function prepareFileUploadHeaders(form: FormData, headers: Headers, useChunkedTransfer?: boolean) {
     await polyfills.prepareUploadHeaders(form, headers, useChunkedTransfer);
 }
 

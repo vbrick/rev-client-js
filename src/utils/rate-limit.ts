@@ -1,4 +1,3 @@
-import RevClient from '..';
 import polyfills from '../interop';
 
 const ONE_MINUTE = 60 * 1000;
@@ -37,7 +36,7 @@ type ThrottledFunction<T extends (...args: any[]) => any> = (
     /**
     Abort pending executions. All unresolved promises are rejected with a `CancelError` error.
     */
-    abort(): T;
+    abort: () => void;
 };
 
 interface RateLimitOptionsWithFn<T> extends RateLimitOptions {
