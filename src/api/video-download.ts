@@ -1,4 +1,4 @@
-import { Video } from "../types";
+import { Rev, Video } from "../types";
 import { isPlainObject } from "../utils";
 import type {RevClient} from "../rev-client";
 
@@ -9,8 +9,9 @@ export function videoDownloadAPI(rev: RevClient) {
      * @param videoId
      * @returns
      */
-    async function download(videoId: string) {
+    async function download(videoId: string, options: Rev.RequestOptions = {}) {
         const response = await rev.request<ReadableStream>('GET', `/api/v2/videos/${videoId}/download`, undefined, {
+            ...options,
             responseType: 'stream'
         });
         return response;
@@ -28,7 +29,7 @@ export function videoDownloadAPI(rev: RevClient) {
         return body;
     }
 
-    async function downloadSupplemental(transcription: Video.SupplementalFile): Promise<Blob>;
+    async function downloadSupplemental(file: Video.SupplementalFile): Promise<Blob>;
     async function downloadSupplemental(videoId: string, fileId: string): Promise<Blob>;
     async function downloadSupplemental(videoId: Video.SupplementalFile | string, fileId?: string) {
         const endpoint = isPlainObject(videoId)

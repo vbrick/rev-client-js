@@ -5,6 +5,8 @@ import { SearchRequest } from '../utils/request-utils';
 import { videoReportAPI } from './video-report-request';
 import { videoDownloadAPI } from './video-download';
 
+type VideoSearchDetailedItem = Video.SearchHit & (Video.Details | { error?: Error });
+
 export default function videoAPIFactory(rev: RevClient) {
     const videoAPI = {
         /**
@@ -28,7 +30,7 @@ export default function videoAPIFactory(rev: RevClient) {
         },
         /** get list of comments on a video */
         async comments(videoId: string): Promise<Video.Comment[]> {
-            const response = await rev.get<Video.CommentListResponse>(`/api/v2/videos/${videoId}/comments`);
+            const response = await rev.get<Video.Comment.ListResponse>(`/api/v2/videos/${videoId}/comments`);
             return response.comments;
         },
         async chapters(videoId: string): Promise<Video.Chapter[]> {
@@ -66,7 +68,7 @@ export default function videoAPIFactory(rev: RevClient) {
         /**
          * search for videos, return as one big list. leave blank to get all videos in the account
          */
-        search(query: Video.SearchOptions = { }, options: Rev.SearchOptions<Video.SearchHit> = { }): SearchRequest<Video.SearchHit> {
+        search(query: Video.SearchOptions = { }, options: Rev.SearchOptions<Video.SearchHit> = { }): Rev.ISearchRequest<Video.SearchHit> {
             const searchDefinition = {
                 endpoint: '/api/v2/videos/search',
                 totalKey: 'totalVideos',
@@ -81,7 +83,10 @@ export default function videoAPIFactory(rev: RevClient) {
          * @param query
          * @param options
          */
-        searchDetailed(query: Video.SearchOptions = { }, options: Rev.SearchOptions<Video.SearchHit & (Video.Details | { error?: Error })> = { }) {
+        searchDetailed(
+            query: Video.SearchOptions = { },
+            options: Rev.SearchOptions<VideoSearchDetailedItem> = { }
+        ): Rev.ISearchRequest<VideoSearchDetailedItem> {
             const searchDefinition = {
                 endpoint: '/api/v2/videos/search',
                 totalKey: 'totalVideos',

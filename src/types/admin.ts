@@ -1,13 +1,25 @@
-
 export namespace Admin {
     export interface CustomField {
-        id: string;
-        name: string;
-        value: any;
-        required: boolean;
-        displayedToUsers: boolean;
-        type: string;
-        fieldType: string;
+        id: string,
+        name: string,
+        value: string,
+        required?: boolean
+    }
+    export namespace CustomField {
+        export type Request =
+            { id: string, name?: string, value: string }
+            | { id?: string, name: string, value: string };
+
+        // { id: string, name?: string, value: string } | { id?: string, name: string, value: string };
+        export interface Detail {
+            id: string;
+            name: string;
+            value: any;
+            required: boolean;
+            displayedToUsers: boolean;
+            type: string;
+            fieldType: string;
+        }
     }
 
     export interface BrandingSettings {

@@ -1,4 +1,5 @@
 import type { AccessControl, Category, Admin, Rev } from '.';
+import { FileUploadType } from '../utils/file-utils';
 import { LiteralString } from './rev';
 
 export namespace Video {
@@ -84,7 +85,7 @@ export namespace Video {
         password?: string;
 
         /** An array of customFields that is attached to the  */
-        customFields?: ({ id: string, value: string; } | { name: string, value: string; })[];
+        customFields?: Admin.CustomField.Request[];
 
         doNotTranscode?: boolean;
         is360?: boolean;
@@ -107,7 +108,7 @@ export namespace Video {
     export interface MigrateRequest {
         /** change "uploader" value to this user */
         userName?: string;
-        /** change "owner" to this user. Owner takes precedence over uploader in sorting/UI */
+        /** change "owner" to this user. Owner takes precedence over Uploader field in sorting/UI */
         owner?: {
             userId: string;
         },
@@ -139,7 +140,7 @@ export namespace Video {
         /** An array of categories with full details (id + full path) */
         categoryPaths: Array<{ categoryId: string, name: string, fullPath: string; }>;
         /** An array of customFields that is attached to the  */
-        customFields: Array<{ id: string, name: string, value: string, required: boolean; }>;
+        customFields: Admin.CustomField[];
         /** when video was uploaded (ISO Date) */
         whenUploaded: string;
         /** When video was last modified (ISO Date) */
@@ -268,7 +269,7 @@ export namespace Video {
         enableComments?: boolean;
         videoAccessControl?: AccessControl;
         accessControlEntities: string | string[];
-        customFields: Admin.CustomField[];
+        customFields: Admin.CustomField.Request[];
         unlisted?: boolean;
         userTags?: string[];
     }
@@ -375,25 +376,6 @@ export namespace Video {
         sortDirection?: Rev.SortDirection;
     }
 
-    export interface CommentRequest {
-        /**
-         * The text of the comment
-         */
-        comment: string;
-        /**
-         * Username submitting the comment. This user must exist in Rev. Unless
-         * the user has been assigned the Account Admin role, this user must
-         * also match the authenticated user making the API call.
-         */
-        userName: string;
-        /**
-         * If not provided, parent comment will be created. If parent commentId
-         * is provided, then it will create child comment to that parent. If
-         * child commentid is provided, then child comment for the corresponding
-         * parent comment will be created.
-         */
-        commentId?: string;
-    }
     export interface Comment {
         id: string;
         text: string;
@@ -404,16 +386,50 @@ export namespace Video {
         isRemoved: boolean;
         childComments: Comment[];
     }
-    export interface CommentListResponse {
-        id: string;
-        title: string;
-        comments: Comment[];
+    export namespace Comment {
+
+        export interface Request {
+            /**
+             * The text of the comment
+             */
+            comment: string;
+            /**
+             * Username submitting the comment. This user must exist in Rev. Unless
+             * the user has been assigned the Account Admin role, this user must
+             * also match the authenticated user making the API call.
+             */
+            userName: string;
+            /**
+             * If not provided, parent comment will be created. If parent commentId
+             * is provided, then it will create child comment to that parent. If
+             * child commentid is provided, then child comment for the corresponding
+             * parent comment will be created.
+             */
+            commentId?: string;
+        }
+
+        export interface ListResponse {
+            id: string;
+            title: string;
+            comments: Comment[];
+        }
     }
 
     export interface Chapter {
         title: string;
         startTime: string;
         imageUrl: string;
+    }
+
+    export namespace Chapter {
+        export interface Request {
+            /**
+             * time in 00:00:00 format
+             */
+            time: string;
+            title?: string;
+            imageFile?: FileUploadType
+        }
     }
 
     export interface SupplementalFile {
@@ -426,4 +442,9 @@ export namespace Video {
     export interface Transcription extends SupplementalFile {
         locale: string;
     }
+
+    export namespace Transcription {
+        export type SupportedLanguages = LiteralString<'de' | 'en' | 'en-gb' | 'es-es' | 'es-419' | 'es' | 'fr' | 'fr-ca' | 'id' | 'it' | 'ko' | 'ja' | 'nl' | 'no' | 'pl' | 'pt' | 'pt-br' | 'th' | 'tr' | 'fi' | 'sv' | 'ru' | 'el' | 'zh' | 'zh-tw' | 'zh-cmn-hans'>
+    }
+
 }

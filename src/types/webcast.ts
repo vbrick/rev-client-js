@@ -63,7 +63,7 @@ export namespace Webcast {
         /**
           * List of custom fields to use when searching for events. All of the fields provided are concatenated as AND in the search request. The value to the property 'Value' is required.
           */
-        customFields?: Array<{ id: string, value: string; } & { name: string, value: string; }>;
+        customFields?: Admin.CustomField.Request[];
     }
 
     export interface CreateRequest {
@@ -132,7 +132,7 @@ export namespace Webcast {
         autoAssociateVod?: boolean;
         redirectVod?: boolean;
         registrationFieldIds?: string[];
-        customFields?: Array<{ id?: string, value?: string; }>;
+        customFields?: Admin.CustomField.Request[];
 
         liveSubtitles?: {
             sourceLanguage: string
