@@ -1,3 +1,43 @@
+"use strict";
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// src/index-node18.ts
+var index_node18_exports = {};
+__export(index_node18_exports, {
+  RevClient: () => RevClient,
+  RevError: () => RevError,
+  ScrollError: () => ScrollError,
+  default: () => index_node18_default,
+  utils: () => utils
+});
+module.exports = __toCommonJS(index_node18_exports);
+
 // src/utils/is-utils.ts
 var { toString: _toString } = Object.prototype;
 function isPlainObject(val) {
@@ -9,6 +49,9 @@ function isPlainObject(val) {
 }
 function isBlobLike(val) {
   return typeof val?.stream === "function";
+}
+function isReadable(val) {
+  return typeof val[Symbol.asyncIterator] === "function";
 }
 function titleCase(val) {
   return `${val[0]}${val.slice(1)}`;
@@ -823,7 +866,7 @@ async function getOAuth2PKCEVerifier(codeVerifier = interop_default.randomValues
   return { codeVerifier, codeChallenge };
 }
 async function buildLegacyOAuthQuery(config, oauthSecret, state = "1") {
-  const { hmacSign: hmacSign2 } = interop_default;
+  const { hmacSign: hmacSign3 } = interop_default;
   const RESPONSE_TYPE = "code";
   const {
     oauthApiKey: apiKey,
@@ -831,7 +874,7 @@ async function buildLegacyOAuthQuery(config, oauthSecret, state = "1") {
   } = config;
   const timestamp = /* @__PURE__ */ new Date();
   const verifier = `${apiKey}::${timestamp.toISOString()}`;
-  const signature = await hmacSign2(verifier, oauthSecret);
+  const signature = await hmacSign3(verifier, oauthSecret);
   return {
     apiKey,
     signature,
@@ -1472,14 +1515,14 @@ function splitOptions(options) {
   };
 }
 function uploadAPIFactory(rev) {
-  const { FormData } = interop_default;
+  const { FormData: FormData2 } = interop_default;
   const uploadAPI = {
     /**
      * Upload a video, and returns the resulting video ID
      */
     async video(file, metadata = { uploader: rev.session.username ?? "" }, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options);
-      const form = new FormData();
+      const form = new FormData2();
       if (!metadata.uploader) {
         const defaultUsername = rev.session.username;
         if (defaultUsername) {
@@ -1504,7 +1547,7 @@ function uploadAPIFactory(rev) {
           throw new TypeError(`Invalid language ${language} - supported values are ${supportedLanguages.join(", ")}`);
         }
       }
-      const form = new FormData();
+      const form = new FormData2();
       const filePayload = await appendFileToForm(form, "File", file, uploadOptions);
       const metadata = {
         files: [
@@ -1517,7 +1560,7 @@ function uploadAPIFactory(rev) {
     },
     async supplementalFile(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options);
-      const form = new FormData();
+      const form = new FormData2();
       const filePayload = await appendFileToForm(form, "File", file, uploadOptions);
       const metadata = {
         files: [
@@ -1538,7 +1581,7 @@ function uploadAPIFactory(rev) {
      */
     async chapters(videoId, chapters, action = "replace", options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options);
-      const form = new FormData();
+      const form = new FormData2();
       const metadata = {
         chapters: []
       };
@@ -1564,14 +1607,14 @@ function uploadAPIFactory(rev) {
     },
     async thumbnail(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options);
-      const form = new FormData();
+      const form = new FormData2();
       const filePayload = await appendFileToForm(form, "ThumbnailFile", file, uploadOptions);
       rev.log("info", `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
     },
     async presentationChapters(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options);
-      const form = new FormData();
+      const form = new FormData2();
       const filePayload = await appendFileToForm(form, "ThumbnailFile", file, uploadOptions);
       rev.log("info", `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
@@ -2197,8 +2240,8 @@ function webcastAPIFactory(rev) {
     },
     patchGuestRegistration(eventId, registrationId, registration) {
       const operations = Object.entries(registration).map(([key, value]) => {
-        let path = `/${titleCase(key)}`;
-        return { op: "replace", path, value };
+        let path2 = `/${titleCase(key)}`;
+        return { op: "replace", path: path2, value };
       });
       return rev.put(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`, operations);
     },
@@ -2877,18 +2920,173 @@ var RevClient = class {
   }
 };
 
-// src/index.ts
+// src/interop/node18-polyfills.ts
+var import_fs = __toESM(require("fs"), 1);
+var import_path = __toESM(require("path"), 1);
+var import_crypto = require("crypto");
+async function getLengthFromStream(source) {
+  const {
+    length,
+    contentLength,
+    headers = {},
+    path: filepath
+  } = source;
+  if (isFinite(length)) {
+    return length;
+  }
+  if (isFinite(contentLength)) {
+    return contentLength;
+  }
+  if (headers?.["content-length"]) {
+    const headerLength = parseInt(headers["content-length"], 10);
+    if (isFinite(headerLength)) {
+      return headerLength;
+    }
+  }
+  if (filepath) {
+    const TIMEOUT_MS = 15 * 1e3;
+    let timer;
+    const timeout = new Promise((done) => {
+      timer = setTimeout(done, TIMEOUT_MS, {});
+    });
+    try {
+      const stat = await Promise.race([import_fs.default.promises.stat(filepath), timeout]);
+      if (stat?.size) {
+        return stat.size;
+      }
+    } catch (err) {
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+async function parseFileUpload(file, options) {
+  let {
+    filename,
+    contentType,
+    contentLength,
+    useChunkedTransfer
+  } = options;
+  const shouldUpdateLength = !(contentLength || useChunkedTransfer);
+  if (typeof file === "string") {
+    if (!filename) {
+      filename = import_path.default.basename(file);
+    }
+    file = import_fs.default.createReadStream(file);
+    if (shouldUpdateLength) {
+      contentLength = await getLengthFromStream(file);
+    }
+  } else if (isBlobLike(file)) {
+    const { type, name, size } = file;
+    if (type && !contentType) {
+      contentType = type;
+    }
+    if (name && !filename) {
+      filename = name;
+    }
+    if (shouldUpdateLength) {
+      contentLength = size;
+    }
+  } else if (isReadable(file)) {
+    if (!filename) {
+      const { path: _path, filename: _filename, name: _name } = file;
+      const streamPath = _path || _filename || _name;
+      if (streamPath && typeof streamPath === "string") {
+        filename = import_path.default.basename(streamPath);
+      }
+    }
+    if (shouldUpdateLength) {
+      contentLength = await getLengthFromStream(file);
+    }
+  }
+  return {
+    file,
+    options: {
+      ...options,
+      filename,
+      contentType,
+      contentLength
+    }
+  };
+}
+async function appendFileToForm2(form, fieldName, payload) {
+  const {
+    file,
+    options: {
+      filename,
+      contentType,
+      contentLength
+    }
+  } = payload;
+  const appendOptions = { filename, contentType };
+  if (contentLength) {
+    appendOptions.knownLength = contentLength;
+  }
+  form.append(fieldName, file, appendOptions);
+}
+async function prepareUploadHeaders(form, headers, useChunkedTransfer = false) {
+  if (useChunkedTransfer) {
+    headers.set("transfer-encoding", "chunked");
+    headers.delete("content-length");
+  }
+}
+function randomValues2(byteLength) {
+  return (0, import_crypto.randomBytes)(byteLength).toString("base64url");
+}
+async function sha256Hash2(value) {
+  return (0, import_crypto.createHash)("sha256").update(value).digest().toString("base64url");
+}
+async function hmacSign2(message, secret) {
+  const hmac = (0, import_crypto.createHmac)("sha256", secret);
+  const signature = hmac.update(message).digest("base64");
+  return signature;
+}
+var AbortError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.type = "aborted";
+    this.code = 20;
+    this.ABORT_ERR = 20;
+    Error.captureStackTrace(this, this.constructor);
+  }
+  get name() {
+    return this.constructor.name;
+  }
+  get [Symbol.toStringTag]() {
+    return this.constructor.name;
+  }
+};
+Object.assign(interop_default, {
+  AbortController,
+  AbortSignal,
+  createAbortError(message) {
+    return new AbortError(message);
+  },
+  fetch: (...args) => fetch(...args),
+  FormData,
+  Headers,
+  Request,
+  Response,
+  randomValues: randomValues2,
+  sha256Hash: sha256Hash2,
+  hmacSign: hmacSign2,
+  appendFileToForm: appendFileToForm2,
+  parseFileUpload,
+  prepareUploadHeaders
+});
+
+// src/index-node18.ts
 var utils = {
   rateLimit: rate_limit_default,
   getExtensionForMime,
   getMimeForExtension
 };
-var src_default = RevClient;
-export {
+var index_node18_default = RevClient;
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
   RevClient,
   RevError,
   ScrollError,
-  src_default as default,
   utils
-};
-//# sourceMappingURL=rev-client.js.map
+});
+//# sourceMappingURL=rev-client.cjs.map
