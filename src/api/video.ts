@@ -47,7 +47,7 @@ export default function videoAPIFactory(rev: RevClient) {
         },
         async chapters(videoId: string): Promise<Video.Chapter[]> {
             try {
-                const {chapters} = await rev.get<{chapters: Video.Chapter[]}>(`/api/v2/videos/${videoId}/comments`);
+                const {chapters} = await rev.get<{chapters: Video.Chapter[]}>(`/api/v2/videos/${videoId}/chapters`);
                 return chapters;
             } catch (err) {
                 // if no chapters then this api returns a 400 response
