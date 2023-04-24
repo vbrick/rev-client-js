@@ -6,6 +6,34 @@
 import { isBlobLike } from '../utils/is-utils';
 import type { UploadFileOptions, FileUploadPayloadInternal, FileUploadType } from '../utils/file-utils';
 
+
+/**
+ * used in OAuth - get random verifier string
+ * @param byteLength
+ */
+function randomValues(byteLength: number) {
+    const values = crypto.getRandomValues(new Uint8Array(byteLength / 2));
+    return Array.from(values)
+        .map(c => c.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+/**
+ * sha256 hash function for oauth2 pkce
+ * @param value
+ * @returns
+ */
+async function sha256Hash(value: string) {
+    const bytes = new TextEncoder().encode(value);
+    const hashed = await crypto.subtle.digest('SHA-256', bytes);
+    const binary = String.fromCharCode(...(new Uint8Array(hashed)));
+    return btoa(binary)
+        .replace(/\//g, '_')
+        .replace(/\+/g, '-')
+        .replace(/=+$/, '');
+}
+
+
 /**
  * used to sign the verifier in OAuth workflow
  */
@@ -35,6 +63,8 @@ export default {
     Headers: globalThis.Headers,
     Request: globalThis.Request,
     Response: globalThis.Response,
+    randomValues,
+    sha256Hash,
     hmacSign,
     /**
      *

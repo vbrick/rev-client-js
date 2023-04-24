@@ -252,6 +252,10 @@ abstract class SessionBase implements Rev.IRevSession {
     public abstract toJSON(): Rev.IRevSessionState;
 }
 
+/**
+ * Use OAuth2Session instead if possible
+ * @deprecated
+ */
 export class OAuthSession extends SessionBase {
     refreshToken?: string;
     async _login() {
@@ -290,6 +294,37 @@ export class OAuthSession extends SessionBase {
             token: this.token || '',
             expiration: this.expires,
             refreshToken: this.refreshToken
+        };
+    }
+}
+
+export class OAuth2Session extends SessionBase {
+    refreshToken?: string;
+    async _login() {
+        const { oauthConfig, code, codeVerifier } = this[_credentials];
+        if (!oauthConfig || !code || !codeVerifier) {
+            throw new TypeError('OAuth Config / auth code / verifier not specified');
+        }
+        const {
+            access_token: token,
+            expires_in,
+            refresh_token: refreshToken,
+            userId
+        } = await this.rev.auth.loginOAuth2(oauthConfig, code, codeVerifier);
+        const expiresTime = Date.now() + parseInt(expires_in, 10) * 1000;
+        const expiration = new Date(expiresTime).toISOString();
+        return { token, expiration, refreshToken, userId };
+    }
+    async _extend() {
+        return this.rev.auth.extendSession();
+    }
+    async _logoff() {
+        return;
+    }
+    public toJSON(): Rev.IRevSessionState {
+        return {
+            token: this.token || '',
+            expiration: this.expires
         };
     }
 }
@@ -418,13 +453,16 @@ export function createSession(rev: RevClient, credentials: Rev.Credentials, keep
     const expires = new Date(expiration || now);
     const hasSession = (token && typeof token === 'string') && (expires.getTime() > now);
 
-    const isOauthLogin = credentials.oauthConfig && (credentials.authCode || (hasSession && refreshToken));
+    const isOAuth2Login = credentials.oauthConfig && (credentials.code && credentials.codeVerifier);
+    const isLegacyOauthLogin = credentials.oauthConfig && (credentials.authCode || (hasSession && refreshToken));
     const isApiKeyLogin = credentials.apiKey && (credentials.secret || (hasSession && !userId));
     const isUsernameLogin = credentials.username && (credentials.password || (hasSession && userId));
     const isJWTLogin = credentials.jwtToken;
 
     // prefer oauth first, then apikey then username if multiple params specified
-    if (isOauthLogin) {
+    if (isOAuth2Login) {
+        session = new OAuth2Session(rev, creds, keepAliveOptions);
+    } else if (isLegacyOauthLogin) {
         session = new OAuthSession(rev, creds, keepAliveOptions);
         if (refreshToken) {
             (session as OAuthSession).refreshToken = refreshToken;
