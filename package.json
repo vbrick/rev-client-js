@@ -1,6 +1,6 @@
 {
   "name": "@vbrick/rev-client",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Vbrick Rev API client for browser and server",
   "type": "module",
   "main": "dist/node/rev-client.cjs",
@@ -40,7 +40,7 @@
   "license": "MIT",
   "repository": "github:vbrick/rev-client-js",
   "engines": {
-    "node": ">=14.13.1"
+    "node": ">=16.0.0"
   },
   "dependencies": {
     "fetch-blob": "^3.1.2",
