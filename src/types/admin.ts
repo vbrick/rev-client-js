@@ -19,6 +19,7 @@ export namespace Admin {
             value: any;
             required: boolean;
             displayedToUsers: boolean;
+            options: string[] | null;
             type: string;
             fieldType: string;
         }
