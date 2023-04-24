@@ -14,6 +14,13 @@
         "require": "./dist/node/rev-client.cjs"
       },
       "default": "./dist/rev-client.js"
+    },
+    "./native-fetch": {
+      "node": {
+        "import": "./dist/es18/rev-client.mjs",
+        "require": "./dist/node18/rev-client.cjs"
+      },
+      "default": "./dist/rev-client.js"
     }
   },
   "files": [
@@ -23,9 +30,9 @@
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "rollup": "rollup -c",
-    "rollup:watch": "rollup -c -w",
-    "prepublishOnly": "rollup -c",
+    "build": "tsup",
+    "watch": "tsup -w",
+    "prepublishOnly": "tsup",
     "check": "tsc --noEmit -w"
   },
   "private": false,
@@ -42,12 +49,10 @@
     "node-fetch": "^2.6.1"
   },
   "devDependencies": {
-    "@rollup/plugin-node-resolve": "^13.0.4",
-    "@rollup/plugin-typescript": "^8.2.5",
-    "rollup-plugin-dts": "^3.0.2",
+    "@types/node": "^18.16.0",
     "@types/node-fetch": "^2.5.12",
-    "rollup": "^2.56.2",
     "tslib": "^2.3.1",
+    "tsup": "^6.7.0",
     "typescript": "^4.3.5"
   }
 }
