@@ -1,3 +1,5 @@
+import { LiteralString } from "./rev";
+
 export namespace Admin {
     export interface CustomField {
         id: string,
@@ -59,5 +61,37 @@ export namespace Admin {
         credits: number;
         languages: string[];
         when: string;
+    }
+
+
+    export interface FeatureSettings {
+        categoriesEnabled: boolean;
+        commentsEnabled: boolean;
+        customFields: Array<{
+            id: string;
+            name: string;
+            required: boolean;
+            fieldType: LiteralString<'Text' | 'Select'>;
+        }>;
+        defaultSearchSort: string;
+        downloadsEnabled: boolean;
+        expirationRules: Array<{
+            id: string;
+            name: string;
+            ruleType: LiteralString<'None' | 'DaysAfterUpload' | 'DaysWithoutViews'>;
+            /** REVIEW */
+            deleteOnExpire: boolean;
+            isDefault: boolean;
+            numberOfDays: number;
+        }>;
+        facialRecognitionEnabled: boolean;
+        legalHoldEnabled: boolean;
+        publicVideosEnabled: boolean;
+        ratingsEnabled: boolean;
+        revIQTranscriptionAndTranslationEnabled: boolean;
+        supplementalFilesEnabled: boolean;
+        tagsEnabled: boolean;
+        unlistedEnabled: boolean;
+        voiceBaseEnabled: boolean;
     }
 }

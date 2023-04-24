@@ -92,7 +92,8 @@ export namespace Video {
 
         unlisted?: boolean;
 
-        publishDate?: Date | string;
+        /** must be date-only YYYY-MM-DD */
+        publishDate?: string;
         userTags?: string[];
 
         /** owner of video, defaults to uploader. only one key is necessary */
@@ -263,7 +264,7 @@ export namespace Video {
         description?: string;
         tags?: string | string[];
         isActive?: boolean;
-        expirationDate?: string | Date;
+        expirationDate?: string;
         enableRatings?: boolean;
         enableDownloads?: boolean;
         enableComments?: boolean;
@@ -301,12 +302,12 @@ export namespace Video {
         /** list of uploader IDs separated by commas */
         uploaderIds?: string;
         status?: LiteralString<'active' | 'inactive'>;
-        fromPublishedDate?: Date | string;
-        toPublishedDate?: Date | string;
-        fromUploadDate?: Date | string;
-        toUploadDate?: Date | string;
-        fromModifiedDate?: Date | string;
-        toModifiedDate?: Date | string;
+        fromPublishedDate?: string;
+        toPublishedDate?: string;
+        fromUploadDate?: string;
+        toUploadDate?: string;
+        fromModifiedDate?: string;
+        toModifiedDate?: string;
 
         exactMatch?: boolean;
         unlisted?: LiteralString<'unlisted' | 'listed' | 'all'>;
@@ -329,6 +330,11 @@ export namespace Video {
 
         sortField?: LiteralString<'title' | 'whenUploaded' | 'uploaderName' | 'duration' | '_score'>;
         sortDirection?: Rev.SortDirection;
+
+        /**
+         * If channelId provided, videos in that particular channel are returned. User should have rights to the channel
+         */
+        channelId?: string;
 
         /**
          * search for videos matching specific custom field values.
@@ -365,13 +371,15 @@ export namespace Video {
         playbackUrl: string;
         dateViewed: string;
         viewingTime: string;
+        publicCDNTime?: string;
+        eCDNTime?: string;
         viewingStartTime: string;
         viewingEndTime: string;
     }
     export interface VideoReportOptions extends Rev.SearchOptions<VideoReportEntry> {
         videoIds?: string | string[] | undefined;
-        startDate?: Date | string;
-        endDate?: Date | string;
+        startDate?: string;
+        endDate?: string;
         incrementDays?: number;
         sortDirection?: Rev.SortDirection;
     }
@@ -435,6 +443,7 @@ export namespace Video {
     export interface SupplementalFile {
         downloadUrl: string;
         fileId: string;
+        filename?: string;
         size: number;
         title: string;
     }
@@ -447,4 +456,20 @@ export namespace Video {
         export type SupportedLanguages = LiteralString<'de' | 'en' | 'en-gb' | 'es-es' | 'es-419' | 'es' | 'fr' | 'fr-ca' | 'id' | 'it' | 'ko' | 'ja' | 'nl' | 'no' | 'pl' | 'pt' | 'pt-br' | 'th' | 'tr' | 'fi' | 'sv' | 'ru' | 'el' | 'zh' | 'zh-tw' | 'zh-cmn-hans'>
     }
 
+    export namespace Search {
+        export interface SuggestionOptions {
+            q?: string;
+
+        }
+
+    }
+
+    export interface PausedVideoResponse {
+        videos: PausedVideoItem[];
+        totalVideos: number;
+    }
+    export interface PausedVideoItem extends Video.SearchHit {
+        sessionId: string;
+        timeStamp: string;
+    }
 }

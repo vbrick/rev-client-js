@@ -22,7 +22,7 @@ export class RevError extends Error {
         this.code = `${status}`;
         this.detail = statusText;
         // Some Rev API responses include additional details in its body
-        if (isPlainObject(body)) {
+        if (isPlainObject<Record<string, string>>(body)) {
             if (body.code) {
                 this.code = body.code;
             }
