@@ -39,6 +39,8 @@ export namespace Rev {
         authCode?: string;
         /** oauth configuration values for oauth token management */
         oauthConfig?: OAuth.Config;
+        /** JWT Token */
+        jwtToken?: string;
         /** existing token/extend session details */
         session?: Rev.IRevSessionState;
     }

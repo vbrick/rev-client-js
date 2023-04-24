@@ -118,7 +118,7 @@ abstract class SessionBase implements Rev.IRevSession {
     token?: string;
     expires: Date;
     protected readonly rev!: RevClient;
-    protected readonly [_credentials]: Rev.Credentials;
+    protected readonly [_credentials]!: Rev.Credentials;
     readonly keepAlive?: SessionKeepAlive;
     constructor(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions) {
         this.expires = new Date();
@@ -352,8 +352,55 @@ export class ApiKeySession extends SessionBase {
     }
 }
 
+export class JWTSession extends SessionBase {
+    async _login() {
+        const { jwtToken } = this[_credentials];
+        if (!jwtToken) {
+            throw new TypeError('JWT Token not specified');
+        }
+        const {accessToken: token, expiration} = await this.rev.auth.loginJWT(jwtToken);
+        return { token, expiration, issuer: 'vbrick' };
+    }
+    async _extend() {
+        return this.rev.auth.extendSession();
+    }
+    async _logoff() {
+        return;
+    }
+    public toJSON(): Rev.IRevSessionState {
+        return {
+            token: this.token || '',
+            expiration: this.expires
+        };
+    }
+}
+
+export class AccessTokenSession extends SessionBase {
+    // just verify user on login
+    async _login() {
+        await this.rev.auth.verifySession();
+        return {
+            token: this.token || '',
+            expiration: this.expires?.toISOString(),
+            issuer: 'vbrick'
+        };
+    }
+    async _extend() {
+        return this.rev.auth.extendSession();
+    }
+    async _logoff() {
+        return;
+    }
+    public toJSON(): Rev.IRevSessionState {
+        return {
+            token: this.token || '',
+            expiration: this.expires
+        };
+    }
+}
+
 export function createSession(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions) {
-    let session: OAuthSession | UserSession | ApiKeySession;
+    let session: Rev.IRevSession;
 
     const {
         session: sessionState = {} as Rev.IRevSessionState,
@@ -374,6 +421,7 @@ export function createSession(rev: RevClient, credentials: Rev.Credentials, keep
     const isOauthLogin = credentials.oauthConfig && (credentials.authCode || (hasSession && refreshToken));
     const isApiKeyLogin = credentials.apiKey && (credentials.secret || (hasSession && !userId));
     const isUsernameLogin = credentials.username && (credentials.password || (hasSession && userId));
+    const isJWTLogin = credentials.jwtToken;
 
     // prefer oauth first, then apikey then username if multiple params specified
     if (isOauthLogin) {
@@ -381,15 +429,17 @@ export function createSession(rev: RevClient, credentials: Rev.Credentials, keep
         if (refreshToken) {
             (session as OAuthSession).refreshToken = refreshToken;
         }
-    }
-    else if (isApiKeyLogin) {
+    } else if (isApiKeyLogin) {
         session = new ApiKeySession(rev, creds, keepAliveOptions);
-    }
-    else if (isUsernameLogin) {
+    } else if (isJWTLogin) {
+        session = new JWTSession(rev, creds, keepAliveOptions);
+    } else if (isUsernameLogin) {
         session = new UserSession(rev, creds, keepAliveOptions);
         if (userId) {
             (session as UserSession).userId = userId;
         }
+    } else if (hasSession) {
+        session = new AccessTokenSession(rev, creds, keepAliveOptions);
     } else {
         throw new TypeError('Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)');
     }

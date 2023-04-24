@@ -16,6 +16,12 @@ export namespace Auth {
         language?: string;
     }
 
+    export interface JWTLoginResponse {
+        accessToken: string;
+        expiration: string;
+        language?: string;
+    }
+
     export interface ExtendResponse {
         /** ISO Date format */
         expiration: string;

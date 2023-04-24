@@ -29,6 +29,12 @@ export default function authAPIFactory(rev: RevClient) {
         async extendSessionUser(userId: string): Promise<Auth.ExtendResponse> {
             return rev.post('/api/v2/user/extend-session-timeout', { userId });
         },
+        async loginJWT(jwtToken: string): Promise<Auth.JWTLoginResponse> {
+            return rev.get('/api/v2/jwtauthenticate', { jwt_token: jwtToken });
+        },
+        async extendSession(): Promise<Auth.ExtendResponse> {
+            return rev.post('/api/v2/user/extend-session');
+        },
         async verifySession(): Promise<void> {
             return rev.get('/api/v2/user/session');
         },
