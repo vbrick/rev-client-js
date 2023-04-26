@@ -66,7 +66,7 @@ export default function authAPIFactory(rev: RevClient) {
             };
         },
         async loginOAuth2(config: OAuth.Config, code: string, codeVerifier: string): Promise<OAuth.AuthTokenResponse> {
-            return rev.post('/oauth2/token', {
+            return rev.post('/api/v2/oauth2/token', {
                 // sometimes the authCode can get mangled, with the pluses in the code being replaced by spaces.
                 code: code.replace(/ /g, '+'),
                 client_id: config.oauthApiKey,
@@ -85,7 +85,7 @@ export default function authAPIFactory(rev: RevClient) {
          */
         async buildOAuthAuthenticationURL(config: OAuth.Config, oauthSecret: string, state: string = '1'): Promise<string> {
             const query = await buildLegacyOAuthQuery(config, oauthSecret, state);
-            const url = new URL('/oauth/authorization', rev.url);
+            const url = new URL('/api/v2/oauth/authorization', rev.url);
             url.search = `${new URLSearchParams(query)}`;
             return `${url}`;
         },
@@ -116,7 +116,7 @@ export default function authAPIFactory(rev: RevClient) {
             authCode = authCode.replace(/ /g, '+');
 
             // COMBAK I don't think it matters if rev-client is logged in and passing Authorization headers or not.
-            return rev.post('/oauth/token', {
+            return rev.post('/api/v2/oauth/token', {
                 authCode,
                 apiKey,
                 redirectUri,
@@ -136,7 +136,7 @@ export default function authAPIFactory(rev: RevClient) {
                 oauthApiKey: apiKey
             } = config;
 
-            return rev.post('/oauth/token', {
+            return rev.post('/api/v2/oauth/token', {
                 apiKey,
                 refreshToken,
                 grantType: GRANT_REFRESH

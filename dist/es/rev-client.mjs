@@ -933,7 +933,7 @@ function authAPIFactory(rev) {
       };
     },
     async loginOAuth2(config, code, codeVerifier) {
-      return rev.post("/oauth2/token", {
+      return rev.post("/api/v2/oauth2/token", {
         // sometimes the authCode can get mangled, with the pluses in the code being replaced by spaces.
         code: code.replace(/ /g, "+"),
         client_id: config.oauthApiKey,
@@ -952,7 +952,7 @@ function authAPIFactory(rev) {
      */
     async buildOAuthAuthenticationURL(config, oauthSecret, state = "1") {
       const query = await buildLegacyOAuthQuery(config, oauthSecret, state);
-      const url = new URL("/oauth/authorization", rev.url);
+      const url = new URL("/api/v2/oauth/authorization", rev.url);
       url.search = `${new URLSearchParams(query)}`;
       return `${url}`;
     },
@@ -977,7 +977,7 @@ function authAPIFactory(rev) {
         redirectUri
       } = config;
       authCode = authCode.replace(/ /g, "+");
-      return rev.post("/oauth/token", {
+      return rev.post("/api/v2/oauth/token", {
         authCode,
         apiKey,
         redirectUri,
@@ -995,7 +995,7 @@ function authAPIFactory(rev) {
       const {
         oauthApiKey: apiKey
       } = config;
-      return rev.post("/oauth/token", {
+      return rev.post("/api/v2/oauth/token", {
         apiKey,
         refreshToken,
         grantType: GRANT_REFRESH
