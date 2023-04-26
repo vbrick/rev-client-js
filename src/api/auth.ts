@@ -70,7 +70,7 @@ export default function authAPIFactory(rev: RevClient) {
                 // sometimes the authCode can get mangled, with the pluses in the code being replaced by spaces.
                 code: code.replace(/ /g, '+'),
                 client_id: config.oauthApiKey,
-                grantType: 'authorization_code',
+                grant_type: 'authorization_code',
                 redirect_uri: config.redirectUri,
                 code_verifier: codeVerifier
             });
