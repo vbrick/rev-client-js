@@ -930,7 +930,7 @@ function authAPIFactory(rev) {
       };
     },
     async loginOAuth2(config, code, codeVerifier) {
-      return rev.post("/oauth/token", {
+      return rev.post("/oauth2/token", {
         // sometimes the authCode can get mangled, with the pluses in the code being replaced by spaces.
         code: code.replace(/ /g, "+"),
         client_id: config.oauthApiKey,
