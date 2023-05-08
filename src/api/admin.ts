@@ -109,6 +109,18 @@ export default function adminAPIFactory(rev: RevClient) {
         async maintenanceSchedule(): Promise<{start: string, end: string}[]> {
             const {schedules} = await rev.get('/api/v2/maintenance-schedule');
             return schedules;
+        },
+        /**
+         * gets the user location service URL
+         */
+        async userLocationService(): Promise<{ enabled: boolean, locationUrls: string[] }> {
+            return rev.get('/api/v2/user-location');
+        },
+        /**
+         * returns an array of all expiration rules
+         */
+        async expirationRules(): Promise<Admin.ExpirationRule[]> {
+            return rev.get('/api/v2/expiration-rules');
         }
     };
     return adminAPI;

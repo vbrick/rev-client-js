@@ -1,3 +1,5 @@
+import { Video } from './video';
+
 export namespace Admin {
     export interface CustomField {
         id: string,
@@ -59,5 +61,14 @@ export namespace Admin {
         credits: number;
         languages: string[];
         when: string;
+    }
+    export interface ExpirationRule {
+        ruleId: string;
+        ruleName: string;
+        numberOfDays: number;
+        expiryRuleType: Video.ExpiryRule;
+        deleteOnExpiration: boolean;
+        isDefault: boolean;
+        description: string;
     }
 }
