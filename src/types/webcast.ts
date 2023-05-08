@@ -31,7 +31,7 @@ export namespace Webcast {
     export type SortField = LiteralString<'startDate' | 'title'>;
 
     export type VideoSourceType = LiteralString<
-        'Capture' | 'MicrosoftTeams' | 'PresentationProfile' | 'Rtmp' | 'WebrtcSinglePresenter' | 'SipAddress' | 'WebexTeam' | 'WebexEvents' | 'WebexLiveStream' | 'Vod' | 'Zoom'
+        'Capture' | 'MicrosoftTeams' | 'PresentationProfile' | 'Rtmp' | 'WebrtcSinglePresenter' | 'SipAddress' | 'WebexTeam' | 'WebexEvents' | 'WebexLiveStream' | 'Vod' | 'Zoom' | 'Pexip' | 'Producer'
     >
 
     export type RealtimeField = LiteralString<
@@ -139,6 +139,17 @@ export namespace Webcast {
             translationLanguages: string[]
         }
         emailToPreRegistrants?: boolean;
+
+        /**
+         * Attendee join method. Only required when 'accesscontrol' is Public. Default is 'Registration'. When set to 'Anonymous', no attendee specific details are collected or registered.
+         */
+        attendeeJoinMethod?: LiteralString<'Anonymous' | 'Registration'>
+        /**
+         * Internal user Ids. Only required when 'Producer' selected as a videoSourceType.
+         */
+        presenterIds?: string[];
+        externalPresenters?: Array<{ name: string, title: string, email: string }>;
+        viewerIdEnabled?: boolean;
     }
 
     export interface Details {
@@ -174,6 +185,7 @@ export namespace Webcast {
         }
 
         eventAdminIds: string[];
+        primaryHostId: string;
         automatedWebcast: boolean;
         closedCaptionsEnabled: boolean;
         pollsEnabled: boolean;
@@ -209,6 +221,17 @@ export namespace Webcast {
         registrationFields: RegistrationField[];
         customFields?: Admin.CustomField[];
         emailToPreRegistrants?: boolean;
+        attendeeJoinMethod: LiteralString<'Anonymous' | 'Registration'>;
+        viewerIdEnabled: boolean;
+        externalPresenters: Array<{
+            name: string;
+            title: string;
+            email: string;
+        }>;
+        producerBgImages?: Array<{
+            imageId: string;
+            imageUrls: Array<{ url: string; scaleSize: string; }>
+        }>;
     }
 
     export interface EditAttendeesRequest {
@@ -318,8 +341,12 @@ export namespace Webcast {
     }
 
     export interface Question {
+        questionId: string;
         whenAsked: string;
         question: string;
+        userName: string;
+        repliedUserName: string | null;
+        whenReplied: string | null;
         askedBy: string;
         repliedBy: string;
         lastAction: string;
@@ -343,6 +370,7 @@ export namespace Webcast {
         username: string;
         date: string;
         comment: string;
+        htmlComment: string;
     }
 
     export interface Status {
