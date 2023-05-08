@@ -1,3 +1,27 @@
+## 0.11.0
+
+### Features
+
+* Added JWT, OAuth2 and Access Token (no credentials, just existing access token) credentials options
+* Added `video.setCustomFied` to only update a single custom field value for a video
+* Added a `native-fetch` nodejs version that doesn't use polyfills (node-fetch / form-data). **NOTE:** There may be a [negative performance impact](https://github.com/nodejs/undici/issues/1203) for using node's built-in `fetch` implementation pre-node v20, especially on downloading video files.
+* Switched to tsup instead of rollup for bundling
+* Bump dependencies
+
+### Breaking Changes
+* Require node v16 or above
+* some typescript types were corrected *(for example video search date options like `fromUploadDate` only support `string`, not `Date | string`)*.
+
+
+### Bugfixes
+* Channel search results correction
+* get video chapters was returning empty results
+* minor typescript bugfixes
+* Exports `utils.rateLimit`, `utils.getExtensionForMime` and `utils.getMimeForExtension` functions weren't exposed for the commonjs exports
+
+### Deprecations
+* The Legacy OAuth API endpoints - which use API Key / Client ID plus Secret are deprecated in favor of the new OAuth2-compliant API endpoints, which use a PKCE login flow.
+
 ## 0.10.0
 
 ### Features

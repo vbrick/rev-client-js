@@ -3,7 +3,7 @@ import type { Rev } from '../types';
 import { Webcast } from '../types/webcast';
 import { SearchRequest } from '../utils/request-utils';
 
-function getSummaryFromResponse<T>(response: T, hitsKey: string) {
+function getSummaryFromResponse<T extends Record<string, any>>(response: T, hitsKey: string) {
     const ignoreKeys = ['scrollId', 'statusCode', 'statusDescription'];
 
     const summary = Object.fromEntries(Object.entries(response)

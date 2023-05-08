@@ -9,7 +9,7 @@ This library is intended for use with **[VBrick Rev](https://vbrick.com)**.
 #### Browser/deno
 The compiled library is at `dist/rev-client.js`.
 
-#### Node.js (v14+) 
+#### Node.js (v16+) 
 ```sh
 npm install @vbrick/rev-client
 ```
@@ -17,7 +17,7 @@ npm install @vbrick/rev-client
 ## Compatibility
 
 * **Browser** - This library is in ESM module format - it assumes use of an evergreen browser that has `fetch`, `AbortController`, etc.
-* **node.js** - Node.js 14 or above required. It will work with commonjs (`require`) or ES Module (`import`) projects.
+* **node.js** - Node.js 16 or above required. It will work with commonjs (`require`) or ES Module (`import`) projects. It uses fetch polyfills (`node-fetch`) unless you import using the `@vbrick/rev-client/native-fetch` named export.
 * **deno** - Should be compatible, though testing is limited. You'll need `--allow-net` permissions at minimum.
 
 ### Browsers and CORS support**
@@ -102,7 +102,7 @@ const rev = new RevClient({
 * `logEnabled`: `true`/`false` *(Default: `false`)* - Enable/disable debug logging
 * `log`: `(logLevel, ...args) => void` - Custom log function. Default is to log to console
 
-And **one** of following login options (`apiKey`+`secret`, `username`+`password` or `oauthConfig`):
+And **one** of following login options (`apiKey`+`secret`, `username`+`password`, `oauthConfig`):
 
 1. User API Key:
 
@@ -114,16 +114,32 @@ And **one** of following login options (`apiKey`+`secret`, `username`+`password`
    * `username`: Username of Rev user.
    * `password`: Password of Rev user.
 
-3. OAuth session *(**NOTE**: This is for OAuth 2.0 browser-redirect flow to create sessions, it's not intended for server-side only login)*
+3. Legacy OAuth session *(**NOTE**: This is for OAuth 2.0 browser-redirect flow to create sessions, it's not intended for server-side only login)*.
      
 * `oauthConfig`: OAuth configuration object
 * `oauthConfig.oauthApiKey`: API key from Rev Admin -> Security. This is a DIFFERENT value from the User Token used for API login/extend session
-* `oauthConfig.oauthSecret`: API secret from Rev Admin -> Security. This is a DIFFERENT value from a user's `secret`
+* `oauthConfig.oauthSecret`: API secret from Rev Admin -> Security. This is a DIFFERENT value from a user's `secret`. **DEPRECATED** - only for Legacy OAuth login
 * `oauthConfig.redirectUri`: The local URL Rev should redirect user to after logging in. This must match EXACTLY what's specified in Rev Admin -> Security for the specified API key
+* `authCode`: the Auth Code returned from the OAuth redirect response as a query parameter
+
+4. OAuth2 session *(**NOTE**: This is for OAuth 2.0 browser-redirect flow to create sessions, it's not intended for server-side only login - use User API Key / JWT logins instead for this use case)*.
+     
+* `oauthConfig`: OAuth configuration object
+* `oauthConfig.oauthApiKey`: API key from Rev Admin -> Security. This is a DIFFERENT value from the User Token used for API login/extend session
+* `oauthConfig.redirectUri`: The local URL Rev should redirect user to after logging in. This must match EXACTLY what's specified in Rev Admin -> Security for the specified API key
+* `code`: the Code returned from the OAuth redirect response as a query parameter
+* `codeVerifier`: the Code Verifier used when initially generating the OAuth2 authorization URL. use `rev.auth.buildOAuth2Authentication()` to generate an OAuth2 authorization URL and corresponding codeVerifier.
+
+5. JWT session:
+   * `jwtToken`: The [JWT Token](https://revdocs.vbrick.com/reference/jwt-authentication)
+
+6. Access Token (existing sessions)
+   * `token`: The Access Token previously received via some login method (see below)
+   * `expiration`: The expiration time of the session.
 
 ##### Existing Sessions:
 
-You can pass in an existing `sessionState` to the constructor to reuse a session `token` (assuming it isn't expired). When you include `sessionState` the `password`, `secret` or `authCode` values aren't necessary, however if not included you won't be able to re-login, just extend the session.
+You can pass in an existing `session` to the constructor to reuse a session `token` (assuming it isn't expired). When you include `session` the additional credential values aren't necessary, however if not included you won't be able to re-login, just extend the session.
 
 ```js
 const initialRev = new RevClient({ url, apiKey, secret });
@@ -138,7 +154,7 @@ let savedState = rev.sessionState;
 const revWithReusedSession = new RevClient({ url, apiKey, sessionState: savedState })
 
 // or set after initial configuration
-revWithReusedSession.sessionState = savedState
+revWithReusedSession.sessionState = savedState;
 
 ```
 
@@ -258,19 +274,22 @@ The Response payload, already decoded based on `options.responseType`
 
 ### [Authentication](https://revdocs.vbrick.com/reference/authentication)
 
+#### `auth.extendSession()` - extend any kind of active session, regardless of login method
+#### `auth.verifySession()` - throws error if session is not currently valid
 #### `auth.loginToken(apiKey, secret)`
-#### `auth.extendSessionToken(apiKey)`
+#### `auth.extendSessionToken(apiKey)` - **DEPRECATED**
 #### `auth.logoffToken(apiKey)`
 #### `auth.loginUser(username, password)`
 #### `auth.logoffUser(userId)`
-#### `auth.extendSessionUser(userId)`
-#### `auth.verifySession()`
+#### `auth.extendSessionUser(userId)` - **DEPRECATED**
 #### `auth.logoffUser(userId)`
 #### `auth.logoffToken(apiKey)`
-#### `auth.buildOAuthAuthenticateURL(config, state?)` - returns `Promise<string>`. Sign and format an OAuth Authorization URL *(for browser login flow)*
-#### `auth.parseOAuthRedirectResponse(url)` - Synchronous, returns `{ isSuccess, authCode, state, error}` based on returned information
-#### `auth.loginOAuth(config, authCode)`
-#### `auth.extendSessionOAuth(config, refreshToken)`
+#### `auth.buildOAuth2Authentication(config, state?)` - returns `Promise<{ url, codeVerifier }>`. Sign and format an OAuth2 Authorication URL. Make sure to store the codeVerifier for making a call to get an Access Token.
+#### `auth.loginOAuth2(config, code, codeVerifier)` 
+#### `auth.buildOAuthAuthenticateURL(config, state?)` - returns `Promise<string>`. **DEPRECATED** Sign and format an OAuth Authorization URL *(for browser login flow)*
+#### `auth.parseOAuthRedirectResponse(url)` - **DEPRECATED** Synchronous, returns `{ isSuccess, authCode, state, error}` based on returned information
+#### `auth.loginOAuth(config, authCode)` - **DEPRECATED** 
+#### `auth.extendSessionOAuth(config, refreshToken)` - **DEPRECATED** 
 
 ### [Categories](https://revdocs.vbrick.com/reference/getcategories)
 

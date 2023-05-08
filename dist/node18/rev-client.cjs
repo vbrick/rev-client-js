@@ -27,16 +27,16 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// src/index-node.ts
-var index_node_exports = {};
-__export(index_node_exports, {
+// src/index-node18.ts
+var index_node18_exports = {};
+__export(index_node18_exports, {
   RevClient: () => RevClient,
   RevError: () => RevError,
   ScrollError: () => ScrollError,
-  default: () => index_node_default,
+  default: () => index_node18_default,
   utils: () => utils
 });
-module.exports = __toCommonJS(index_node_exports);
+module.exports = __toCommonJS(index_node18_exports);
 
 // src/utils/is-utils.ts
 var { toString: _toString } = Object.prototype;
@@ -2920,14 +2920,10 @@ var RevClient = class {
   }
 };
 
-// src/interop/node-polyfills.ts
+// src/interop/node18-polyfills.ts
 var import_fs = __toESM(require("fs"), 1);
 var import_path = __toESM(require("path"), 1);
 var import_crypto = require("crypto");
-var import_util = require("util");
-var import_node_fetch = __toESM(require("node-fetch"), 1);
-var import_form_data = __toESM(require("form-data"), 1);
-var import_node_abort_controller = require("node-abort-controller");
 async function getLengthFromStream(source) {
   const {
     length,
@@ -3029,10 +3025,7 @@ async function appendFileToForm2(form, fieldName, payload) {
   form.append(fieldName, file, appendOptions);
 }
 async function prepareUploadHeaders(form, headers, useChunkedTransfer = false) {
-  const totalBytes = useChunkedTransfer ? 0 : await (0, import_util.promisify)(form.getLength).call(form).catch(() => 0);
-  if (totalBytes > 0) {
-    headers.set("content-length", `${totalBytes}`);
-  } else {
+  if (useChunkedTransfer) {
     headers.set("transfer-encoding", "chunked");
     headers.delete("content-length");
   }
@@ -3064,16 +3057,16 @@ var AbortError = class extends Error {
   }
 };
 Object.assign(interop_default, {
-  AbortController: import_node_abort_controller.AbortController,
-  AbortSignal: import_node_abort_controller.AbortSignal,
+  AbortController,
+  AbortSignal,
   createAbortError(message) {
     return new AbortError(message);
   },
-  fetch: (...args) => (0, import_node_fetch.default)(...args),
-  FormData: import_form_data.default,
-  Headers: import_node_fetch.Headers,
-  Request: import_node_fetch.Request,
-  Response: import_node_fetch.Response,
+  fetch: (...args) => fetch(...args),
+  FormData,
+  Headers,
+  Request,
+  Response,
   randomValues: randomValues2,
   sha256Hash: sha256Hash2,
   hmacSign: hmacSign2,
@@ -3082,13 +3075,13 @@ Object.assign(interop_default, {
   prepareUploadHeaders
 });
 
-// src/index-node.ts
+// src/index-node18.ts
 var utils = {
   rateLimit: rate_limit_default,
   getExtensionForMime,
   getMimeForExtension
 };
-var index_node_default = RevClient;
+var index_node18_default = RevClient;
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   RevClient,

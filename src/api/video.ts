@@ -1,6 +1,6 @@
 import { RevError } from '../rev-error';
 import type { RevClient } from '../rev-client';
-import { Video, Rev } from '../types';
+import { Video, Rev, Admin } from '../types';
 import { SearchRequest } from '../utils/request-utils';
 import { videoReportAPI } from './video-report-request';
 import { videoDownloadAPI } from './video-download';
@@ -25,6 +25,18 @@ export default function videoAPIFactory(rev: RevClient) {
          */
         async setTitle(videoId: string, title: string) {
             const payload = [{ op: 'add', path: '/Title', value: title }];
+            await rev.patch(`/api/v2/videos/${videoId}`, payload);
+        },
+        /**
+         * Use the Patch API to update a single Custom Field.
+         * @param videoId - id of video to update
+         * @param customField - the custom field object (with id and value)
+         */
+        async setCustomField(videoId: string, customField: Pick<Admin.CustomField, 'id' | 'value'>) {
+            const payload = [
+                { op: 'remove', path: '/customFields', value: customField.id },
+                { op: 'add', path: '/customFields/-', value: customField }
+            ];
             await rev.patch(`/api/v2/videos/${videoId}`, payload);
         },
         /**

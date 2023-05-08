@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { createHmac } from 'crypto';
+import { createHmac, randomBytes, createHash } from 'crypto';
 import { promisify } from 'util';
 import fetch, { Headers, Request, Response } from 'node-fetch';
 import FormData, { AppendOptions } from 'form-data';
@@ -143,6 +143,22 @@ async function prepareUploadHeaders(form: FormData, headers: Headers, useChunked
     }
 }
 
+function randomValues(byteLength: number) {
+    return randomBytes(byteLength).toString('base64url');
+}
+
+/**
+ * sha256 hash function for oauth2 pkce
+ * @param value
+ * @returns
+ */
+async function sha256Hash(value: string) {
+    return createHash('sha256')
+        .update(value)
+        .digest()
+        .toString('base64url');
+}
+
 async function hmacSign(message: string, secret: string) {
     const hmac = createHmac('sha256', secret);
     const signature = hmac.update(message).digest('base64');
@@ -175,6 +191,8 @@ Object.assign(polyfills, {
     Headers,
     Request,
     Response,
+    randomValues,
+    sha256Hash,
     hmacSign,
     appendFileToForm,
     parseFileUpload,

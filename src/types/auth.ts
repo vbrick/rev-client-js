@@ -16,6 +16,12 @@ export namespace Auth {
         language?: string;
     }
 
+    export interface JWTLoginResponse {
+        accessToken: string;
+        expiration: string;
+        language?: string;
+    }
+
     export interface ExtendResponse {
         /** ISO Date format */
         expiration: string;
@@ -46,6 +52,7 @@ export namespace OAuth {
          */
         revUrl?: string;
     }
+    /** @deprecated */
     export interface LoginResponse {
         /**
         * The Vbrick access token used as "Authorization" header for subsequent requests
@@ -68,10 +75,30 @@ export namespace OAuth {
          */
         issuedBy: string;
     }
+    /** @deprecated */
     export interface RedirectResponse {
         isSuccess: boolean,
         authCode: string,
         state: string,
         error?: string;
+    }
+    export interface AuthenticationData {
+        /** The URL for requesting OAuth2 authorization */
+        url: string,
+        /** the code_verifier that matches the codeChallenge in authorize url - store for requesting the access token */
+        codeVerifier: string
+    }
+    export interface CallbackResponse {
+        code: string;
+        state: string;
+    }
+    export interface AuthTokenResponse {
+        access_token: string;
+        refresh_token: string;
+        userId: string;
+        expires_in: string;
+        username: string;
+        firstName: string;
+        lastName: string;
     }
 }

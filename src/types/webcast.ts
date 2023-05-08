@@ -266,6 +266,8 @@ export namespace Webcast {
         streamAccessed: string;
         sessionTime: string;
         viewingTime: string;
+        publicCDNTime?: string;
+        eCDNTime?: string;
         enteredDate: string; // date-time
         exitedDate: string; // date-time
         viewingStartTime: string; // date-time

@@ -35,10 +35,16 @@ export namespace Rev {
         apiKey?: string;
         /** API Secret for Rev User (for login) - this or password must be specified */
         secret?: string;
-        /** authCode from oauth authorization flow */
-        authCode?: string;
         /** oauth configuration values for oauth token management */
         oauthConfig?: OAuth.Config;
+        /** authCode from deprecated legacy oauth authorization flow */
+        authCode?: string;
+        /** code from oauth2 authorization flow */
+        code?: string;
+        /** code verifier from oauth2 authorization flow */
+        codeVerifier?: string;
+        /** JWT Token */
+        jwtToken?: string;
         /** existing token/extend session details */
         session?: Rev.IRevSessionState;
     }

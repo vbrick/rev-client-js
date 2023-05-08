@@ -22,6 +22,7 @@ export interface Zone {
         disableFallback: boolean;
         maxZoneMeshes: number;
         groupPeersByZoneIPAddresses: boolean;
+        useUls: boolean;
         revConnectConfig?: null | Record<string, any>;
         useUls: boolean;
     };
