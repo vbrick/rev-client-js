@@ -609,6 +609,18 @@ function adminAPIFactory(rev) {
     async maintenanceSchedule() {
       const { schedules } = await rev.get("/api/v2/maintenance-schedule");
       return schedules;
+    },
+    /**
+     * gets the user location service URL
+     */
+    async userLocationService() {
+      return rev.get("/api/v2/user-location");
+    },
+    /**
+     * returns an array of all expiration rules
+     */
+    async expirationRules() {
+      return rev.get("/api/v2/expiration-rules");
     }
   };
   return adminAPI;
@@ -1029,6 +1041,12 @@ function categoryAPIFactory(rev) {
       );
       const { categories } = await rev.get("/api/v2/categories", payload, { responseType: "json" });
       return categories;
+    },
+    /**
+     * get list of categories that current user has ability to add videos to
+     */
+    async listAssignable() {
+      return rev.get("/api/v2/assignable-categories");
     }
   };
   return categoryAPI;
@@ -1687,6 +1705,31 @@ function userAPIFactory(rev) {
         query.q = searchText;
       }
       return new SearchRequest(rev, searchDefinition, query, options);
+    },
+    /**
+     * Returns the channel and category subscriptions for the user making the API call.
+     */
+    async listSubscriptions() {
+      return rev.get("/api/v2/users/subscriptions");
+    },
+    async subscribe(id, type) {
+      return rev.post("/api/v2/users/subscribe", { id, type });
+    },
+    /**
+     * Unsubscribe from specific channel or category.
+     */
+    async unsubscribe(id, type) {
+      return rev.post("/api/v2/users/unsubscribe", { id, type });
+    },
+    async getNotifications(unread = false) {
+      return rev.get("/api/v2/users/notifications", { unread });
+    },
+    /**
+     *
+     * @param notificationId If notificationId not provided, then all notifications for the user are marked as read.
+     */
+    async markNotificationRead(notificationId) {
+      await rev.put("/api/v2/users/notifications", notificationId ? { notificationId } : void 0);
     }
   };
   return userAPI;
@@ -1886,6 +1929,10 @@ function videoDownloadAPI(rev) {
 
 // src/api/video.ts
 function videoAPIFactory(rev) {
+  async function comments(videoId, showAll = false) {
+    const response = await rev.get(`/api/v2/videos/${videoId}/comments`, showAll ? { showAll: "true" } : void 0);
+    return response.comments;
+  }
   const videoAPI = {
     /**
      * This is an example of using the video Patch API to only update a single field
@@ -1918,11 +1965,7 @@ function videoAPIFactory(rev) {
     async details(videoId) {
       return rev.get(`/api/v2/videos/${videoId}/details`);
     },
-    /** get list of comments on a video */
-    async comments(videoId) {
-      const response = await rev.get(`/api/v2/videos/${videoId}/comments`);
-      return response.comments;
-    },
+    comments,
     async chapters(videoId) {
       try {
         const { chapters } = await rev.get(`/api/v2/videos/${videoId}/chapters`);
@@ -2000,7 +2043,10 @@ function videoAPIFactory(rev) {
       return video;
     },
     ...videoDownloadAPI(rev),
-    ...videoReportAPI(rev)
+    ...videoReportAPI(rev),
+    async trim(videoId, removedSegments) {
+      return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);
+    }
   };
   return videoAPI;
 }

@@ -263,6 +263,486 @@ declare namespace AccessControl {
     }
 }
 
+type FileUploadType = string | File | Blob | AsyncIterable<any>;
+interface UploadFileOptions {
+    /** specify filename of video as reported to Rev */
+    filename?: string;
+    /** specify content type of video */
+    contentType?: string;
+    /** if content length is known this will avoid needing to detect it */
+    contentLength?: number;
+    /** node-only - bypass dealing with content length and just upload as transfer-encoding: chunked */
+    useChunkedTransfer?: boolean;
+    /** An AbortSignal to set request's signal. */
+    signal?: AbortSignal | null;
+}
+declare function getMimeForExtension(extension?: string, defaultType?: string): string;
+declare function getExtensionForMime(contentType: string, defaultExtension?: string): string;
+
+declare namespace Video {
+    type AccessControl = LiteralString<"AllUsers" | "Public" | "Private" | "Channels">;
+    type ApprovalStatus = LiteralString<'Approved' | 'PendingApproval' | 'Rejected' | 'RequiresApproval' | 'SubmittedApproval'>;
+    type EncodingType = LiteralString<"H264" | "HLS" | "HDS" | "H264TS" | "Mpeg4" | "Mpeg2" | "WM" | "Flash" | "RTP">;
+    type ExpirationAction = LiteralString<'Delete' | 'Inactivate'>;
+    type ExpiryRule = LiteralString<'None' | 'DaysAfterUpload' | 'DaysWithoutViews'>;
+    type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
+    type SourceType = LiteralString<'REV' | 'WEBEX' | 'API' | 'VIDEO CONFERENCE' | 'WebexLiveStream' | 'LiveEnrichment'>;
+    type VideoType = LiteralString<"Live" | "Vod">;
+    interface LinkedUrl {
+        Url: string;
+        EncodingType: EncodingType;
+        Type: VideoType;
+        IsMulticast: boolean;
+    }
+    interface SearchHit {
+        id: string;
+        title: string;
+        description: string;
+        categories: string[];
+        tags: string[];
+        thumbnailUrl: string;
+        playbackUrl: string;
+        duration: string;
+        viewCount: number;
+        status: string;
+        approvalStatus: string;
+        uploader: string;
+        uploadedBy: string;
+        whenUploaded: string;
+        lastViewed: string;
+        owner?: {
+            fullname: string;
+            id: string;
+            username: string;
+        };
+        averageRating: number;
+        ratingsCount: number;
+        speechResult: Array<{
+            time: string;
+            text: string;
+        }>;
+        unlisted: boolean;
+        whenModified: string;
+        whenPublished: string;
+        commentCount: number;
+        score: number;
+    }
+    interface UploadMetadata {
+        /** required - uploader of video */
+        uploader: string;
+        /** Title of the video being uploaded. If title is not specified, API will use uploaded filename as the title. */
+        title?: string;
+        /** Description - safe html will be preserved */
+        description?: string;
+        /** list of category names */
+        categories?: string[];
+        /** An array of category IDs */
+        categoryIds?: string[];
+        /** An array of strings that are tagged to the  */
+        tags?: string[];
+        /**  */
+        isActive?: boolean;
+        enableRatings?: boolean;
+        enableDownloads?: boolean;
+        enableComments?: boolean;
+        /**
+         * This sets access control for the  This is an enum and can have the following values: Public/AllUsers/Private/Channels.
+         */
+        videoAccessControl?: AccessControl;
+        /**
+         * This provides explicit rights to a User/Group/Collection with/without CanEdit access to a  This is an array with properties; Name (entity name), Type (User/Group/Collection), CanEdit (true/false). If any value is invalid, it will be rejected while valid values are still associated with the
+         */
+        accessControlEntities?: (Omit<AccessControl.Entity, 'id'> | Omit<AccessControl.Entity, 'name'>)[];
+        /**
+         * A Password for Public Video Access Control. Use this field when the videoAccessControl is set to Public. If not this field is ignored.
+         */
+        password?: string;
+        /** An array of customFields that is attached to the  */
+        customFields?: Admin.CustomField.Request[];
+        doNotTranscode?: boolean;
+        is360?: boolean;
+        unlisted?: boolean;
+        /** must be date-only YYYY-MM-DD */
+        publishDate?: string;
+        userTags?: string[];
+        /** owner of video, defaults to uploader. only one key is necessary */
+        owner?: {
+            userId?: string;
+            username?: string;
+            email?: string;
+        };
+        sourceType?: SourceType;
+        /**
+         * Default=false. Displays viewer information over the video for playback on the web.
+         */
+        viewerIdEnabled?: boolean;
+        /**
+         * Retain the total views count from an outside system as an optional param.
+
+         */
+        legacyViewCount?: number;
+    }
+    interface MigrateRequest {
+        /** change "uploader" value to this user */
+        userName?: string;
+        /** change "owner" to this user. Owner takes precedence over Uploader field in sorting/UI */
+        owner?: {
+            userId: string;
+        };
+        /** When video was first uploaded (ISO Date) */
+        whenUploaded?: Date | string;
+        /** By default, the publishDate is set to the current date the video is
+            set to Active status. You can also set the publishDate to a date in the future
+            to make the video Active at that time. If the video is already Active, the
+            publishDate can be set to a date in the past.
+        */
+        publishDate?: Date | string;
+        /**
+         * Retain the total views count from an outside system as an optional param.
+
+         */
+        legacyViewCount?: number;
+    }
+    interface Details {
+        /** Video ID */
+        id: string;
+        /** Title of the video being uploaded. If title is not specified, API will use uploaded filename as the title. */
+        title: string;
+        /** Description in plain text */
+        description: string;
+        /** Description with HTML tags included */
+        htmlDescription: string;
+        /** An array of strings that are tagged to the  */
+        tags: string[];
+        /** An array of category IDs */
+        categories: string[];
+        /** An array of categories with full details (id + full path) */
+        categoryPaths: Array<{
+            categoryId: string;
+            name: string;
+            fullPath: string;
+        }>;
+        /** An array of customFields that is attached to the  */
+        customFields: Admin.CustomField[];
+        /** when video was uploaded (ISO Date) */
+        whenUploaded: string;
+        /** When video was last modified (ISO Date) */
+        whenModified: string;
+        /** the full name of user who uploaded video */
+        uploadedBy: string;
+        owner: {
+            firstName: string;
+            lastName: string;
+            userId: string;
+            userName: string;
+        };
+        /** if video is active or not */
+        isActive: boolean;
+        /** This is the processing status of a  */
+        status: StatusEnum;
+        linkedUrl: LinkedUrl | null;
+        approvalStatus: ApprovalStatus;
+        approval: {
+            status: ApprovalStatus;
+            approvalProcessId: null | string;
+            approvalProcessName: null | string;
+            steps: Array<{
+                stepId: string;
+                stepName: string;
+                approverName: string;
+                approverId: string;
+                whenRequested: string;
+                whenResponded: string;
+                status: string;
+            }>;
+            whenSubmittedForApproval: null | string;
+            stepId: null | string;
+            approvalProcessReferenced: boolean;
+        };
+        /** type of video - live or VOD */
+        type: VideoType;
+        /**
+         * This sets access control for the  This is an enum and can have the following values: Public/AllUsers/Private/Channels.
+         */
+        videoAccessControl: AccessControl;
+        /**
+         * This provides explicit rights to a User/Group/Collection with/without CanEdit access to a  This is an array with properties; Name (entity name), Type (User/Group/Collection), CanEdit (true/false). If any value is invalid, it will be rejected while valid values are still associated with the
+         */
+        accessControlEntities: Array<AccessControl.Entity>;
+        /**
+         * A Password for Public Video Access Control. Use this field when the videoAccessControl is set to Public. If not this field is ignored.
+         */
+        password: string | null;
+        /**
+         * source of original video
+         */
+        sourceType: SourceType;
+        source: LiteralString<'Upload' | 'Link' | 'ScheduledEvent' | 'Webex' | 'Upload360' | 'ScheduledRecording'>;
+        expirationDate: string | null;
+        /**
+         * This sets action when video expires. This is an enum and can have the following values: Delete/Inactivate.
+         */
+        expirationAction: ExpirationAction | null;
+        expiration: {
+            ruleId: string | null;
+            expirationDate: string | null;
+            expiryRuleType: ExpiryRule;
+            numberOfDays: number | null;
+            deleteOnExpiration: boolean | null;
+        } | null;
+        /**
+         * date video will be published
+         */
+        publishDate: string | null;
+        lastViewed: string;
+        totalViews: number;
+        avgRating: number;
+        ratingsCount: number;
+        commentsCount: number;
+        thumbnailKey: string;
+        thumbnailUrl: string;
+        enableRatings: boolean;
+        enableDownloads: boolean;
+        enableComments: boolean;
+        closeCaptionsEnabled: boolean;
+        unlisted: boolean;
+        is360: boolean;
+        userTags: Array<{
+            userId: string;
+            displayName: string;
+        }>;
+        duration: string;
+        overallProgress: number;
+        isProcessing: boolean;
+        transcodeFailed: boolean;
+        instances: Array<{
+            id: string;
+            isOriginalInstance: boolean;
+            name: string | null;
+            preset: {
+                container?: string;
+            };
+            size: number;
+            status: LiteralString<'Initialized' | 'Transcoding' | 'Transcoded' | 'TranscodingFailed' | 'Storing' | 'Stored' | 'StoringFailed'>;
+            videoKey: string;
+        }>;
+        videoConference?: {
+            whenRecordingStarted: string;
+            sipAddress: string;
+            sipPin: string;
+            bitrateKbps: number;
+            microsoftTeamsMeetingUrl: string;
+        } | null;
+        chapters: {
+            chapters: Array<{
+                extension: string;
+                /** can get full URL to download as
+                 * "/api/v2/media/videos/thumbnails/{{videoId}}/slides/{{imageId}}.jpg"
+                 */
+                imageId: string;
+                time: string;
+                title: string;
+            }>;
+        };
+        hasAudioOnly: boolean;
+        viewerIdEnabled: boolean;
+    }
+    interface PatchRequest {
+        title?: string;
+        categories?: string | string[];
+        description?: string;
+        tags?: string | string[];
+        isActive?: boolean;
+        expirationDate?: string;
+        enableRatings?: boolean;
+        enableDownloads?: boolean;
+        enableComments?: boolean;
+        videoAccessControl?: AccessControl;
+        accessControlEntities: string | string[];
+        customFields: Admin.CustomField.Request[];
+        unlisted?: boolean;
+        userTags?: string[];
+    }
+    interface StatusResponse {
+        videoId: string;
+        title: string;
+        status: StatusEnum;
+        isProcessing: boolean;
+        overallProgress: number;
+        isActive: boolean;
+        uploadedBy: string;
+        whenUploaded: string;
+    }
+    interface SearchOptions {
+        /** text to search for */
+        q?: string;
+        /**
+         * live or vod videos
+         */
+        type?: VideoType;
+        /**
+         * list of category IDs separated by commas. pass blank to get uncategorized only
+         */
+        categories?: string;
+        /** list of uploader names separated by commas */
+        uploaders?: string;
+        /** list of uploader IDs separated by commas */
+        uploaderIds?: string;
+        status?: LiteralString<'active' | 'inactive'>;
+        fromPublishedDate?: string;
+        toPublishedDate?: string;
+        fromUploadDate?: string;
+        toUploadDate?: string;
+        fromModifiedDate?: string;
+        toModifiedDate?: string;
+        exactMatch?: boolean;
+        unlisted?: LiteralString<'unlisted' | 'listed' | 'all'>;
+        /**
+         * If provided, the query results are fetched on the provided searchField only.
+         * If the exactMatch flag is also set along with searchField, then the results are fetched for
+         * an exact match on the provided searchField only.
+         */
+        searchField?: string;
+        includeTranscriptSnippets?: boolean;
+        /**
+         * Show recommended videos for the specified Username. Videos returned are based on the user’s
+         * last 10 viewed videos. Must be Account Admin or Media Admin to use this query. Sort order
+         * must be _score. User must exist.
+         */
+        recommendedFor?: string;
+        sortField?: LiteralString<'title' | 'whenUploaded' | 'uploaderName' | 'duration' | '_score'>;
+        sortDirection?: Rev.SortDirection;
+        /**
+         * If channelId provided, videos in that particular channel are returned. User should have rights to the channel
+         */
+        channelId?: string;
+        /**
+         * search for videos matching specific custom field values.
+         * Object in the format {My_Custom_Field_Name: "MyCustomFieldValue"}
+         */
+        [key: string]: any;
+    }
+    interface Playback {
+        id: string;
+        title: string;
+        categories: Category[];
+        description: string;
+        htmlDescription: string;
+        tags: string[];
+        thumbnailUrl: string;
+        playbackUrl: string;
+    }
+    interface VideoReportEntry {
+        videoId: string;
+        title: string;
+        username: string;
+        firstName: string;
+        lastName: string;
+        emailAddress: string;
+        completed: boolean;
+        zone: string;
+        device: string;
+        browser: string;
+        userDeviceType: string;
+        playbackUrl: string;
+        dateViewed: string;
+        viewingTime: string;
+        publicCDNTime?: string;
+        eCDNTime?: string;
+        viewingStartTime: string;
+        viewingEndTime: string;
+    }
+    interface VideoReportOptions extends Rev.SearchOptions<VideoReportEntry> {
+        videoIds?: string | string[] | undefined;
+        startDate?: string;
+        endDate?: string;
+        incrementDays?: number;
+        sortDirection?: Rev.SortDirection;
+    }
+    interface Comment {
+        id: string;
+        text: string;
+        date: string;
+        username: string;
+        firstName: string;
+        lastName: string;
+        isRemoved: boolean;
+        childComments: Comment[];
+    }
+    namespace Comment {
+        interface Request {
+            /**
+             * The text of the comment
+             */
+            comment: string;
+            /**
+             * Username submitting the comment. This user must exist in Rev. Unless
+             * the user has been assigned the Account Admin role, this user must
+             * also match the authenticated user making the API call.
+             */
+            userName: string;
+            /**
+             * If not provided, parent comment will be created. If parent commentId
+             * is provided, then it will create child comment to that parent. If
+             * child commentid is provided, then child comment for the corresponding
+             * parent comment will be created.
+             */
+            commentId?: string;
+        }
+        interface ListResponse {
+            id: string;
+            title: string;
+            comments: Comment[];
+        }
+        interface Unredacted extends Comment {
+            isRemoved: boolean;
+            deletedBy: string | null;
+            deletedWhen: string;
+        }
+    }
+    interface Chapter {
+        title: string;
+        startTime: string;
+        imageUrl: string;
+    }
+    namespace Chapter {
+        interface Request {
+            /**
+             * time in 00:00:00 format
+             */
+            time: string;
+            title?: string;
+            imageFile?: FileUploadType;
+        }
+    }
+    interface SupplementalFile {
+        downloadUrl: string;
+        fileId: string;
+        filename?: string;
+        size: number;
+        title: string;
+    }
+    interface Transcription extends SupplementalFile {
+        locale: string;
+    }
+    namespace Transcription {
+        type SupportedLanguages = LiteralString<'de' | 'en' | 'en-gb' | 'es-es' | 'es-419' | 'es' | 'fr' | 'fr-ca' | 'id' | 'it' | 'ko' | 'ja' | 'nl' | 'no' | 'pl' | 'pt' | 'pt-br' | 'th' | 'tr' | 'fi' | 'sv' | 'ru' | 'el' | 'zh' | 'zh-tw' | 'zh-cmn-hans'>;
+    }
+    namespace Search {
+        interface SuggestionOptions {
+            q?: string;
+        }
+    }
+    interface PausedVideoResponse {
+        videos: PausedVideoItem[];
+        totalVideos: number;
+    }
+    interface PausedVideoItem extends Video.SearchHit {
+        sessionId: string;
+        timeStamp: string;
+    }
+}
+
 declare namespace Admin {
     interface CustomField {
         id: string;
@@ -328,6 +808,15 @@ declare namespace Admin {
         languages: string[];
         when: string;
     }
+    interface ExpirationRule {
+        ruleId: string;
+        ruleName: string;
+        numberOfDays: number;
+        expiryRuleType: Video.ExpiryRule;
+        deleteOnExpiration: boolean;
+        isDefault: boolean;
+        description: string;
+    }
     interface FeatureSettings {
         categoriesEnabled: boolean;
         commentsEnabled: boolean;
@@ -342,8 +831,7 @@ declare namespace Admin {
         expirationRules: Array<{
             id: string;
             name: string;
-            ruleType: LiteralString<'None' | 'DaysAfterUpload' | 'DaysWithoutViews'>;
-            /** REVIEW */
+            ruleType: Video.ExpiryRule;
             deleteOnExpire: boolean;
             isDefault: boolean;
             numberOfDays: number;
@@ -440,6 +928,11 @@ declare namespace Category {
     };
     export interface CreateResponse extends BaseCategory {
         parentCategory?: null | Parent;
+    }
+    export interface Assignable {
+        id: string;
+        name: string;
+        fullPath: string;
     }
     export {};
 }
@@ -868,6 +1361,7 @@ interface User {
         name: string;
     }[];
     profileImageUri: string | null;
+    permissions: User.Permissions;
 }
 declare namespace User {
     interface SearchHit {
@@ -898,458 +1392,21 @@ declare namespace User {
         roleIds?: string[];
     }
     type DetailsLookup = LiteralString<'username' | 'email' | 'userId'>;
-}
-
-type FileUploadType = string | File | Blob | AsyncIterable<any>;
-interface UploadFileOptions {
-    /** specify filename of video as reported to Rev */
-    filename?: string;
-    /** specify content type of video */
-    contentType?: string;
-    /** if content length is known this will avoid needing to detect it */
-    contentLength?: number;
-    /** node-only - bypass dealing with content length and just upload as transfer-encoding: chunked */
-    useChunkedTransfer?: boolean;
-    /** An AbortSignal to set request's signal. */
-    signal?: AbortSignal | null;
-}
-declare function getMimeForExtension(extension?: string, defaultType?: string): string;
-declare function getExtensionForMime(contentType: string, defaultExtension?: string): string;
-
-declare namespace Video {
-    type AccessControl = LiteralString<"AllUsers" | "Public" | "Private" | "Channels">;
-    type ApprovalStatus = LiteralString<'Approved' | 'PendingApproval' | 'Rejected' | 'RequiresApproval' | 'SubmittedApproval'>;
-    type EncodingType = LiteralString<"H264" | "HLS" | "HDS" | "H264TS" | "Mpeg4" | "Mpeg2" | "WM" | "Flash" | "RTP">;
-    type ExpirationAction = LiteralString<'Delete' | 'Inactivate'>;
-    type ExpiryRule = LiteralString<'None' | 'DaysAfterUpload' | 'DaysWithoutViews'>;
-    type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
-    type SourceType = LiteralString<'REV' | 'WEBEX' | 'API' | 'VIDEO CONFERENCE' | 'WebexLiveStream' | 'LiveEnrichment'>;
-    type VideoType = LiteralString<"Live" | "Vod">;
-    interface LinkedUrl {
-        Url: string;
-        EncodingType: EncodingType;
-        Type: VideoType;
-        IsMulticast: boolean;
+    interface Permissions {
+        canUpload: boolean;
+        canCreateEvents: boolean;
+        canCreatePublicWebcasts: boolean;
+        canCreateAllUsersWebcasts: boolean;
+        canCreatePublicVods: boolean;
+        canCreateAllUsersVods: boolean;
     }
-    interface SearchHit {
-        id: string;
-        title: string;
-        description: string;
-        categories: string[];
-        tags: string[];
-        thumbnailUrl: string;
-        playbackUrl: string;
-        duration: string;
-        viewCount: number;
-        status: string;
-        approvalStatus: string;
-        uploader: string;
-        uploadedBy: string;
-        whenUploaded: string;
-        lastViewed: string;
-        owner?: {
-            fullname: string;
-            id: string;
-            username: string;
-        };
-        averageRating: number;
-        ratingsCount: number;
-        speechResult: Array<{
-            time: string;
-            text: string;
-        }>;
-        unlisted: boolean;
-        whenModified: string;
-        whenPublished: string;
-        commentCount: number;
-        score: number;
-    }
-    interface UploadMetadata {
-        /** required - uploader of video */
-        uploader: string;
-        /** Title of the video being uploaded. If title is not specified, API will use uploaded filename as the title. */
-        title?: string;
-        /** Description - safe html will be preserved */
-        description?: string;
-        /** list of category names */
-        categories?: string[];
-        /** An array of category IDs */
-        categoryIds?: string[];
-        /** An array of strings that are tagged to the  */
-        tags?: string[];
-        /**  */
-        isActive?: boolean;
-        enableRatings?: boolean;
-        enableDownloads?: boolean;
-        enableComments?: boolean;
-        /**
-         * This sets access control for the  This is an enum and can have the following values: Public/AllUsers/Private/Channels.
-         */
-        videoAccessControl?: AccessControl;
-        /**
-         * This provides explicit rights to a User/Group/Collection with/without CanEdit access to a  This is an array with properties; Name (entity name), Type (User/Group/Collection), CanEdit (true/false). If any value is invalid, it will be rejected while valid values are still associated with the
-         */
-        accessControlEntities?: (Omit<AccessControl.Entity, 'id'> | Omit<AccessControl.Entity, 'name'>)[];
-        /**
-         * A Password for Public Video Access Control. Use this field when the videoAccessControl is set to Public. If not this field is ignored.
-         */
-        password?: string;
-        /** An array of customFields that is attached to the  */
-        customFields?: Admin.CustomField.Request[];
-        doNotTranscode?: boolean;
-        is360?: boolean;
-        unlisted?: boolean;
-        /** must be date-only YYYY-MM-DD */
-        publishDate?: string;
-        userTags?: string[];
-        /** owner of video, defaults to uploader. only one key is necessary */
-        owner?: {
-            userId?: string;
-            username?: string;
-            email?: string;
-        };
-        sourceType?: SourceType;
-    }
-    interface MigrateRequest {
-        /** change "uploader" value to this user */
-        userName?: string;
-        /** change "owner" to this user. Owner takes precedence over Uploader field in sorting/UI */
-        owner?: {
-            userId: string;
-        };
-        /** When video was first uploaded (ISO Date) */
-        whenUploaded?: Date | string;
-        /** By default, the publishDate is set to the current date the video is
-            set to Active status. You can also set the publishDate to a date in the future
-            to make the video Active at that time. If the video is already Active, the
-            publishDate can be set to a date in the past.
-        */
-        publishDate?: Date | string;
-    }
-    interface Details {
-        /** Video ID */
-        id: string;
-        /** Title of the video being uploaded. If title is not specified, API will use uploaded filename as the title. */
-        title: string;
-        /** Description in plain text */
-        description: string;
-        /** Description with HTML tags included */
-        htmlDescription: string;
-        /** An array of strings that are tagged to the  */
-        tags: string[];
-        /** An array of category IDs */
-        categories: string[];
-        /** An array of categories with full details (id + full path) */
-        categoryPaths: Array<{
-            categoryId: string;
-            name: string;
-            fullPath: string;
-        }>;
-        /** An array of customFields that is attached to the  */
-        customFields: Admin.CustomField[];
-        /** when video was uploaded (ISO Date) */
-        whenUploaded: string;
-        /** When video was last modified (ISO Date) */
-        whenModified: string;
-        /** the full name of user who uploaded video */
-        uploadedBy: string;
-        owner: {
-            firstName: string;
-            lastName: string;
-            userId: string;
-            userName: string;
-        };
-        /** if video is active or not */
-        isActive: boolean;
-        /** This is the processing status of a  */
-        status: StatusEnum;
-        linkedUrl: LinkedUrl | null;
-        approvalStatus: ApprovalStatus;
-        approval: {
-            status: ApprovalStatus;
-            approvalProcessId: null | string;
-            approvalProcessName: null | string;
-            steps: Array<{
-                stepId: string;
-                stepName: string;
-                approverName: string;
-                approverId: string;
-                whenRequested: string;
-                whenResponded: string;
-                status: string;
-            }>;
-            whenSubmittedForApproval: null | string;
-            stepId: null | string;
-            approvalProcessReferenced: boolean;
-        };
-        /** type of video - live or VOD */
-        type: VideoType;
-        /**
-         * This sets access control for the  This is an enum and can have the following values: Public/AllUsers/Private/Channels.
-         */
-        videoAccessControl: AccessControl;
-        /**
-         * This provides explicit rights to a User/Group/Collection with/without CanEdit access to a  This is an array with properties; Name (entity name), Type (User/Group/Collection), CanEdit (true/false). If any value is invalid, it will be rejected while valid values are still associated with the
-         */
-        accessControlEntities: Array<AccessControl.Entity>;
-        /**
-         * A Password for Public Video Access Control. Use this field when the videoAccessControl is set to Public. If not this field is ignored.
-         */
-        password: string | null;
-        /**
-         * source of original video
-         */
-        sourceType: SourceType;
-        source: LiteralString<'Upload' | 'Link' | 'ScheduledEvent' | 'Webex' | 'Upload360' | 'ScheduledRecording'>;
-        expirationDate: string | null;
-        /**
-         * This sets action when video expires. This is an enum and can have the following values: Delete/Inactivate.
-         */
-        expirationAction: ExpirationAction | null;
-        expiration: {
-            ruleId: string | null;
-            expirationDate: string | null;
-            expiryRuleType: ExpiryRule;
-            numberOfDays: number | null;
-            deleteOnExpiration: boolean | null;
-        } | null;
-        /**
-         * date video will be published
-         */
-        publishDate: string | null;
-        lastViewed: string;
-        totalViews: number;
-        avgRating: number;
-        ratingsCount: number;
-        commentsCount: number;
-        thumbnailKey: string;
-        thumbnailUrl: string;
-        enableRatings: boolean;
-        enableDownloads: boolean;
-        enableComments: boolean;
-        closeCaptionsEnabled: boolean;
-        unlisted: boolean;
-        is360: boolean;
-        userTags: Array<{
-            userId: string;
-            displayName: string;
-        }>;
-        duration: string;
-        overallProgress: number;
-        isProcessing: boolean;
-        transcodeFailed: boolean;
-        instances: Array<{
-            id: string;
-            isOriginalInstance: boolean;
-            name: string | null;
-            preset: {
-                container?: string;
-            };
-            size: number;
-            status: LiteralString<'Initialized' | 'Transcoding' | 'Transcoded' | 'TranscodingFailed' | 'Storing' | 'Stored' | 'StoringFailed'>;
-            videoKey: string;
-        }>;
-        chapters: {
-            chapters: Array<{
-                extension: string;
-                /** can get full URL to download as
-                 * "/api/v2/media/videos/thumbnails/{{videoId}}/slides/{{imageId}}.jpg"
-                 */
-                imageId: string;
-                time: string;
-                title: string;
-            }>;
-        };
-        hasAudioOnly: boolean;
-    }
-    interface PatchRequest {
-        title?: string;
-        categories?: string | string[];
-        description?: string;
-        tags?: string | string[];
-        isActive?: boolean;
-        expirationDate?: string;
-        enableRatings?: boolean;
-        enableDownloads?: boolean;
-        enableComments?: boolean;
-        videoAccessControl?: AccessControl;
-        accessControlEntities: string | string[];
-        customFields: Admin.CustomField.Request[];
-        unlisted?: boolean;
-        userTags?: string[];
-    }
-    interface StatusResponse {
-        videoId: string;
-        title: string;
-        status: StatusEnum;
-        isProcessing: boolean;
-        overallProgress: number;
-        isActive: boolean;
-        uploadedBy: string;
-        whenUploaded: string;
-    }
-    interface SearchOptions {
-        /** text to search for */
-        q?: string;
-        /**
-         * live or vod videos
-         */
-        type?: VideoType;
-        /**
-         * list of category IDs separated by commas. pass blank to get uncategorized only
-         */
-        categories?: string;
-        /** list of uploader names separated by commas */
-        uploaders?: string;
-        /** list of uploader IDs separated by commas */
-        uploaderIds?: string;
-        status?: LiteralString<'active' | 'inactive'>;
-        fromPublishedDate?: string;
-        toPublishedDate?: string;
-        fromUploadDate?: string;
-        toUploadDate?: string;
-        fromModifiedDate?: string;
-        toModifiedDate?: string;
-        exactMatch?: boolean;
-        unlisted?: LiteralString<'unlisted' | 'listed' | 'all'>;
-        /**
-         * If provided, the query results are fetched on the provided searchField only.
-         * If the exactMatch flag is also set along with searchField, then the results are fetched for
-         * an exact match on the provided searchField only.
-         */
-        searchField?: string;
-        includeTranscriptSnippets?: boolean;
-        /**
-         * Show recommended videos for the specified Username. Videos returned are based on the user’s
-         * last 10 viewed videos. Must be Account Admin or Media Admin to use this query. Sort order
-         * must be _score. User must exist.
-         */
-        recommendedFor?: string;
-        sortField?: LiteralString<'title' | 'whenUploaded' | 'uploaderName' | 'duration' | '_score'>;
-        sortDirection?: Rev.SortDirection;
-        /**
-         * If channelId provided, videos in that particular channel are returned. User should have rights to the channel
-         */
-        channelId?: string;
-        /**
-         * search for videos matching specific custom field values.
-         * Object in the format {My_Custom_Field_Name: "MyCustomFieldValue"}
-         */
-        [key: string]: any;
-    }
-    interface Playback {
-        id: string;
-        title: string;
-        categories: Category[];
-        description: string;
-        htmlDescription: string;
-        tags: string[];
-        thumbnailUrl: string;
-        playbackUrl: string;
-    }
-    interface VideoReportEntry {
-        videoId: string;
-        title: string;
-        username: string;
-        firstName: string;
-        lastName: string;
-        emailAddress: string;
-        completed: boolean;
-        zone: string;
-        device: string;
-        browser: string;
-        userDeviceType: string;
-        playbackUrl: string;
-        dateViewed: string;
-        viewingTime: string;
-        publicCDNTime?: string;
-        eCDNTime?: string;
-        viewingStartTime: string;
-        viewingEndTime: string;
-    }
-    interface VideoReportOptions extends Rev.SearchOptions<VideoReportEntry> {
-        videoIds?: string | string[] | undefined;
-        startDate?: string;
-        endDate?: string;
-        incrementDays?: number;
-        sortDirection?: Rev.SortDirection;
-    }
-    interface Comment {
-        id: string;
-        text: string;
-        date: string;
-        username: string;
-        firstName: string;
-        lastName: string;
-        isRemoved: boolean;
-        childComments: Comment[];
-    }
-    namespace Comment {
-        interface Request {
-            /**
-             * The text of the comment
-             */
-            comment: string;
-            /**
-             * Username submitting the comment. This user must exist in Rev. Unless
-             * the user has been assigned the Account Admin role, this user must
-             * also match the authenticated user making the API call.
-             */
-            userName: string;
-            /**
-             * If not provided, parent comment will be created. If parent commentId
-             * is provided, then it will create child comment to that parent. If
-             * child commentid is provided, then child comment for the corresponding
-             * parent comment will be created.
-             */
-            commentId?: string;
-        }
-        interface ListResponse {
-            id: string;
-            title: string;
-            comments: Comment[];
-        }
-    }
-    interface Chapter {
-        title: string;
-        startTime: string;
-        imageUrl: string;
-    }
-    namespace Chapter {
-        interface Request {
-            /**
-             * time in 00:00:00 format
-             */
-            time: string;
-            title?: string;
-            imageFile?: FileUploadType;
-        }
-    }
-    interface SupplementalFile {
-        downloadUrl: string;
-        fileId: string;
-        filename?: string;
-        size: number;
-        title: string;
-    }
-    interface Transcription extends SupplementalFile {
-        locale: string;
-    }
-    namespace Transcription {
-        type SupportedLanguages = LiteralString<'de' | 'en' | 'en-gb' | 'es-es' | 'es-419' | 'es' | 'fr' | 'fr-ca' | 'id' | 'it' | 'ko' | 'ja' | 'nl' | 'no' | 'pl' | 'pt' | 'pt-br' | 'th' | 'tr' | 'fi' | 'sv' | 'ru' | 'el' | 'zh' | 'zh-tw' | 'zh-cmn-hans'>;
-    }
-    namespace Search {
-        interface SuggestionOptions {
-            q?: string;
-        }
-    }
-    interface PausedVideoResponse {
-        videos: PausedVideoItem[];
-        totalVideos: number;
-    }
-    interface PausedVideoItem extends Video.SearchHit {
-        sessionId: string;
-        timeStamp: string;
+    interface Notification {
+        notificationId: string;
+        notificationDate: string;
+        notificationType: string;
+        isRead: boolean;
+        notificationText: string;
+        notificationTargetUri: string;
     }
 }
 
@@ -1432,7 +1489,7 @@ interface Webcast {
 declare namespace Webcast {
     type WebcastAccessControl = LiteralString<'Public' | 'TrustedPublic' | 'AllUsers' | 'Private'>;
     type SortField = LiteralString<'startDate' | 'title'>;
-    type VideoSourceType = LiteralString<'Capture' | 'MicrosoftTeams' | 'PresentationProfile' | 'Rtmp' | 'WebrtcSinglePresenter' | 'SipAddress' | 'WebexTeam' | 'WebexEvents' | 'WebexLiveStream' | 'Vod' | 'Zoom'>;
+    type VideoSourceType = LiteralString<'Capture' | 'MicrosoftTeams' | 'PresentationProfile' | 'Rtmp' | 'WebrtcSinglePresenter' | 'SipAddress' | 'WebexTeam' | 'WebexEvents' | 'WebexLiveStream' | 'Vod' | 'Zoom' | 'Pexip' | 'Producer'>;
     type RealtimeField = LiteralString<'FullName' | 'Email' | 'ZoneName' | 'StreamType' | 'IpAddress' | 'Browser' | 'OsFamily' | 'StreamAccessed' | 'PlayerDevice' | 'OsName' | 'UserType' | 'Username' | 'AttendeeType'>;
     interface ListRequest {
         after?: string | Date;
@@ -1524,6 +1581,28 @@ declare namespace Webcast {
             translationLanguages: string[];
         };
         emailToPreRegistrants?: boolean;
+        /**
+         * Attendee join method. Only required when 'accesscontrol' is Public. Default is 'Registration'. When set to 'Anonymous', no attendee specific details are collected or registered.
+         */
+        attendeeJoinMethod?: LiteralString<'Anonymous' | 'Registration'>;
+        /**
+         * Internal user Ids. Only required when 'Producer' selected as a videoSourceType.
+         */
+        presenterIds?: string[];
+        externalPresenters?: Array<{
+            name: string;
+            title: string;
+            email: string;
+        }>;
+        viewerIdEnabled?: boolean;
+        /**
+         * Default=false. If accessControl is set to Public and 'EDIT PUBLIC REG. PAGE CONSENT VERBIAGE' is enabled on the account. When true, you can customize the consent verbiage for public attendees.
+         */
+        isCustomConsentEnabled?: boolean;
+        /**
+         * If isCustomConsentEnabled is true then you can customize the consent verbiage for public attendees.
+         */
+        consentVerbiage?: string;
     }
     interface Details {
         eventId: string;
@@ -1554,6 +1633,7 @@ declare namespace Webcast {
             translationLanguages: string[];
         };
         eventAdminIds: string[];
+        primaryHostId: string;
         automatedWebcast: boolean;
         closedCaptionsEnabled: boolean;
         pollsEnabled: boolean;
@@ -1592,6 +1672,22 @@ declare namespace Webcast {
         registrationFields: RegistrationField[];
         customFields?: Admin.CustomField[];
         emailToPreRegistrants?: boolean;
+        attendeeJoinMethod: LiteralString<'Anonymous' | 'Registration'>;
+        viewerIdEnabled: boolean;
+        externalPresenters: Array<{
+            name: string;
+            title: string;
+            email: string;
+        }>;
+        producerBgImages?: Array<{
+            imageId: string;
+            imageUrls: Array<{
+                url: string;
+                scaleSize: string;
+            }>;
+        }>;
+        isCustomConsentEnabled?: boolean;
+        consentVerbiage?: string;
     }
     interface EditAttendeesRequest {
         userIds?: string[];
@@ -1695,8 +1791,12 @@ declare namespace Webcast {
         profileImageUrl: string;
     }
     interface Question {
+        questionId: string;
         whenAsked: string;
         question: string;
+        userName: string;
+        repliedUserName: string | null;
+        whenReplied: string | null;
         askedBy: string;
         repliedBy: string;
         lastAction: string;
@@ -1718,6 +1818,7 @@ declare namespace Webcast {
         username: string;
         date: string;
         comment: string;
+        htmlComment: string;
     }
     interface Status {
         eventTitle: string;
@@ -1798,6 +1899,11 @@ interface Zone {
         useUls: boolean;
         revConnectConfig?: null | Record<string, any>;
     };
+    rendition?: {
+        highBitrate: boolean;
+        midBitrate: boolean;
+        lowBitrate: boolean;
+    };
 }
 declare namespace Zone {
     interface CreateRequest {
@@ -1823,6 +1929,15 @@ declare namespace Zone {
               */
             maxZoneMeshes?: number;
             groupPeersByZoneIPAddresses?: boolean;
+            useUls?: boolean;
+        };
+        /**
+         * Rendition selection for Auto Unicast of Cloud Streams in zone. All bitrates are seleced by default. All bitrates must be selected if any zone device is a DME that has version lower than 3.28.
+         */
+        zoneRendition?: {
+            highBitrate: boolean;
+            midBitrate: boolean;
+            lowBitrate: boolean;
         };
     }
     interface TargetDevice {
@@ -2010,6 +2125,17 @@ declare function adminAPIFactory(rev: RevClient): {
         start: string;
         end: string;
     }[]>;
+    /**
+     * gets the user location service URL
+     */
+    userLocationService(): Promise<{
+        enabled: boolean;
+        locationUrls: string[];
+    }>;
+    /**
+     * returns an array of all expiration rules
+     */
+    expirationRules(): Promise<Admin.ExpirationRule[]>;
 };
 
 declare class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
@@ -2153,6 +2279,10 @@ declare function categoryAPIFactory(rev: RevClient): {
      * @see {@link https://revdocs.vbrick.com/reference#getcategories}
      */
     list(parentCategoryId?: string, includeAllDescendants?: boolean): Promise<Category[]>;
+    /**
+     * get list of categories that current user has ability to add videos to
+     */
+    listAssignable(): Promise<Category.Assignable[]>;
 };
 
 declare function channelAPIFactory(rev: RevClient): {
@@ -2348,6 +2478,27 @@ declare function userAPIFactory(rev: RevClient): {
      * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
      */
     search(searchText?: string, options?: Rev.SearchOptions<User.SearchHit>): SearchRequest<User.SearchHit>;
+    /**
+     * Returns the channel and category subscriptions for the user making the API call.
+     */
+    listSubscriptions(): Promise<{
+        categories: string[];
+        channels: string[];
+    }>;
+    subscribe(id: string, type: LiteralString<'Channel' | 'Category'>): Promise<void>;
+    /**
+     * Unsubscribe from specific channel or category.
+     */
+    unsubscribe(id: string, type: LiteralString<'Channel' | 'Category'>): Promise<void>;
+    getNotifications(unread?: boolean): Promise<{
+        count: number;
+        notifications: User.Notification[];
+    }>;
+    /**
+     *
+     * @param notificationId If notificationId not provided, then all notifications for the user are marked as read.
+     */
+    markNotificationRead(notificationId?: string): Promise<void>;
 };
 
 declare function parseOptions(options: Video.VideoReportOptions): {
@@ -2379,6 +2530,10 @@ type VideoSearchDetailedItem = Video.SearchHit & (Video.Details | {
     error?: Error;
 });
 declare function videoAPIFactory(rev: RevClient): {
+    trim(videoId: string, removedSegments: Array<{
+        start: string;
+        end: string;
+    }>): Promise<any>;
     report: {
         (options?: Video.VideoReportOptions | undefined): VideoReportRequest;
         (videoId: string, options?: Video.VideoReportOptions | undefined): VideoReportRequest;
@@ -2420,8 +2575,10 @@ declare function videoAPIFactory(rev: RevClient): {
      */
     status(videoId: string): Promise<Video.StatusResponse>;
     details(videoId: string): Promise<Video.Details>;
-    /** get list of comments on a video */
-    comments(videoId: string): Promise<Video.Comment[]>;
+    comments: {
+        (videoId: string): Promise<Video.Comment[]>;
+        (videoId: string, showAll: true): Promise<Video.Comment.Unredacted[]>;
+    };
     chapters(videoId: string): Promise<Video.Chapter[]>;
     supplementalFiles(videoId: string): Promise<Video.SupplementalFile[]>;
     transcriptions(videoId: string): Promise<Video.Transcription[]>;
