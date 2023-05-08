@@ -48,4 +48,13 @@ export namespace User {
     }
 
     export type DetailsLookup = LiteralString<'username' | 'email' | 'userId'>
+
+    export interface Notification {
+        notificationId: string;
+        notificationDate: string;
+        notificationType: string;
+        isRead: boolean;
+        notificationText: string;
+        notificationTargetUri: string;
+    }
 }
