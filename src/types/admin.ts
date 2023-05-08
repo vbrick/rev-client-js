@@ -89,8 +89,7 @@ export namespace Admin {
         expirationRules: Array<{
             id: string;
             name: string;
-            ruleType: LiteralString<'None' | 'DaysAfterUpload' | 'DaysWithoutViews'>;
-            /** REVIEW */
+            ruleType: Video.ExpiryRule;
             deleteOnExpire: boolean;
             isDefault: boolean;
             numberOfDays: number;

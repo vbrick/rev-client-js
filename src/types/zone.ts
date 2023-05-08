@@ -24,7 +24,6 @@ export interface Zone {
         groupPeersByZoneIPAddresses: boolean;
         useUls: boolean;
         revConnectConfig?: null | Record<string, any>;
-        useUls: boolean;
     };
     rendition?: {
         highBitrate: boolean;

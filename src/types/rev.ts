@@ -131,7 +131,7 @@ export namespace Rev {
         hitsKey: string,
         isPost?: boolean;
         request?: (endpoint: string, query?: Record<string, any>, options?: RequestOptions) => Promise<Record<string, any>>;
-        transform: (items: RawType[]) => T[] | Promise<T[]>;
+        transform?: (items: RawType[]) => T[] | Promise<T[]>;
     }
 
     export interface KeepAliveOptions {

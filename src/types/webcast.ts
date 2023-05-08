@@ -150,6 +150,15 @@ export namespace Webcast {
         presenterIds?: string[];
         externalPresenters?: Array<{ name: string, title: string, email: string }>;
         viewerIdEnabled?: boolean;
+
+        /**
+         * Default=false. If accessControl is set to Public and 'EDIT PUBLIC REG. PAGE CONSENT VERBIAGE' is enabled on the account. When true, you can customize the consent verbiage for public attendees.
+         */
+        isCustomConsentEnabled?: boolean;
+        /**
+         * If isCustomConsentEnabled is true then you can customize the consent verbiage for public attendees.
+         */
+        consentVerbiage?: string;
     }
 
     export interface Details {
@@ -232,6 +241,8 @@ export namespace Webcast {
             imageId: string;
             imageUrls: Array<{ url: string; scaleSize: string; }>
         }>;
+        isCustomConsentEnabled?: boolean;
+        consentVerbiage?: string;
     }
 
     export interface EditAttendeesRequest {
