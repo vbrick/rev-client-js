@@ -103,6 +103,17 @@ export namespace Video {
         };
 
         sourceType?: SourceType;
+
+        /**
+         * Default=false. Displays viewer information over the video for playback on the web.
+         */
+        viewerIdEnabled?: boolean;
+
+        /**
+         * Retain the total views count from an outside system as an optional param.
+
+         */
+        legacyViewCount?: number;
     }
 
     export interface MigrateRequest {
@@ -120,6 +131,11 @@ export namespace Video {
             publishDate can be set to a date in the past.
         */
         publishDate?: Date | string;
+        /**
+         * Retain the total views count from an outside system as an optional param.
+
+         */
+        legacyViewCount?: number;
     }
 
 
@@ -241,6 +257,13 @@ export namespace Video {
             status: LiteralString<'Initialized' | 'Transcoding' | 'Transcoded' | 'TranscodingFailed' | 'Storing' | 'Stored' | 'StoringFailed'>
             videoKey: string;
         }>;
+        videoConference?: {
+            whenRecordingStarted: string;
+            sipAddress: string;
+            sipPin: string;
+            bitrateKbps: number;
+            microsoftTeamsMeetingUrl: string;
+        } | null;
         chapters: {
             chapters: Array<{
                 extension: string;
@@ -253,6 +276,7 @@ export namespace Video {
             }>
         }
         hasAudioOnly: boolean;
+        viewerIdEnabled: boolean;
 
 
     }
@@ -412,6 +436,12 @@ export namespace Video {
             id: string;
             title: string;
             comments: Comment[];
+        }
+
+        export interface Unredacted extends Comment {
+            isRemoved: boolean;
+            deletedBy: string | null;
+            deletedWhen: string;
         }
     }
 

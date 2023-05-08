@@ -8,6 +8,15 @@ import { videoDownloadAPI } from './video-download';
 type VideoSearchDetailedItem = Video.SearchHit & (Video.Details | { error?: Error });
 
 export default function videoAPIFactory(rev: RevClient) {
+    /** get list of comments on a video
+         * set showAll param to true to include un-redacted values of comments (admin only)
+         */
+    function comments(videoId: string): Promise<Video.Comment[]>;
+    function comments(videoId: string, showAll: true): Promise<Video.Comment.Unredacted[]>;
+    async function comments(videoId: string, showAll: boolean = false): Promise<Video.Comment[] | Video.Comment.Unredacted[]> {
+        const response = await rev.get<Video.Comment.ListResponse>(`/api/v2/videos/${videoId}/comments`, showAll ? { showAll: 'true' } : undefined);
+        return response.comments;
+    }
     const videoAPI = {
         /**
          * This is an example of using the video Patch API to only update a single field
@@ -28,14 +37,10 @@ export default function videoAPIFactory(rev: RevClient) {
         async details(videoId: string): Promise<Video.Details> {
             return rev.get(`/api/v2/videos/${videoId}/details`);
         },
-        /** get list of comments on a video */
-        async comments(videoId: string): Promise<Video.Comment[]> {
-            const response = await rev.get<Video.Comment.ListResponse>(`/api/v2/videos/${videoId}/comments`);
-            return response.comments;
-        },
+        comments,
         async chapters(videoId: string): Promise<Video.Chapter[]> {
             try {
-                const {chapters} = await rev.get<{chapters: Video.Chapter[]}>(`/api/v2/videos/${videoId}/comments`);
+                const {chapters} = await rev.get<{chapters: Video.Chapter[]}>(`/api/v2/videos/${videoId}/chapters`);
                 return chapters;
             } catch (err) {
                 // if no chapters then this api returns a 400 response
@@ -114,7 +119,10 @@ export default function videoAPIFactory(rev: RevClient) {
             return video;
         },
         ...videoDownloadAPI(rev),
-        ...videoReportAPI(rev)
+        ...videoReportAPI(rev),
+        async trim(videoId: string, removedSegments: Array<{ start: string, end: string }>) {
+            return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);
+        }
     };
     return videoAPI;
 }
