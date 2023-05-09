@@ -13,6 +13,7 @@ export interface User {
     roles: { id: string, name: string; }[];
     channels: { id: string, name: string; }[];
     profileImageUri: string | null;
+    permissions: User.Permissions;
 }
 
 export namespace User {
@@ -48,4 +49,22 @@ export namespace User {
     }
 
     export type DetailsLookup = LiteralString<'username' | 'email' | 'userId'>
+
+    export interface Permissions {
+        canUpload: boolean
+        canCreateEvents: boolean
+        canCreatePublicWebcasts: boolean
+        canCreateAllUsersWebcasts: boolean
+        canCreatePublicVods: boolean
+        canCreateAllUsersVods: boolean
+    }
+
+    export interface Notification {
+        notificationId: string;
+        notificationDate: string;
+        notificationType: string;
+        isRead: boolean;
+        notificationText: string;
+        notificationTargetUri: string;
+    }
 }

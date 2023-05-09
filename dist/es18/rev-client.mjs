@@ -2929,14 +2929,10 @@ var RevClient = class {
   }
 };
 
-// src/interop/node-polyfills.ts
+// src/interop/node18-polyfills.ts
 import fs from "fs";
 import path from "path";
 import { createHmac, randomBytes, createHash } from "crypto";
-import { promisify } from "util";
-import fetch, { Headers, Request, Response } from "node-fetch";
-import FormData from "form-data";
-import { AbortSignal, AbortController } from "node-abort-controller";
 async function getLengthFromStream(source) {
   const {
     length,
@@ -3038,10 +3034,7 @@ async function appendFileToForm2(form, fieldName, payload) {
   form.append(fieldName, file, appendOptions);
 }
 async function prepareUploadHeaders(form, headers, useChunkedTransfer = false) {
-  const totalBytes = useChunkedTransfer ? 0 : await promisify(form.getLength).call(form).catch(() => 0);
-  if (totalBytes > 0) {
-    headers.set("content-length", `${totalBytes}`);
-  } else {
+  if (useChunkedTransfer) {
     headers.set("transfer-encoding", "chunked");
     headers.delete("content-length");
   }
@@ -3091,18 +3084,18 @@ Object.assign(interop_default, {
   prepareUploadHeaders
 });
 
-// src/index-node.ts
+// src/index-node18.ts
 var utils = {
   rateLimit: rate_limit_default,
   getExtensionForMime,
   getMimeForExtension
 };
-var index_node_default = RevClient;
+var index_node18_default = RevClient;
 export {
   RevClient,
   RevError,
   ScrollError,
-  index_node_default as default,
+  index_node18_default as default,
   utils
 };
 //# sourceMappingURL=rev-client.mjs.map

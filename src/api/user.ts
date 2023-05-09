@@ -1,5 +1,6 @@
 import type { RevClient } from '../rev-client';
 import type { Rev, User } from '../types';
+import { LiteralString } from '../types/rev';
 import { isPlainObject } from '../utils';
 import { SearchRequest } from '../utils/request-utils';
 
@@ -123,6 +124,31 @@ export default function userAPIFactory(rev: RevClient) {
                 query.q = searchText;
             }
             return new SearchRequest(rev, searchDefinition, query, options);
+        },
+        /**
+         * Returns the channel and category subscriptions for the user making the API call.
+         */
+        async listSubscriptions(): Promise<{ categories: string[], channels: string[] }> {
+            return rev.get('/api/v2/users/subscriptions');
+        },
+        async subscribe(id: string, type: LiteralString<'Channel' | 'Category'>): Promise<void> {
+            return rev.post('/api/v2/users/subscribe', { id, type });
+        },
+        /**
+         * Unsubscribe from specific channel or category.
+         */
+        async unsubscribe(id: string, type: LiteralString<'Channel' | 'Category'>): Promise<void> {
+            return rev.post('/api/v2/users/unsubscribe', { id, type });
+        },
+        async getNotifications(unread: boolean = false): Promise<{ count: number, notifications: User.Notification[]}> {
+            return rev.get('/api/v2/users/notifications', { unread });
+        },
+        /**
+         *
+         * @param notificationId If notificationId not provided, then all notifications for the user are marked as read.
+         */
+        async markNotificationRead(notificationId?: string): Promise<void> {
+            await rev.put('/api/v2/users/notifications', notificationId ? {notificationId} : undefined);
         }
     };
     return userAPI;

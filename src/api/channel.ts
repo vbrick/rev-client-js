@@ -68,7 +68,7 @@ export class ChannelListRequest implements Rev.ISearchRequest<Channel.SearchHit>
         this._req = () => {
             const params = {
                 page: this.currentPage,
-                count: this.options.pageSize
+                size: this.options.pageSize
             };
             return rev.get('/api/v2/channels', params, { responseType: 'json' });
         }

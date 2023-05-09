@@ -22,8 +22,14 @@ export interface Zone {
         disableFallback: boolean;
         maxZoneMeshes: number;
         groupPeersByZoneIPAddresses: boolean;
+        useUls: boolean;
         revConnectConfig?: null | Record<string, any>;
     };
+    rendition?: {
+        highBitrate: boolean;
+        midBitrate: boolean;
+        lowBitrate: boolean;
+    }
 }
 
 export namespace Zone {
@@ -48,7 +54,16 @@ export namespace Zone {
               */
             maxZoneMeshes?: number;
             groupPeersByZoneIPAddresses?: boolean;
+            useUls?: boolean;
         };
+        /**
+         * Rendition selection for Auto Unicast of Cloud Streams in zone. All bitrates are seleced by default. All bitrates must be selected if any zone device is a DME that has version lower than 3.28.
+         */
+        zoneRendition?: {
+            highBitrate: boolean;
+            midBitrate: boolean;
+            lowBitrate: boolean;
+        }
     }
     export interface TargetDevice {
         /**

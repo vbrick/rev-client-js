@@ -1,3 +1,6 @@
+import { LiteralString } from "./rev";
+import { Video } from './video';
+
 export namespace Admin {
     export interface CustomField {
         id: string,
@@ -17,6 +20,7 @@ export namespace Admin {
             value: any;
             required: boolean;
             displayedToUsers: boolean;
+            options: string[] | null;
             type: string;
             fieldType: string;
         }
@@ -59,5 +63,45 @@ export namespace Admin {
         credits: number;
         languages: string[];
         when: string;
+    }
+    export interface ExpirationRule {
+        ruleId: string;
+        ruleName: string;
+        numberOfDays: number;
+        expiryRuleType: Video.ExpiryRule;
+        deleteOnExpiration: boolean;
+        isDefault: boolean;
+        description: string;
+    }
+
+
+    export interface FeatureSettings {
+        categoriesEnabled: boolean;
+        commentsEnabled: boolean;
+        customFields: Array<{
+            id: string;
+            name: string;
+            required: boolean;
+            fieldType: LiteralString<'Text' | 'Select'>;
+        }>;
+        defaultSearchSort: string;
+        downloadsEnabled: boolean;
+        expirationRules: Array<{
+            id: string;
+            name: string;
+            ruleType: Video.ExpiryRule;
+            deleteOnExpire: boolean;
+            isDefault: boolean;
+            numberOfDays: number;
+        }>;
+        facialRecognitionEnabled: boolean;
+        legalHoldEnabled: boolean;
+        publicVideosEnabled: boolean;
+        ratingsEnabled: boolean;
+        revIQTranscriptionAndTranslationEnabled: boolean;
+        supplementalFilesEnabled: boolean;
+        tagsEnabled: boolean;
+        unlistedEnabled: boolean;
+        voiceBaseEnabled: boolean;
     }
 }

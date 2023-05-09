@@ -1,3 +1,47 @@
+## 0.12.0
+
+### Features
+
+* Add user notification/subscription endpoints
+* Add admin user location service and get expiration rules endpoints
+* Other 7.51 / 7.52 endpoints and updates
+
+### Breaking Changes
+
+* Stop a search request pager early if a page has zero results. This is a bugfix for the Get Guest Registration List API endpoint, but may impact other search results.
+
+### Bugfixes
+
+* bugs in new oauth2 endpoint support
+
+### Experimental
+
+* Add IIFE compiled version - `/dist/rev-client.iife.js`. Global name is `revClientLib`. Filename / global subject to change in future releases
+
+## 0.11.0
+
+### Features
+
+* Added JWT, OAuth2 and Access Token (no credentials, just existing access token) credentials options
+* Added `video.setCustomFied` to only update a single custom field value for a video
+* Added a `native-fetch` nodejs version that doesn't use polyfills (node-fetch / form-data). **NOTE:** There may be a [negative performance impact](https://github.com/nodejs/undici/issues/1203) for using node's built-in `fetch` implementation pre-node v20, especially on downloading video files.
+* Switched to tsup instead of rollup for bundling
+* Bump dependencies
+
+### Breaking Changes
+* Require node v16 or above
+* some typescript types were corrected *(for example video search date options like `fromUploadDate` only support `string`, not `Date | string`)*.
+
+
+### Bugfixes
+* Channel search results correction
+* get video chapters was returning empty results
+* minor typescript bugfixes
+* Exports `utils.rateLimit`, `utils.getExtensionForMime` and `utils.getMimeForExtension` functions weren't exposed for the commonjs exports
+
+### Deprecations
+* The Legacy OAuth API endpoints - which use API Key / Client ID plus Secret are deprecated in favor of the new OAuth2-compliant API endpoints, which use a PKCE login flow.
+
 ## 0.10.0
 
 ### Features

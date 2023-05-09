@@ -1,2761 +1,2943 @@
-const { toString: _toString } = Object.prototype;
+// src/utils/is-utils.ts
+var { toString: _toString } = Object.prototype;
 function isPlainObject(val) {
-    if (_toString.call(val) !== '[object Object]') {
-        return false;
-    }
-    const prototype = Object.getPrototypeOf(val);
-    return prototype === null || prototype === Object.getPrototypeOf({});
+  if (_toString.call(val) !== "[object Object]") {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(val);
+  return prototype === null || prototype === Object.getPrototypeOf({});
 }
 function isBlobLike(val) {
-    return typeof val?.stream === 'function';
+  return typeof val?.stream === "function";
 }
 function titleCase(val) {
-    return `${val[0]}${val.slice(1)}`;
+  return `${val[0]}${val.slice(1)}`;
 }
 
-/**
- * There are slight differences in handling browser and node.js environments.
- * This folder wraps all components that get polyfilled in node.js, as well as
- * allowing uploading a video from the local filesystem on node.js
- */
-/**
- * used to sign the verifier in OAuth workflow
- */
-async function hmacSign(message, secret) {
-    const enc = new TextEncoder();
-    const cryptoKey = await crypto.subtle
-        .importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, true, ['sign']);
-    const signed = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(message));
-    return btoa(String.fromCharCode(...new Uint8Array(signed)));
+// src/interop/index.ts
+function randomValues(byteLength) {
+  const values = crypto.getRandomValues(new Uint8Array(byteLength / 2));
+  return Array.from(values).map((c) => c.toString(16).padStart(2, "0")).join("");
 }
-var polyfills = {
-    AbortController: globalThis.AbortController,
-    AbortSignal: globalThis.AbortSignal,
-    createAbortError(message) {
-        return new DOMException(message, 'AbortError');
-    },
-    fetch: (...args) => globalThis.fetch(...args),
-    FormData: globalThis.FormData,
-    Headers: globalThis.Headers,
-    Request: globalThis.Request,
-    Response: globalThis.Response,
-    hmacSign,
-    /**
-     *
-     * @param file
-     * @param filename
-     * @param contentType
-     * @returns
-     */
-    async parseFileUpload(file, options) {
-        let { filename, contentType, contentLength } = options;
-        if (isBlobLike(file)) {
-            const { type, name, size } = file;
-            if (type && !contentType) {
-                contentType = type;
-            }
-            if (name && !filename) {
-                filename = name;
-            }
-            if (size && !contentLength) {
-                contentLength = size;
-            }
-            return {
-                file,
-                options: {
-                    ...options,
-                    filename,
-                    contentType,
-                    contentLength
-                }
-            };
+async function sha256Hash(value) {
+  const bytes = new TextEncoder().encode(value);
+  const hashed = await crypto.subtle.digest("SHA-256", bytes);
+  const binary = String.fromCharCode(...new Uint8Array(hashed));
+  return btoa(binary).replace(/\//g, "_").replace(/\+/g, "-").replace(/=+$/, "");
+}
+async function hmacSign(message, secret) {
+  const enc = new TextEncoder();
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    true,
+    ["sign"]
+  );
+  const signed = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(message));
+  return btoa(String.fromCharCode(...new Uint8Array(signed)));
+}
+var interop_default = {
+  AbortController: globalThis.AbortController,
+  AbortSignal: globalThis.AbortSignal,
+  createAbortError(message) {
+    return new DOMException(message, "AbortError");
+  },
+  fetch: (...args) => globalThis.fetch(...args),
+  FormData: globalThis.FormData,
+  Headers: globalThis.Headers,
+  Request: globalThis.Request,
+  Response: globalThis.Response,
+  randomValues,
+  sha256Hash,
+  hmacSign,
+  /**
+   *
+   * @param file
+   * @param filename
+   * @param contentType
+   * @returns
+   */
+  async parseFileUpload(file, options) {
+    let {
+      filename,
+      contentType,
+      contentLength
+    } = options;
+    if (isBlobLike(file)) {
+      const { type, name, size } = file;
+      if (type && !contentType) {
+        contentType = type;
+      }
+      if (name && !filename) {
+        filename = name;
+      }
+      if (size && !contentLength) {
+        contentLength = size;
+      }
+      return {
+        file,
+        options: {
+          ...options,
+          filename,
+          contentType,
+          contentLength
         }
-        throw new TypeError('Only Blob / Files are supported for file uploads. Pass a File/Blob object');
-    },
-    appendFileToForm(form, fieldName, payload) {
-        const { file, options: { filename } } = payload;
-        form.append(fieldName, file, filename);
-    },
-    async prepareUploadHeaders(form, headers, useChunkedTransfer) {
-        // nothing - this is used for fixing node's form-data behavior
+      };
     }
+    throw new TypeError("Only Blob / Files are supported for file uploads. Pass a File/Blob object");
+  },
+  appendFileToForm(form, fieldName, payload) {
+    const {
+      file,
+      options: {
+        filename
+      }
+    } = payload;
+    form.append(fieldName, file, filename);
+  },
+  async prepareUploadHeaders(form, headers, useChunkedTransfer) {
+  }
 };
 
-const ONE_MINUTE$1 = 60 * 1000;
-// adapted from https://github.com/sindresorhus/p-throttle
+// src/utils/rate-limit.ts
+var ONE_MINUTE = 60 * 1e3;
 function rateLimit(fn, options = {}) {
-    if (fn && (typeof fn === 'object')) {
-        options = Object.assign({}, fn, options);
-        fn = undefined;
-    }
-    if (!fn) {
-        fn = options.fn;
-    }
-    if (typeof fn !== 'function') {
-        throw new TypeError('Rate limit function is not a function');
-    }
-    const { perSecond, perMinute, perHour, signal } = options;
-    let limit = parseFloat(options.limit) || 1;
-    let interval = parseInt(options.interval, 10);
-    if (perSecond) {
-        limit = parseFloat(perSecond);
-        interval = 1000;
-    }
-    if (perMinute) {
-        limit = parseFloat(perMinute);
-        interval = ONE_MINUTE$1;
-    }
-    if (perHour) {
-        limit = parseFloat(perHour);
-        interval = ONE_MINUTE$1 * 60;
-    }
-    if (limit < 1) {
-        interval *= limit;
-        limit = 1;
-    }
-    else {
-        // just make sure it isn't a faction for some silly reason
-        limit = Math.floor(limit);
-    }
-    if (!Number.isFinite(limit)) {
-        throw new TypeError(`Invalid limit ${limit}`);
-    }
-    if (!Number.isFinite(interval) || interval <= 0) {
-        throw new TypeError('Invalid interval option');
-    }
-    const queue = new Map();
-    let currentTick = 0;
-    let activeCount = 0;
-    const throttled = function (...args) {
-        let timeout;
-        return new Promise((resolve, reject) => {
-            const execute = () => {
-                resolve(fn.apply(null, args));
-                queue.delete(timeout);
-            };
-            const now = Date.now();
-            if ((now - currentTick) > interval) {
-                activeCount = 1;
-                currentTick = now;
-            }
-            else if (activeCount < limit) {
-                activeCount++;
-            }
-            else {
-                currentTick += interval;
-                activeCount = 1;
-            }
-            timeout = setTimeout(execute, currentTick - now);
-            // used for sending cancel error
-            queue.set(timeout, reject);
-        });
-    };
-    throttled.abort = (message = 'Cancelled rate-limit queue') => {
-        for (const [timeout, reject] of queue.entries()) {
-            clearTimeout(timeout);
-            reject(polyfills.createAbortError(message));
-        }
-        queue.clear();
-    };
-    if (signal) {
-        signal.addEventListener('abort', () => throttled.abort());
-    }
-    return throttled;
-}
-
-function asValidDate(val, defaultValue) {
-    if (!val) {
-        return defaultValue;
-    }
-    if (!(val instanceof Date)) {
-        val = new Date(val);
-    }
-    return isNaN(val.getTime())
-        ? defaultValue
-        : val;
-}
-/**
- * Retry a function multiple times, sleeping before attempts
- * @param {() => Promise<T>} fn function to attempt. Return value if no error thrown
- * @param {(err: Error, attempt: number) => boolean} [shouldRetry] callback on error.
- * @param {number} [maxAttempts] maximum number of retry attempts before throwing error
- * @param {number} [sleepMilliseconds] milliseconds to wait between attempts
- * @returns {Promise<T>}
- */
-async function retry(fn, shouldRetry = () => true, maxAttempts = 3, sleepMilliseconds = 1000) {
-    let attempt = 0;
-    while (attempt < maxAttempts) {
-        try {
-            const result = await fn();
-            return result;
-        }
-        catch (err) {
-            attempt += 1;
-            if (attempt >= maxAttempts || !shouldRetry(err, attempt)) {
-                throw err;
-            }
-            await sleep(sleepMilliseconds);
-        }
-    }
-    return undefined;
-}
-/**
- * delay async execution, with optional early exit using abort signal
- * @param ms
- * @param signal
- * @returns
- */
-async function sleep(ms, signal) {
-    return new Promise(done => {
-        let timer;
-        const cleanup = () => {
-            clearTimeout(timer);
-            signal?.removeEventListener('abort', cleanup);
-            done();
-        };
-        timer = setTimeout(done, ms);
-        signal?.addEventListener('abort', cleanup);
+  if (fn && typeof fn === "object") {
+    options = Object.assign({}, fn, options);
+    fn = void 0;
+  }
+  if (!fn) {
+    fn = options.fn;
+  }
+  if (typeof fn !== "function") {
+    throw new TypeError("Rate limit function is not a function");
+  }
+  const {
+    perSecond,
+    perMinute,
+    perHour,
+    signal
+  } = options;
+  let limit = parseFloat(options.limit) || 1;
+  let interval = parseInt(options.interval, 10);
+  if (perSecond) {
+    limit = parseFloat(perSecond);
+    interval = 1e3;
+  }
+  if (perMinute) {
+    limit = parseFloat(perMinute);
+    interval = ONE_MINUTE;
+  }
+  if (perHour) {
+    limit = parseFloat(perHour);
+    interval = ONE_MINUTE * 60;
+  }
+  if (limit < 1) {
+    interval *= limit;
+    limit = 1;
+  } else {
+    limit = Math.floor(limit);
+  }
+  if (!Number.isFinite(limit)) {
+    throw new TypeError(`Invalid limit ${limit}`);
+  }
+  if (!Number.isFinite(interval) || interval <= 0) {
+    throw new TypeError("Invalid interval option");
+  }
+  const queue = /* @__PURE__ */ new Map();
+  let currentTick = 0;
+  let activeCount = 0;
+  const throttled = function(...args) {
+    let timeout;
+    return new Promise((resolve, reject) => {
+      const execute = () => {
+        resolve(fn.apply(null, args));
+        queue.delete(timeout);
+      };
+      const now = Date.now();
+      if (now - currentTick > interval) {
+        activeCount = 1;
+        currentTick = now;
+      } else if (activeCount < limit) {
+        activeCount++;
+      } else {
+        currentTick += interval;
+        activeCount = 1;
+      }
+      timeout = setTimeout(execute, currentTick - now);
+      queue.set(timeout, reject);
     });
+  };
+  throttled.abort = (message = "Cancelled rate-limit queue") => {
+    for (const [timeout, reject] of queue.entries()) {
+      clearTimeout(timeout);
+      reject(interop_default.createAbortError(message));
+    }
+    queue.clear();
+  };
+  if (signal) {
+    signal.addEventListener("abort", () => throttled.abort());
+  }
+  return throttled;
 }
-/** try to parse as json */
+var rate_limit_default = rateLimit;
+
+// src/utils/index.ts
+function asValidDate(val, defaultValue) {
+  if (!val) {
+    return defaultValue;
+  }
+  if (!(val instanceof Date)) {
+    val = new Date(val);
+  }
+  return isNaN(val.getTime()) ? defaultValue : val;
+}
+async function retry(fn, shouldRetry = () => true, maxAttempts = 3, sleepMilliseconds = 1e3) {
+  let attempt = 0;
+  while (attempt < maxAttempts) {
+    try {
+      const result = await fn();
+      return result;
+    } catch (err) {
+      attempt += 1;
+      if (attempt >= maxAttempts || !shouldRetry(err, attempt)) {
+        throw err;
+      }
+      await sleep(sleepMilliseconds);
+    }
+  }
+  return void 0;
+}
+async function sleep(ms, signal) {
+  return new Promise((done) => {
+    let timer;
+    const cleanup = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", cleanup);
+      done();
+    };
+    timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", cleanup);
+  });
+}
 function tryParseJson(val) {
-    if (val !== 'null' && val) {
-        try {
-            return JSON.parse(val);
-        }
-        catch (err) {
-            // nothing
-        }
+  if (val !== "null" && val) {
+    try {
+      return JSON.parse(val);
+    } catch (err) {
     }
-    return null;
+  }
+  return null;
 }
 
-class RevError extends Error {
-    constructor(response, body) {
-        const { status = 500, statusText = '', url } = response;
-        super(`${status} ${statusText}`);
-        // Chrome/node specific function
-        if ('captureStackTrace' in Error) {
-            Error.captureStackTrace(this, this.constructor);
+// src/rev-error.ts
+var RevError = class extends Error {
+  constructor(response, body) {
+    const {
+      status = 500,
+      statusText = "",
+      url
+    } = response;
+    super(`${status} ${statusText}`);
+    if ("captureStackTrace" in Error) {
+      Error.captureStackTrace(this, this.constructor);
+    }
+    this.status = status;
+    this.url = url;
+    this.code = `${status}`;
+    this.detail = statusText;
+    if (isPlainObject(body)) {
+      if (body.code) {
+        this.code = body.code;
+      }
+      if (body.detail) {
+        this.detail = body.detail;
+      }
+    } else if (typeof body === "string") {
+      body = body.trim();
+      if (body.startsWith("{")) {
+        const { code, detail } = tryParseJson(body) || {};
+        if (code) {
+          this.code = code;
         }
-        this.status = status;
-        this.url = url;
-        this.code = `${status}`;
-        this.detail = statusText;
-        // Some Rev API responses include additional details in its body
-        if (isPlainObject(body)) {
-            if (body.code) {
-                this.code = body.code;
-            }
-            if (body.detail) {
-                this.detail = body.detail;
-            }
+        if (detail) {
+          this.detail = detail;
         }
-        else if (typeof body === 'string') {
-            body = body.trim();
-            // try to parse as JSON
-            if (body.startsWith('{')) {
-                const { code, detail } = tryParseJson(body) || {};
-                if (code) {
-                    this.code = code;
-                }
-                if (detail) {
-                    this.detail = detail;
-                }
-            }
-            else if (this.status === 429) {
-                this.detail = 'Too Many Requests';
-            }
-            else if (/^(<!DOCTYPE|<html)/.test(body)) {
-                // if html then strip out the extra cruft
-                this.detail = body
-                    .replace(/.*<body>\s+/s, '')
-                    .replace(/<\/body>.*/s, '')
-                    .slice(0, 256);
-            }
-        }
+      } else if (this.status === 429) {
+        this.detail = "Too Many Requests";
+      } else if (/^(<!DOCTYPE|<html)/.test(body)) {
+        this.detail = body.replace(/.*<body>\s+/s, "").replace(/<\/body>.*/s, "").slice(0, 256);
+      }
     }
-    get name() {
-        return this.constructor.name;
+  }
+  get name() {
+    return this.constructor.name;
+  }
+  get [Symbol.toStringTag]() {
+    return this.constructor.name;
+  }
+  static async create(response) {
+    let body;
+    try {
+      body = await response.text();
+    } catch (err) {
+      body = {
+        code: "Unknown",
+        detail: `Unable to parse error response body: ${err}`
+      };
     }
-    get [Symbol.toStringTag]() {
-        return this.constructor.name;
-    }
-    static async create(response) {
-        let body;
-        try {
-            // retrieve body - constructor will decode as json
-            body = await response.text();
-        }
-        catch (err) {
-            body = {
-                code: 'Unknown',
-                detail: `Unable to parse error response body: ${err}`
-            };
-        }
-        return new RevError(response, body);
-    }
-}
-class ScrollError extends Error {
-    constructor(status = 408, code = 'ScrollExpired', detail = 'Timeout while fetching all results in search request') {
-        super('Search Scroll Expired');
-        Error.captureStackTrace(this, this.constructor);
-        this.status = status;
-        this.code = code;
-        this.detail = detail;
-    }
-    get name() {
-        return this.constructor.name;
-    }
-    get [Symbol.toStringTag]() {
-        return this.constructor.name;
-    }
-}
+    return new RevError(response, body);
+  }
+};
+var ScrollError = class extends Error {
+  constructor(status = 408, code = "ScrollExpired", detail = "Timeout while fetching all results in search request") {
+    super("Search Scroll Expired");
+    Error.captureStackTrace(this, this.constructor);
+    this.status = status;
+    this.code = code;
+    this.detail = detail;
+  }
+  get name() {
+    return this.constructor.name;
+  }
+  get [Symbol.toStringTag]() {
+    return this.constructor.name;
+  }
+};
 
-/**
- * Interface to iterate through results from API endpoints that return results in pages.
- * Use in one of three ways:
- * 1) Get all results as an array: await request.exec() == <array>
- * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
- * 3) Use for await to get all results one at a time: for await (let hit of request) { }
- */
-class PagedRequest {
-    constructor(options = {}) {
-        this.options = {
-            maxResults: Infinity,
-            onProgress: (items, current, total) => { },
-            onError: (err => { throw err; }),
-            onScrollError: (err => {
-                console.warn("DEPRECATED: use onError instead of onScrollError with rev search requests");
-                this.options.onError(err);
-            }),
-            ...options
-        };
-        this.current = 0;
-        this.total = undefined;
-        this.done = false;
+// src/utils/paged-request.ts
+var PagedRequest = class {
+  constructor(options = {}) {
+    this.options = {
+      maxResults: Infinity,
+      onProgress: (items, current, total) => {
+      },
+      onError: (err) => {
+        throw err;
+      },
+      onScrollError: (err) => {
+        console.warn("DEPRECATED: use onError instead of onScrollError with rev search requests");
+        this.options.onError(err);
+      },
+      ...options
+    };
+    this.current = 0;
+    this.total = void 0;
+    this.done = false;
+  }
+  /**
+   * Get the next page of results from API
+   */
+  async nextPage() {
+    const {
+      onProgress,
+      onError
+    } = this.options;
+    if (this.done) {
+      return {
+        current: this.current,
+        total: this.current,
+        done: this.done,
+        items: []
+      };
     }
+    const page = await this._requestPage();
+    const result = this._parsePage(page);
+    let {
+      current,
+      items,
+      total,
+      done,
+      error
+    } = result;
+    onProgress(items, current, total);
+    if (error) {
+      onError(error);
+    }
+    return {
+      current,
+      items,
+      total,
+      done
+    };
+  }
+  /**
+   * update internal variables based on API response
+   * @param page
+   * @returns
+   */
+  _parsePage(page) {
+    const { maxResults } = this.options;
+    let {
+      items = [],
+      done = this.done,
+      total,
+      pageCount,
+      error
+    } = page;
+    if (done) {
+      this.done = true;
+    }
+    if (isFinite(total)) {
+      this.total = Math.min(total, maxResults);
+    }
+    if (!pageCount) {
+      pageCount = items.length;
+    }
+    const current = this.current;
+    if (current + pageCount >= maxResults) {
+      pageCount = maxResults - current;
+      items = items.slice(0, pageCount);
+      this.done = true;
+    }
+    this.current += pageCount;
+    if (this.current === this.total) {
+      this.done = true;
+    }
+    if (this.done) {
+      this.total = this.current;
+    }
+    if (error) {
+      this.done = true;
+    }
+    return {
+      current,
+      total: this.total,
+      done: this.done,
+      error,
+      items
+    };
+  }
+  /**
+   * Go through all pages of results and return as an array.
+   * TIP: Use the {maxResults} option to limit the maximum number of results
+   *
+   */
+  async exec() {
+    const results = [];
+    for await (let hit of this) {
+      results.push(hit);
+    }
+    return results;
+  }
+  async *[Symbol.asyncIterator]() {
+    do {
+      const {
+        items
+      } = await this.nextPage();
+      for await (let hit of items) {
+        yield hit;
+      }
+    } while (!this.done);
+  }
+};
+
+// src/utils/request-utils.ts
+async function decodeBody(response, acceptType) {
+  const contentType = response.headers.get("Content-Type") || acceptType || "";
+  if (contentType.startsWith("application/json")) {
+    try {
+      return await response.json();
+    } catch (err) {
+    }
+  }
+  if (contentType.startsWith("text")) {
+    return response.text();
+  }
+  return response.body;
+}
+var SearchRequest = class extends PagedRequest {
+  constructor(rev, searchDefinition, query = {}, options = {}) {
+    super({
+      onProgress: (items, current, total) => {
+        const { hitsKey } = searchDefinition;
+        rev.log("debug", `searching ${hitsKey}, ${current}-${current + items.length} of ${total}...`);
+      },
+      onError: (err) => {
+        throw err;
+      },
+      ...options
+    });
+    const {
+      scrollId: _ignore,
+      ...queryOpt
+    } = query;
+    this.query = queryOpt;
+    this._reqImpl = this._buildReqFunction(rev, searchDefinition);
+    this.current = 0;
+    this.total = Infinity;
+    this.done = false;
+  }
+  _requestPage() {
+    return this._reqImpl();
+  }
+  _buildReqFunction(rev, searchDefinition) {
+    const {
+      endpoint,
+      totalKey,
+      hitsKey,
+      isPost = false,
+      request,
+      transform
+    } = searchDefinition;
+    const requestFn = request || (isPost ? rev.post.bind(rev) : rev.get.bind(rev));
+    return async () => {
+      const response = await requestFn(endpoint, this.query, { responseType: "json" });
+      let {
+        scrollId,
+        [totalKey]: total,
+        [hitsKey]: rawItems = [],
+        statusCode,
+        statusDescription
+      } = response;
+      let done = false;
+      this.query.scrollId = scrollId;
+      if (!scrollId) {
+        done = true;
+      }
+      const items = typeof transform === "function" ? await Promise.resolve(transform(rawItems)) : rawItems;
+      if (items.length === 0) {
+        done = true;
+      }
+      const error = statusCode >= 400 && !!statusDescription ? new ScrollError(statusCode, statusDescription) : void 0;
+      return {
+        total,
+        done,
+        pageCount: rawItems.length,
+        items,
+        error
+      };
+    };
+  }
+};
+
+// src/api/admin.ts
+function adminAPIFactory(rev) {
+  let roles;
+  let customFields;
+  const adminAPI = {
     /**
-     * Get the next page of results from API
+    * get mapping of role names to role IDs
+    * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
+    */
+    async roles(cache = true) {
+      if (roles && cache === true) {
+        return roles;
+      }
+      const response = await rev.get("/api/v2/users/roles");
+      if (cache) {
+        roles = response;
+      }
+      return response;
+    },
+    /**
+    * Get a Role (with the role id) based on its name
+    * @param name Name of the Role, i.e. "Media Viewer"
+    * @param fromCache - if true then use previously cached Role listing (more efficient)
+    */
+    async getRoleByName(name, fromCache = true) {
+      const roles2 = await adminAPI.roles(fromCache);
+      const role = roles2.find((r) => r.name === name);
+      if (!role) {
+        throw new TypeError(`Invalid Role Name ${name}. Valid values are: ${roles2.map((r) => r.name).join(", ")}`);
+      }
+      return {
+        id: role.id,
+        name: role.name
+      };
+    },
+    /**
+    * get list of custom fields
+    * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
+    */
+    async customFields(cache = true) {
+      if (customFields && cache === true) {
+        return customFields;
+      }
+      const response = await rev.get("/api/v2/video-fields", void 0, { responseType: "json" });
+      if (cache) {
+        customFields = response;
+      }
+      return response;
+    },
+    /**
+    * Get a Custom Field based on its name
+    * @param name name of the Custom Field
+    * @param fromCache if true then use previously cached Role listing (more efficient)
+    */
+    async getCustomFieldByName(name, fromCache = true) {
+      const customFields2 = await adminAPI.customFields(fromCache);
+      const field = customFields2.find((cf) => cf.name === name);
+      if (!field) {
+        throw new TypeError(`Invalid Custom Field Name ${name}. Valid values are: ${customFields2.map((cf) => cf.name).join(", ")}`);
+      }
+      return field;
+    },
+    async brandingSettings() {
+      return rev.get("/api/v2/accounts/branding-settings");
+    },
+    async webcastRegistrationFields() {
+      const response = await rev.get("/api/v2/accounts/webcast-registration-fields");
+      return response.registrationFields;
+    },
+    async createWebcastRegistrationField(registrationField) {
+      const response = await rev.post("/api/v2/accounts/webcast-registration-fields", registrationField);
+      return response.fieldId;
+    },
+    async updateWebcastRegistrationField(fieldId, registrationField) {
+      return rev.put(`/api/v2/accounts/webcast-registration-fields/${fieldId}`, registrationField);
+    },
+    async deleteWebcastRegistrationField(fieldId) {
+      return rev.delete(`/api/v2/accounts/webcast-registration-fields/${fieldId}`);
+    },
+    listIQCreditsUsage(query, options) {
+      const searchDefinition = {
+        endpoint: `/api/v2/analytics/accounts/iq-credits-usage`,
+        totalKey: "total",
+        hitsKey: "sessions"
+      };
+      return new SearchRequest(rev, searchDefinition, query, options);
+    },
+    /**
+    * get system health - returns 200 if system is active and responding, otherwise throws error
+    */
+    async verifySystemHealth() {
+      await rev.get("/api/v2/system-health");
+      return true;
+    },
+    /**
+    * gets list of scheduled maintenance windows
+    */
+    async maintenanceSchedule() {
+      const { schedules } = await rev.get("/api/v2/maintenance-schedule");
+      return schedules;
+    },
+    /**
+     * gets the user location service URL
      */
-    async nextPage() {
-        const { onProgress, onError } = this.options;
-        if (this.done) {
-            return {
-                current: this.current,
-                total: this.current,
-                done: this.done,
-                items: []
-            };
-        }
-        const page = await this._requestPage();
-        const result = this._parsePage(page);
-        let { current, items, total, done, error } = result;
-        onProgress(items, current, total);
-        if (error) {
-            onError(error);
-        }
-        return {
-            current,
-            items,
-            total,
-            done
-        };
-    }
+    async userLocationService() {
+      return rev.get("/api/v2/user-location");
+    },
     /**
-     * update internal variables based on API response
-     * @param page
+     * returns an array of all expiration rules
+     */
+    async expirationRules() {
+      return rev.get("/api/v2/expiration-rules");
+    }
+  };
+  return adminAPI;
+}
+
+// src/utils/parse-csv.ts
+function parseCSV(raw) {
+  raw = raw.replace(/(\r\n|\n|\r)/gm, "\n").replace(/\n$/g, "");
+  let cur = "";
+  let inQuote = false;
+  let fieldQuoted = false;
+  let field = "";
+  let row = [];
+  let out = [];
+  let i;
+  const n = raw.length;
+  function processField(field2) {
+    if (fieldQuoted) {
+      return field2;
+    }
+    if (field2 === "") {
+      return void 0;
+    }
+    return field2.trim();
+  }
+  for (i = 0; i < n; i += 1) {
+    cur = raw.charAt(i);
+    if (!inQuote && (cur === "," || cur === "\n")) {
+      field = processField(field);
+      row.push(field);
+      if (cur === "\n") {
+        out.push(row);
+        row = [];
+      }
+      field = "";
+      fieldQuoted = false;
+    } else if (cur === '"') {
+      if (!inQuote) {
+        inQuote = true;
+        fieldQuoted = true;
+      } else {
+        if (raw.charAt(i + 1) === '"') {
+          field += '"';
+          i += 1;
+        } else {
+          inQuote = false;
+        }
+      }
+    } else {
+      field += cur === "\n" ? "\n" : cur;
+    }
+  }
+  field = processField(field);
+  row.push(field);
+  out.push(row);
+  const headers = out.shift();
+  return out.map((line) => {
+    const obj = {};
+    line.forEach((field2, i2) => {
+      if (field2 !== void 0) {
+        obj[headers[i2]] = field2;
+      }
+    });
+    return obj;
+  });
+}
+
+// src/api/audit-request.ts
+function parseEntry(line) {
+  return {
+    messageKey: line["MessageKey"],
+    entityKey: line["EntityKey"],
+    when: line["When"],
+    principal: tryParseJson(line["Principal"]) || {},
+    message: tryParseJson(line["Message"]) || {},
+    currentState: tryParseJson(line["CurrentState"]) || {},
+    previousState: tryParseJson(line["PreviousState"]) || {}
+  };
+}
+var AuditRequest = class extends PagedRequest {
+  constructor(rev, endpoint, label = "audit records", { toDate, fromDate, ...options } = {}) {
+    super({
+      onProgress: (items, current, total) => {
+        rev.log("debug", `loading ${label}, ${current} of ${total}...`);
+      },
+      ...options
+    });
+    const { from, to } = this._parseDates(fromDate, toDate);
+    this.params = {
+      toDate: to.toISOString(),
+      fromDate: from.toISOString()
+    };
+    this._req = this._buildReqFunction(rev, endpoint);
+  }
+  _requestPage() {
+    return this._req();
+  }
+  _buildReqFunction(rev, endpoint) {
+    return async () => {
+      const response = await rev.request("GET", endpoint, { params: this.params }, { responseType: "text" });
+      const {
+        body,
+        headers
+      } = response;
+      let items = parseCSV(body).map((line) => parseEntry(line));
+      const total = parseInt(headers.get("totalRecords") || "", 10);
+      Object.assign(this.params, {
+        nextContinuationToken: headers.get("nextContinuationToken") || void 0,
+        fromDate: headers.get("nextfromDate") || void 0
+      });
+      let done = !this.params.nextContinuationToken;
+      return {
+        items,
+        total,
+        done
+      };
+    };
+  }
+  _parseDates(fromDate, toDate) {
+    let to = asValidDate(toDate, /* @__PURE__ */ new Date());
+    const defaultFrom = new Date(to.setFullYear(to.getFullYear() - 1));
+    let from = asValidDate(fromDate, defaultFrom);
+    if (to < from) {
+      [to, from] = [from, to];
+    }
+    return { from, to };
+  }
+};
+
+// src/api/audit.ts
+function auditAPIFactory(rev) {
+  const auditAPI = {
+    /**
+    * Logs of user login / logout / failed login activity
+    */
+    accountAccess(accountId, options) {
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess`, "UserAccess", options);
+    },
+    userAccess(userId, accountId, options) {
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess/${userId}`, `UserAccess_${userId}`, options);
+    },
+    /**
+    * Operations on User Records (create, delete, etc)
+    */
+    accountUsers(accountId, options) {
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/users`, "User", options);
+    },
+    user(userId, accountId, options) {
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/users/${userId}`, "User", options);
+    },
+    /**
+    * Operations on Group Records (create, delete, etc)
+    */
+    accountGroups(accountId, options) {
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/groups`, "Groups", options);
+    },
+    group(groupId, accountId, options) {
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/groups/${groupId}`, "Group", options);
+    },
+    /**
+    * Operations on Device Records (create, delete, etc)
+    */
+    accountDevices(accountId, options) {
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/devices`, "Devices", options);
+    },
+    device(deviceId, accountId, options) {
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/devices/${deviceId}`, "Device", options);
+    },
+    /**
+    * Operations on Video Records (create, delete, etc)
+    */
+    accountVideos(accountId, options) {
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/videos`, "Videos", options);
+    },
+    video(videoId, accountId, options) {
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/videos/${videoId}`, "Video", options);
+    },
+    /**
+    * Operations on Webcast Records (create, delete, etc)
+    */
+    accountWebcasts(accountId, options) {
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/scheduledEvents`, "Webcasts", options);
+    },
+    webcast(eventId, accountId, options) {
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/scheduledEvents/${eventId}`, `Webcast`, options);
+    },
+    /**
+    * All operations a single user has made
+    */
+    principal(userId, accountId, options) {
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/principals/${userId}`, "Principal", options);
+    }
+  };
+  return auditAPI;
+}
+
+// src/api/oauth.ts
+var PLACEHOLDER = "http://rev";
+function getOAuth2AuthorizationUrl(config, code_challenge, state) {
+  const url = new URL("/api/v2/oauth2/authorize", config.revUrl);
+  url.search = new URLSearchParams({
+    client_id: config.oauthApiKey,
+    code_challenge,
+    response_type: "code",
+    redirect_uri: config.redirectUri,
+    ...state && { state }
+  }).toString();
+  return url.toString();
+}
+async function getOAuth2PKCEVerifier(codeVerifier = interop_default.randomValues(48)) {
+  const codeChallenge = await interop_default.sha256Hash(codeVerifier);
+  return { codeVerifier, codeChallenge };
+}
+async function buildLegacyOAuthQuery(config, oauthSecret, state = "1") {
+  const { hmacSign: hmacSign2 } = interop_default;
+  const RESPONSE_TYPE = "code";
+  const {
+    oauthApiKey: apiKey,
+    redirectUri
+  } = config;
+  const timestamp = /* @__PURE__ */ new Date();
+  const verifier = `${apiKey}::${timestamp.toISOString()}`;
+  const signature = await hmacSign2(verifier, oauthSecret);
+  return {
+    apiKey,
+    signature,
+    verifier,
+    "redirect_uri": redirectUri,
+    "response_type": RESPONSE_TYPE,
+    state
+  };
+}
+function parseLegacyOAuthRedirectResponse(url) {
+  if (typeof url === "string") {
+    url = new URL(url, PLACEHOLDER);
+  }
+  if (url instanceof URL) {
+    url = url.searchParams;
+  }
+  const query = url instanceof URLSearchParams ? Object.fromEntries(url) : url;
+  const {
+    "auth_code": authCode = "",
+    state = "",
+    error = void 0
+  } = query;
+  return {
+    isSuccess: !error,
+    // URL parsing parses pluses (+) as spaces, which can cause later validation to fail
+    authCode: `${authCode}`.replace(/ /g, "+"),
+    state,
+    error
+  };
+}
+
+// src/api/auth.ts
+function authAPIFactory(rev) {
+  const authAPI = {
+    async loginToken(apiKey, secret) {
+      return rev.post("/api/v2/authenticate", {
+        apiKey,
+        secret
+      });
+    },
+    async extendSessionToken(apiKey) {
+      return rev.post(`/api/v2/auth/extend-session-timeout/${apiKey}`);
+    },
+    async logoffToken(apiKey) {
+      return rev.delete(`/api/v2/tokens/${apiKey}`);
+    },
+    async loginUser(username, password) {
+      return rev.post("/api/v2/user/login", {
+        username,
+        password
+      });
+    },
+    async logoffUser(userId) {
+      return rev.post("/api/v2/user/logoff", { userId });
+    },
+    async extendSessionUser(userId) {
+      return rev.post("/api/v2/user/extend-session-timeout", { userId });
+    },
+    async loginJWT(jwtToken) {
+      return rev.get("/api/v2/jwtauthenticate", { jwt_token: jwtToken });
+    },
+    async extendSession() {
+      return rev.post("/api/v2/user/extend-session");
+    },
+    async verifySession() {
+      return rev.get("/api/v2/user/session");
+    },
+    /**
+     * @deprecated - use logoffUser - put here because it's a common misspelling
+     */
+    get logoutUser() {
+      return authAPI.logoffUser;
+    },
+    /**
+     * @deprecated - use logoffToken - put here because it's a common misspelling
+     */
+    get logoutToken() {
+      return authAPI.logoffToken;
+    },
+    /**
+     * generate the Authorization URL for the OAuth2 flow as well as the codeVerifier for the
+     * subsequent Access Token request. You *must* store the codeVerifier somehow (i.e. serverside database matched to user's state/cookies/session, or on browser SessionStorage) to be able to complete the OAuth2 login flow.
+     * @param config OAuth signing settings, retrieved from Rev Admin -> Security -> API Keys page
+     * @param oauthSecret Secret from Rev Admin -> Security. This is a DIFFERENT value from the
+     *                    User Secret used for API login. Do not expose client-side!
+     * @param state optional state to pass back to redirectUri once complete
+     * @param verifier the code_verifier to use when generating the code challenge. Can be any string 43-128 characters in length, just these characters: [A-Za-z0-9._~-]. If not provided then code will automatically generate a suitable value
+     * @returns A valid oauth flow URL + the code_verifier to save for later verification
+     */
+    async buildOAuth2Authentication(config, state = "1", verifier) {
+      const { codeChallenge, codeVerifier } = await getOAuth2PKCEVerifier(verifier);
+      const url = getOAuth2AuthorizationUrl(config, codeChallenge, state);
+      return {
+        url: `${url}`,
+        codeVerifier
+      };
+    },
+    async loginOAuth2(config, code, codeVerifier) {
+      return rev.post("/api/v2/oauth2/token", {
+        // sometimes the authCode can get mangled, with the pluses in the code being replaced by spaces.
+        code: code.replace(/ /g, "+"),
+        client_id: config.oauthApiKey,
+        grant_type: "authorization_code",
+        redirect_uri: config.redirectUri,
+        code_verifier: codeVerifier
+      });
+    },
+    /**
+     * @deprecated
+     * @param config OAuth signing settings, retrieved from Rev Admin -> Security -> API Keys page
+     * @param oauthSecret Secret from Rev Admin -> Security. This is a DIFFERENT value from the
+     *                    User Secret used for API login. Do not expose client-side!
+     * @param state optional state to pass back to redirectUri once complete
+     * @returns A valid oauth flow URL
+     */
+    async buildOAuthAuthenticationURL(config, oauthSecret, state = "1") {
+      const query = await buildLegacyOAuthQuery(config, oauthSecret, state);
+      const url = new URL("/api/v2/oauth/authorization", rev.url);
+      url.search = `${new URLSearchParams(query)}`;
+      return `${url}`;
+    },
+    /**
+     * @deprecated
+     */
+    buildOAuthAuthenticationQuery: buildLegacyOAuthQuery,
+    /**
+     * @deprecated
+     */
+    parseOAuthRedirectResponse: parseLegacyOAuthRedirectResponse,
+    /**
+     * @deprecated
+     * @param config
+     * @param authCode
      * @returns
      */
-    _parsePage(page) {
-        const { maxResults } = this.options;
-        let { items = [], done = this.done, total, pageCount, error, } = page;
-        // let request function set done status
-        if (done) {
-            this.done = true;
-        }
-        // update total
-        if (isFinite(total)) {
-            this.total = Math.min(total, maxResults);
-        }
-        if (!pageCount) {
-            pageCount = items.length;
-        }
-        const current = this.current;
-        // limit results to specified max results
-        if (current + pageCount >= maxResults) {
-            pageCount = maxResults - current;
-            items = items.slice(0, pageCount);
-            this.done = true;
-        }
-        this.current += pageCount;
-        if (this.current === this.total) {
-            this.done = true;
-        }
-        if (this.done) {
-            // set total to current for results where not otherwise known in advance
-            this.total = this.current;
-        }
-        if (error) {
-            this.done = true;
-        }
-        return {
-            current,
-            total: this.total,
-            done: this.done,
-            error,
-            items
-        };
-    }
-    /**
-     * Go through all pages of results and return as an array.
-     * TIP: Use the {maxResults} option to limit the maximum number of results
-     *
-     */
-    async exec() {
-        const results = [];
-        // use async iterator
-        for await (let hit of this) {
-            results.push(hit);
-        }
-        return results;
-    }
-    async *[Symbol.asyncIterator]() {
-        do {
-            const { items } = await this.nextPage();
-            for await (let hit of items) {
-                yield hit;
-            }
-        } while (!this.done);
-    }
-}
-
-async function decodeBody(response, acceptType) {
-    const contentType = response.headers.get('Content-Type') || acceptType || '';
-    if (contentType.startsWith('application/json')) {
-        try {
-            return await response.json();
-        }
-        catch (err) {
-            // keep going
-        }
-    }
-    if (contentType.startsWith('text')) {
-        return response.text();
-    }
-    return response.body;
-}
-/**
- * Interface to iterate through results from API endpoints that return results in pages.
- * Use in one of three ways:
- * 1) Get all results as an array: await request.exec() == <array>
- * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
- * 3) Use for await to get all results one at a time: for await (let hit of request) { }
- */
-class SearchRequest extends PagedRequest {
-    constructor(rev, searchDefinition, query = {}, options = {}) {
-        super({
-            onProgress: (items, current, total) => {
-                const { hitsKey } = searchDefinition;
-                rev.log('debug', `searching ${hitsKey}, ${current}-${current + items.length} of ${total}...`);
-            },
-            onError: (err => { throw err; }),
-            ...options
-        });
-        // make copy of query object
-        const { scrollId: _ignore, ...queryOpt } = query;
-        this.query = queryOpt;
-        this._reqImpl = this._buildReqFunction(rev, searchDefinition);
-        this.current = 0;
-        this.total = Infinity;
-        this.done = false;
-    }
-    _requestPage() {
-        return this._reqImpl();
-    }
-    _buildReqFunction(rev, searchDefinition) {
-        const { endpoint, totalKey, hitsKey, isPost = false, request, transform } = searchDefinition;
-        const requestFn = request || (isPost
-            ? rev.post.bind(rev)
-            : rev.get.bind(rev));
-        return async () => {
-            const response = await requestFn(endpoint, this.query, { responseType: 'json' });
-            let { scrollId, [totalKey]: total, [hitsKey]: rawItems = [], statusCode, statusDescription } = response;
-            let done = false;
-            this.query.scrollId = scrollId;
-            if (!scrollId) {
-                done = true;
-            }
-            const items = (typeof transform === 'function')
-                ? await Promise.resolve(transform(rawItems))
-                : rawItems;
-            // check for error response
-            const error = (statusCode >= 400 && !!statusDescription)
-                ? new ScrollError(statusCode, statusDescription)
-                : undefined;
-            return {
-                total,
-                done,
-                pageCount: rawItems.length,
-                items,
-                error
-            };
-        };
-    }
-}
-
-function adminAPIFactory(rev) {
-    let roles;
-    let customFields;
-    const adminAPI = {
-        /**
-        * get mapping of role names to role IDs
-        * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
-        */
-        async roles(cache = true) {
-            // retrieve from cached values if already stored. otherwise get from API
-            // if cache is 'Force' then refresh from
-            if (roles && cache === true) {
-                return roles;
-            }
-            const response = await rev.get('/api/v2/users/roles');
-            if (cache) {
-                roles = response;
-            }
-            return response;
-        },
-        /**
-        * Get a Role (with the role id) based on its name
-        * @param name Name of the Role, i.e. "Media Viewer"
-        * @param fromCache - if true then use previously cached Role listing (more efficient)
-        */
-        async getRoleByName(name, fromCache = true) {
-            const roles = await adminAPI.roles(fromCache);
-            const role = roles.find(r => r.name === name);
-            if (!role) {
-                throw new TypeError(`Invalid Role Name ${name}. Valid values are: ${roles.map(r => r.name).join(', ')}`);
-            }
-            return {
-                id: role.id,
-                name: role.name
-            };
-        },
-        /**
-        * get list of custom fields
-        * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
-        */
-        async customFields(cache = true) {
-            // retrieve from cached values if already stored. otherwise get from API
-            // if cache is 'Force' then refresh from
-            if (customFields && cache === true) {
-                return customFields;
-            }
-            const response = await rev.get('/api/v2/video-fields', undefined, { responseType: 'json' });
-            if (cache) {
-                customFields = response;
-            }
-            return response;
-        },
-        /**
-        * Get a Custom Field based on its name
-        * @param name name of the Custom Field
-        * @param fromCache if true then use previously cached Role listing (more efficient)
-        */
-        async getCustomFieldByName(name, fromCache = true) {
-            const customFields = await adminAPI.customFields(fromCache);
-            const field = customFields.find(cf => cf.name === name);
-            if (!field) {
-                throw new TypeError(`Invalid Custom Field Name ${name}. Valid values are: ${customFields.map(cf => cf.name).join(', ')}`);
-            }
-            return field;
-        },
-        async brandingSettings() {
-            return rev.get('/api/v2/accounts/branding-settings');
-        },
-        async webcastRegistrationFields() {
-            const response = await rev.get('/api/v2/accounts/webcast-registration-fields');
-            return response.registrationFields;
-        },
-        async createWebcastRegistrationField(registrationField) {
-            const response = await rev.post('/api/v2/accounts/webcast-registration-fields', registrationField);
-            return response.fieldId;
-        },
-        async updateWebcastRegistrationField(fieldId, registrationField) {
-            return rev.put(`/api/v2/accounts/webcast-registration-fields/${fieldId}`, registrationField);
-        },
-        async deleteWebcastRegistrationField(fieldId) {
-            return rev.delete(`/api/v2/accounts/webcast-registration-fields/${fieldId}`);
-        },
-        listIQCreditsUsage(query, options) {
-            const searchDefinition = {
-                endpoint: `/api/v2/analytics/accounts/iq-credits-usage`,
-                totalKey: 'total',
-                hitsKey: 'sessions'
-            };
-            return new SearchRequest(rev, searchDefinition, query, options);
-        },
-        /**
-        * get system health - returns 200 if system is active and responding, otherwise throws error
-        */
-        async verifySystemHealth() {
-            await rev.get('/api/v2/system-health');
-            return true;
-        },
-        /**
-        * gets list of scheduled maintenance windows
-        */
-        async maintenanceSchedule() {
-            const { schedules } = await rev.get('/api/v2/maintenance-schedule');
-            return schedules;
-        }
-    };
-    return adminAPI;
-}
-
-/**
- * simple helper function to parse CSV data into JSON
- */
-function parseCSV(raw) {
-    raw = raw.replace(/(\r\n|\n|\r)/gm, '\n').replace(/\n$/g, '');
-    let cur = '';
-    let inQuote = false;
-    let fieldQuoted = false;
-    let field = '';
-    let row = [];
-    let out = [];
-    let i;
-    const n = raw.length;
-    function processField(field) {
-        if (fieldQuoted) {
-            return field;
-        }
-        if (field === '') {
-            return undefined;
-        }
-        return field.trim();
-    }
-    for (i = 0; i < n; i += 1) {
-        cur = raw.charAt(i);
-        if (!inQuote && (cur === ',' || cur === '\n')) {
-            field = processField(field);
-            row.push(field);
-            if (cur === '\n') {
-                out.push(row);
-                row = [];
-            }
-            field = '';
-            fieldQuoted = false;
-        }
-        else if (cur === '"') {
-            if (!inQuote) {
-                inQuote = true;
-                fieldQuoted = true;
-            }
-            else {
-                if (raw.charAt(i + 1) === '"') {
-                    field += '"';
-                    i += 1;
-                }
-                else {
-                    inQuote = false;
-                }
-            }
-        }
-        else {
-            field += cur === '\n' ? '\n' : cur;
-        }
-    }
-    // Add the last field
-    field = processField(field);
-    row.push(field);
-    out.push(row);
-    const headers = out.shift();
-    return out
-        .map((line) => {
-        const obj = {};
-        line
-            .forEach((field, i) => {
-            if (field !== undefined) {
-                obj[headers[i]] = field;
-            }
-        });
-        return obj;
-    });
-}
-
-function parseEntry(line) {
-    return {
-        messageKey: line['MessageKey'],
-        entityKey: line['EntityKey'],
-        when: line['When'],
-        principal: tryParseJson(line['Principal']) || {},
-        message: tryParseJson(line['Message']) || {},
-        currentState: tryParseJson(line['CurrentState']) || {},
-        previousState: tryParseJson(line['PreviousState']) || {}
-    };
-}
-class AuditRequest extends PagedRequest {
-    constructor(rev, endpoint, label = 'audit records', { toDate, fromDate, ...options } = {}) {
-        super({
-            onProgress: (items, current, total) => {
-                rev.log('debug', `loading ${label}, ${current} of ${total}...`);
-            },
-            ...options
-        });
-        const { from, to } = this._parseDates(fromDate, toDate);
-        this.params = {
-            toDate: to.toISOString(),
-            fromDate: from.toISOString()
-        };
-        this._req = this._buildReqFunction(rev, endpoint);
-    }
-    _requestPage() { return this._req(); }
-    _buildReqFunction(rev, endpoint) {
-        return async () => {
-            const response = await rev.request('GET', endpoint, { params: this.params }, { responseType: 'text' });
-            const { body, headers } = response;
-            let items = parseCSV(body)
-                .map(line => parseEntry(line));
-            const total = parseInt(headers.get('totalRecords') || '', 10);
-            Object.assign(this.params, {
-                nextContinuationToken: headers.get('nextContinuationToken') || undefined,
-                fromDate: headers.get('nextfromDate') || undefined
-            });
-            let done = !this.params.nextContinuationToken;
-            return {
-                items,
-                total,
-                done
-            };
-        };
-    }
-    _parseDates(fromDate, toDate) {
-        let to = asValidDate(toDate, new Date());
-        // default to one year older than toDate
-        const defaultFrom = new Date(to.setFullYear(to.getFullYear() - 1));
-        let from = asValidDate(fromDate, defaultFrom);
-        if (to < from) {
-            [to, from] = [from, to];
-        }
-        return { from, to };
-    }
-}
-
-function auditAPIFactory(rev) {
-    const auditAPI = {
-        /**
-        * Logs of user login / logout / failed login activity
-        */
-        accountAccess(accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess`, 'UserAccess', options);
-        },
-        userAccess(userId, accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess/${userId}`, `UserAccess_${userId}`, options);
-        },
-        /**
-        * Operations on User Records (create, delete, etc)
-        */
-        accountUsers(accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/users`, 'User', options);
-        },
-        user(userId, accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/users/${userId}`, 'User', options);
-        },
-        /**
-        * Operations on Group Records (create, delete, etc)
-        */
-        accountGroups(accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/groups`, 'Groups', options);
-        },
-        group(groupId, accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/groups/${groupId}`, 'Group', options);
-        },
-        /**
-        * Operations on Device Records (create, delete, etc)
-        */
-        accountDevices(accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/devices`, 'Devices', options);
-        },
-        device(deviceId, accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/devices/${deviceId}`, 'Device', options);
-        },
-        /**
-        * Operations on Video Records (create, delete, etc)
-        */
-        accountVideos(accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/videos`, 'Videos', options);
-        },
-        video(videoId, accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/videos/${videoId}`, 'Video', options);
-        },
-        /**
-        * Operations on Webcast Records (create, delete, etc)
-        */
-        accountWebcasts(accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/scheduledEvents`, 'Webcasts', options);
-        },
-        webcast(eventId, accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/scheduledEvents/${eventId}`, `Webcast`, options);
-        },
-        /**
-        * All operations a single user has made
-        */
-        principal(userId, accountId, options) {
-            return new AuditRequest(rev, `/network/audit/accounts/${accountId}/principals/${userId}`, 'Principal', options);
-        }
-    };
-    return auditAPI;
-}
-
-const PLACEHOLDER = 'http://rev';
-/**
- * Constructs the query parameters for the Rev /oauth/authorization endpoint
- * @param config OAuth signing settings, retrieved from Rev Admin -> Security -> API Keys page, along with revUrl
- * @param state optional state to pass back to redirectUri once complete
- * @returns A valid oauth flow endpoint + query
- */
-async function buildOAuthAuthenticationQuery(config, oauthSecret, state = '1') {
-    const { hmacSign } = polyfills;
-    const RESPONSE_TYPE = 'code';
-    const { oauthApiKey: apiKey, redirectUri } = config;
-    const timestamp = new Date();
-    const verifier = `${apiKey}::${timestamp.toISOString()}`;
-    const signature = await hmacSign(verifier, oauthSecret);
-    return {
+    async loginOAuth(config, authCode) {
+      const GRANT_AUTH = "authorization_code";
+      const {
+        oauthApiKey: apiKey,
+        redirectUri
+      } = config;
+      authCode = authCode.replace(/ /g, "+");
+      return rev.post("/api/v2/oauth/token", {
+        authCode,
         apiKey,
-        signature,
-        verifier,
-        'redirect_uri': redirectUri,
-        'response_type': RESPONSE_TYPE,
-        state
-    };
-}
-/**
- * Parse the query parameters returned to the redirectUri from Rev
- * @param url The URL with query parameters, or object with the query parrameters
- * @returns
- */
-function parseOAuthRedirectResponse(url) {
-    if (typeof url === 'string') {
-        // just in case only the query string is returned, include base
-        url = new URL(url, PLACEHOLDER);
-    }
-    if (url instanceof URL) {
-        url = url.searchParams;
-    }
-    const query = (url instanceof URLSearchParams)
-        ? Object.fromEntries(url)
-        : url;
-    const { 'auth_code': authCode = '', state = '', error = undefined } = query;
-    return {
-        isSuccess: !error,
-        // URL parsing parses pluses (+) as spaces, which can cause later validation to fail
-        authCode: `${authCode}`.replace(/ /g, '+'),
-        state,
-        error
-    };
-}
-
-function authAPIFactory(rev) {
-    const authAPI = {
-        async loginToken(apiKey, secret) {
-            return rev.post('/api/v2/authenticate', {
-                apiKey,
-                secret
-            });
-        },
-        async extendSessionToken(apiKey) {
-            return rev.post(`/api/v2/auth/extend-session-timeout/${apiKey}`);
-        },
-        async logoffToken(apiKey) {
-            return rev.delete(`/api/v2/tokens/${apiKey}`);
-        },
-        async loginUser(username, password) {
-            return rev.post('/api/v2/user/login', {
-                username,
-                password
-            });
-        },
-        async logoffUser(userId) {
-            return rev.post('/api/v2/user/logoff', { userId });
-        },
-        async extendSessionUser(userId) {
-            return rev.post('/api/v2/user/extend-session-timeout', { userId });
-        },
-        async verifySession() {
-            return rev.get('/api/v2/user/session');
-        },
-        /**
-         * @deprecated - use logoffUser - put here because it's a common misspelling
-         */
-        get logoutUser() { return authAPI.logoffUser; },
-        /**
-         * @deprecated - use logoffToken - put here because it's a common misspelling
-         */
-        get logoutToken() { return authAPI.logoffToken; },
-        /**
-         *
-         * @param config OAuth signing settings, retrieved from Rev Admin -> Security -> API Keys page
-         * @param oauthSecret Secret from Rev Admin -> Security. This is a DIFFERENT value from the
-         *                    User Secret used for API login. Do not expose client-side!
-         * @param state optional state to pass back to redirectUri once complete
-         * @returns A valid oauth flow URL
-         */
-        async buildOAuthAuthenticationURL(config, oauthSecret, state = '1') {
-            const query = await buildOAuthAuthenticationQuery(config, oauthSecret, state);
-            const url = new URL('/oauth/authorization', rev.url);
-            url.search = `${new URLSearchParams(query)}`;
-            return `${url}`;
-        },
-        buildOAuthAuthenticationQuery,
-        parseOAuthRedirectResponse,
-        async loginOAuth(config, authCode) {
-            const GRANT_AUTH = 'authorization_code';
-            const { oauthApiKey: apiKey, redirectUri } = config;
-            // sometimes the authCode can get mangled, with the pluses in the code
-            // being replaced by spaces. This is just to make sure that isn't a problem (even though already done in parseOAuthRedirectResponse)
-            authCode = authCode.replace(/ /g, '+');
-            // COMBAK I don't think it matters if rev-client is logged in and passing Authorization headers or not.
-            return rev.post('/oauth/token', {
-                authCode,
-                apiKey,
-                redirectUri,
-                grantType: GRANT_AUTH
-            });
-        },
-        async extendSessionOAuth(config, refreshToken) {
-            const GRANT_REFRESH = 'refresh_token';
-            const { oauthApiKey: apiKey } = config;
-            return rev.post('/oauth/token', {
-                apiKey,
-                refreshToken,
-                grantType: GRANT_REFRESH
-            });
-        }
-    };
-    return authAPI;
-}
-
-function categoryAPIFactory(rev) {
-    const categoryAPI = {
-        async create(category) {
-            return rev.post('/api/v2/categories', category, { responseType: 'json' });
-        },
-        async details(categoryId) {
-            return rev.get(`/api/v2/categories/${categoryId}`, undefined, { responseType: 'json' });
-        },
-        async update(categoryId, category) {
-            return rev.put(`/api/v2/categories/${categoryId}`, category);
-        },
-        async delete(categoryId) {
-            return rev.delete(`/api/v2/categories/${categoryId}`);
-        },
-        /**
-         * get list of categories in system
-         * @see {@link https://revdocs.vbrick.com/reference#getcategories}
-         */
-        async list(parentCategoryId, includeAllDescendants) {
-            // only pass parameters if defined
-            const payload = Object.assign({}, parentCategoryId && { parentCategoryId }, includeAllDescendants != undefined && { includeAllDescendants });
-            const { categories } = await rev.get('/api/v2/categories', payload, { responseType: 'json' });
-            return categories;
-        }
-    };
-    return categoryAPI;
-}
-
-function channelAPIFactory(rev) {
-    const channelAPI = {
-        async create(channel) {
-            const { channelId } = await rev.post('/api/v2/channels', channel, { responseType: 'json' });
-            return channelId;
-        },
-        async update(channelId, channel) {
-            return rev.put(`/api/v2/channels/${channelId}`, channel);
-        },
-        async delete(channelId) {
-            return rev.delete(`/api/v2/channels/${channelId}`);
-        },
-        /**
-         * get list of channels in system
-         * @see {@link https://revdocs.vbrick.com/reference/getchannels}
-         */
-        list(start = 0, options = {}) {
-            return new ChannelListRequest(rev, start, options);
-        },
-        async addMembers(channelId, members) {
-            const operations = members
-                .map(member => {
-                return { op: 'add', path: '/Members/-', value: member };
-            });
-            await rev.patch(`/api/v2/channels/${channelId}`, operations);
-        },
-        async removeMembers(channelId, members) {
-            const operations = members
-                .map(member => {
-                const entityId = typeof member === 'string'
-                    ? member
-                    : member.id;
-                return { op: 'remove', path: '/Members', value: entityId };
-            });
-            await rev.patch(`/api/v2/channels/${channelId}`, operations);
-        }
-    };
-    return channelAPI;
-}
-class ChannelListRequest {
-    constructor(rev, start = 0, options = {}) {
-        this.options = {
-            maxResults: Infinity,
-            pageSize: 10,
-            onProgress: (items, current, total) => {
-                rev.log('debug', `loading channels, ${current} of ${total}...`);
-            },
-            ...options
-        };
-        this.current = 0;
-        this.total = Infinity;
-        this.done = false;
-        this.currentPage = start;
-        this._req = () => {
-            const params = {
-                page: this.currentPage,
-                count: this.options.pageSize
-            };
-            return rev.get('/api/v2/channels', params, { responseType: 'json' });
-        };
-    }
-    async nextPage() {
-        const { maxResults, onProgress } = this.options;
-        let current = this.current;
-        let items = await this._req();
-        if (!Array.isArray(items) || items.length == 0) {
-            this.done = true;
-            items = [];
-        }
-        if (current + items.length >= maxResults) {
-            const delta = maxResults - current;
-            items = items.slice(0, delta);
-            this.done = true;
-        }
-        this.total = current + items.length;
-        onProgress(items, current, this.total);
-        this.current += items.length;
-        this.currentPage += 1;
-        return {
-            current,
-            total: this.total,
-            done: this.done,
-            items
-        };
-    }
+        redirectUri,
+        grantType: GRANT_AUTH
+      });
+    },
     /**
-     * Go through all pages of results and return as an array.
-     * TIP: Use the {maxResults} option to limit the maximum number of results
-     *
+     * @deprecated
+     * @param config
+     * @param refreshToken
+     * @returns
      */
-    async exec() {
-        const results = [];
-        // use async iterator
-        for await (let hit of this) {
-            results.push(hit);
-        }
-        return results;
+    async extendSessionOAuth(config, refreshToken) {
+      const GRANT_REFRESH = "refresh_token";
+      const {
+        oauthApiKey: apiKey
+      } = config;
+      return rev.post("/api/v2/oauth/token", {
+        apiKey,
+        refreshToken,
+        grantType: GRANT_REFRESH
+      });
     }
-    async *[Symbol.asyncIterator]() {
-        do {
-            const { items } = await this.nextPage();
-            for await (let hit of items) {
-                yield hit;
-            }
-        } while (!this.done);
-    }
+  };
+  return authAPI;
 }
 
+// src/api/category.ts
+function categoryAPIFactory(rev) {
+  const categoryAPI = {
+    async create(category) {
+      return rev.post("/api/v2/categories", category, { responseType: "json" });
+    },
+    async details(categoryId) {
+      return rev.get(`/api/v2/categories/${categoryId}`, void 0, { responseType: "json" });
+    },
+    async update(categoryId, category) {
+      return rev.put(`/api/v2/categories/${categoryId}`, category);
+    },
+    async delete(categoryId) {
+      return rev.delete(`/api/v2/categories/${categoryId}`);
+    },
+    /**
+     * get list of categories in system
+     * @see {@link https://revdocs.vbrick.com/reference#getcategories}
+     */
+    async list(parentCategoryId, includeAllDescendants) {
+      const payload = Object.assign(
+        {},
+        parentCategoryId && { parentCategoryId },
+        includeAllDescendants != void 0 && { includeAllDescendants }
+      );
+      const { categories } = await rev.get("/api/v2/categories", payload, { responseType: "json" });
+      return categories;
+    },
+    /**
+     * get list of categories that current user has ability to add videos to
+     */
+    async listAssignable() {
+      return rev.get("/api/v2/assignable-categories");
+    }
+  };
+  return categoryAPI;
+}
+
+// src/api/channel.ts
+function channelAPIFactory(rev) {
+  const channelAPI = {
+    async create(channel) {
+      const { channelId } = await rev.post("/api/v2/channels", channel, { responseType: "json" });
+      return channelId;
+    },
+    async update(channelId, channel) {
+      return rev.put(`/api/v2/channels/${channelId}`, channel);
+    },
+    async delete(channelId) {
+      return rev.delete(`/api/v2/channels/${channelId}`);
+    },
+    /**
+     * get list of channels in system
+     * @see {@link https://revdocs.vbrick.com/reference/getchannels}
+     */
+    list(start = 0, options = {}) {
+      return new ChannelListRequest(rev, start, options);
+    },
+    async addMembers(channelId, members) {
+      const operations = members.map((member) => {
+        return { op: "add", path: "/Members/-", value: member };
+      });
+      await rev.patch(`/api/v2/channels/${channelId}`, operations);
+    },
+    async removeMembers(channelId, members) {
+      const operations = members.map((member) => {
+        const entityId = typeof member === "string" ? member : member.id;
+        return { op: "remove", path: "/Members", value: entityId };
+      });
+      await rev.patch(`/api/v2/channels/${channelId}`, operations);
+    }
+  };
+  return channelAPI;
+}
+var ChannelListRequest = class {
+  constructor(rev, start = 0, options = {}) {
+    this.options = {
+      maxResults: Infinity,
+      pageSize: 10,
+      onProgress: (items, current, total) => {
+        rev.log("debug", `loading channels, ${current} of ${total}...`);
+      },
+      ...options
+    };
+    this.current = 0;
+    this.total = Infinity;
+    this.done = false;
+    this.currentPage = start;
+    this._req = () => {
+      const params = {
+        page: this.currentPage,
+        size: this.options.pageSize
+      };
+      return rev.get("/api/v2/channels", params, { responseType: "json" });
+    };
+  }
+  async nextPage() {
+    const {
+      maxResults,
+      onProgress
+    } = this.options;
+    let current = this.current;
+    let items = await this._req();
+    if (!Array.isArray(items) || items.length == 0) {
+      this.done = true;
+      items = [];
+    }
+    if (current + items.length >= maxResults) {
+      const delta = maxResults - current;
+      items = items.slice(0, delta);
+      this.done = true;
+    }
+    this.total = current + items.length;
+    onProgress(items, current, this.total);
+    this.current += items.length;
+    this.currentPage += 1;
+    return {
+      current,
+      total: this.total,
+      done: this.done,
+      items
+    };
+  }
+  /**
+   * Go through all pages of results and return as an array.
+   * TIP: Use the {maxResults} option to limit the maximum number of results
+   *
+   */
+  async exec() {
+    const results = [];
+    for await (let hit of this) {
+      results.push(hit);
+    }
+    return results;
+  }
+  async *[Symbol.asyncIterator]() {
+    do {
+      const {
+        items
+      } = await this.nextPage();
+      for await (let hit of items) {
+        yield hit;
+      }
+    } while (!this.done);
+  }
+};
+
+// src/api/device.ts
 function deviceAPIFactory(rev) {
-    const deviceAPI = {
-        async listDMEs() {
-            const response = await rev.get('/api/v2/devices/dmes');
-            return response.devices;
-        },
-        async listZoneDevices() {
-            const response = await rev.get('/api/v2/zonedevices');
-            return response.devices;
-        },
-        async listPresentationProfiles() {
-            return rev.get('/api/v2/presentation-profiles');
-        },
-        async add(dme) {
-            return rev.post('/api/v2/devices/dmes', dme);
-        },
-        async healthStatus(deviceId) {
-            return rev.get(`/api/v2/devices/dmes/${deviceId}/health-status`);
-        },
-        async delete(deviceId) {
-            return rev.delete(`/api/v2/devices/dmes/${deviceId}`);
-        },
-        async rebootDME(deviceId) {
-            return rev.put(`/api/v2/devices/dmes/${deviceId}`);
-        }
-    };
-    return deviceAPI;
+  const deviceAPI = {
+    async listDMEs() {
+      const response = await rev.get("/api/v2/devices/dmes");
+      return response.devices;
+    },
+    async listZoneDevices() {
+      const response = await rev.get("/api/v2/zonedevices");
+      return response.devices;
+    },
+    async listPresentationProfiles() {
+      return rev.get("/api/v2/presentation-profiles");
+    },
+    async add(dme) {
+      return rev.post("/api/v2/devices/dmes", dme);
+    },
+    async healthStatus(deviceId) {
+      return rev.get(`/api/v2/devices/dmes/${deviceId}/health-status`);
+    },
+    async delete(deviceId) {
+      return rev.delete(`/api/v2/devices/dmes/${deviceId}`);
+    },
+    async rebootDME(deviceId) {
+      return rev.put(`/api/v2/devices/dmes/${deviceId}`);
+    }
+  };
+  return deviceAPI;
 }
 
+// src/api/group.ts
 function groupAPIFactory(rev) {
-    const groupAPI = {
-        /**
-         * Create a group. Returns the resulting Group ID
-         * @param {{name: string, userIds: string[], roleIds: string[]}} group
-         * @returns {Promise<string>}
-         */
-        async create(group) {
-            const { groupId } = await rev.post('/api/v2/groups', group);
-            return groupId;
-        },
-        async delete(groupId) {
-            await rev.delete(`/api/v2/groups/${groupId}`);
-        },
-        async details(groupId) {
-            return rev.get(`/api/v2/groups/${groupId}`);
-        },
-        /**
-         *
-         * @param {string} [searchText]
-         * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
-         */
-        search(searchText, options = {}) {
-            const searchDefinition = {
-                endpoint: '/api/v2/search/access-entity',
-                totalKey: 'totalEntities',
-                hitsKey: 'accessEntities',
-                transform: (hits) => hits.map(formatGroupSearchHit)
-            };
-            const query = { type: 'group' };
-            if (searchText) {
-                query.q = searchText;
+  const groupAPI = {
+    /**
+     * Create a group. Returns the resulting Group ID
+     * @param {{name: string, userIds: string[], roleIds: string[]}} group
+     * @returns {Promise<string>}
+     */
+    async create(group) {
+      const { groupId } = await rev.post("/api/v2/groups", group);
+      return groupId;
+    },
+    async delete(groupId) {
+      await rev.delete(`/api/v2/groups/${groupId}`);
+    },
+    async details(groupId) {
+      return rev.get(`/api/v2/groups/${groupId}`);
+    },
+    /**
+     *
+     * @param {string} [searchText]
+     * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
+     */
+    search(searchText, options = {}) {
+      const searchDefinition = {
+        endpoint: "/api/v2/search/access-entity",
+        totalKey: "totalEntities",
+        hitsKey: "accessEntities",
+        transform: (hits) => hits.map(formatGroupSearchHit)
+      };
+      const query = { type: "group" };
+      if (searchText) {
+        query.q = searchText;
+      }
+      return new SearchRequest(rev, searchDefinition, query, options);
+    },
+    list(options = {}) {
+      return groupAPI.search(void 0, options);
+    },
+    listUsers(groupId, options = {}) {
+      const searchDefinition = {
+        endpoint: `/api/v2/search/groups/${groupId}/users`,
+        totalKey: "totalUsers",
+        hitsKey: "userIds"
+      };
+      return new SearchRequest(rev, searchDefinition, void 0, options);
+    },
+    /**
+     * get all users in a group with full details
+     * @param groupId
+     * @param options
+     * @returns
+     */
+    listUserDetails(groupId, options = {}) {
+      const searchDefinition = {
+        endpoint: `/api/v2/search/groups/${groupId}/users`,
+        totalKey: "totalUsers",
+        hitsKey: "userIds",
+        transform: async (userIds) => {
+          const result = [];
+          for (let userId of userIds) {
+            const out = { userId };
+            try {
+              const details = await rev.user.details(userId);
+              Object.assign(out, details);
+            } catch (error) {
+              out.error = error;
             }
-            return new SearchRequest(rev, searchDefinition, query, options);
-        },
-        list(options = {}) {
-            return groupAPI.search(undefined, options);
-        },
-        listUsers(groupId, options = {}) {
-            const searchDefinition = {
-                endpoint: `/api/v2/search/groups/${groupId}/users`,
-                totalKey: 'totalUsers',
-                hitsKey: 'userIds'
-            };
-            return new SearchRequest(rev, searchDefinition, undefined, options);
-        },
-        /**
-         * get all users in a group with full details
-         * @param groupId
-         * @param options
-         * @returns
-         */
-        listUserDetails(groupId, options = {}) {
-            const searchDefinition = {
-                endpoint: `/api/v2/search/groups/${groupId}/users`,
-                totalKey: 'totalUsers',
-                hitsKey: 'userIds',
-                transform: async (userIds) => {
-                    const result = [];
-                    for (let userId of userIds) {
-                        const out = { userId };
-                        try {
-                            const details = await rev.user.details(userId);
-                            Object.assign(out, details);
-                        }
-                        catch (error) {
-                            out.error = error;
-                        }
-                        result.push(out);
-                    }
-                    return result;
-                }
-            };
-            return new SearchRequest(rev, searchDefinition, undefined, options);
+            result.push(out);
+          }
+          return result;
         }
-    };
-    return groupAPI;
+      };
+      return new SearchRequest(rev, searchDefinition, void 0, options);
+    }
+  };
+  return groupAPI;
 }
 function formatGroupSearchHit(hit) {
-    return {
-        id: hit.Id,
-        name: hit.Name,
-        entityType: hit.EntityType
-    };
+  return {
+    id: hit.Id,
+    name: hit.Name,
+    entityType: hit.EntityType
+  };
 }
 
+// src/api/playlist.ts
 function playlistAPIFactory(rev) {
-    const playlistAPI = {
-        async create(name, videoIds) {
-            const payload = {
-                name,
-                videoIds
-            };
-            const { playlistId } = await rev.post('/api/v2/playlists', payload, { responseType: 'json' });
-            return playlistId;
-        },
-        async update(playlistId, actions) {
-            const payload = {
-                playlistVideoDetails: actions
-            };
-            return rev.put(`/api/v2/playlists/${playlistId}`, payload);
-        },
-        async updateFeatured(actions) {
-            const payload = {
-                playlistVideoDetails: actions
-            };
-            return rev.put(`/api/v2/playlists/featured-playlist`, payload);
-        },
-        async delete(playlistId) {
-            return rev.delete(`/api/v2/playlists/${playlistId}`);
-        },
-        /**
-         * get list of playlists in system.
-         * NOTE: return type is slightly different than API documentation
-         * @see {@link https://revdocs.vbrick.com/reference#getplaylists}
-         */
-        async list() {
-            // ensure raw response is in consistent format
-            function parsePlaylist(entry) {
-                return {
-                    id: entry.id ?? entry.playlistId ?? entry.featurePlaylistId ?? entry.featuredPlaylist,
-                    name: entry.name ?? entry.playlistName,
-                    playbackUrl: entry.playbackUrl,
-                    videos: entry.videos ?? entry.Videos
-                };
-            }
-            const rawResult = await rev.get('/api/v2/playlists', { responseType: 'json' });
-            // rawResult may return in strange format, so cleanup and return consistent output
-            const hasFeatured = !Array.isArray(rawResult);
-            const rawPlaylists = hasFeatured
-                ? rawResult.playlists
-                : rawResult;
-            const output = {
-                playlists: rawPlaylists.map(parsePlaylist)
-            };
-            if (hasFeatured) {
-                if (isPlainObject(rawResult.featuredPlaylist)) {
-                    output.featuredPlaylist = parsePlaylist(rawResult.featuredPlaylist);
-                }
-                else if (Array.isArray(rawResult.videos)) {
-                    output.featuredPlaylist = parsePlaylist(rawResult);
-                }
-            }
-            return output;
+  const playlistAPI = {
+    async create(name, videoIds) {
+      const payload = {
+        name,
+        videoIds
+      };
+      const { playlistId } = await rev.post("/api/v2/playlists", payload, { responseType: "json" });
+      return playlistId;
+    },
+    async update(playlistId, actions) {
+      const payload = {
+        playlistVideoDetails: actions
+      };
+      return rev.put(`/api/v2/playlists/${playlistId}`, payload);
+    },
+    async updateFeatured(actions) {
+      const payload = {
+        playlistVideoDetails: actions
+      };
+      return rev.put(`/api/v2/playlists/featured-playlist`, payload);
+    },
+    async delete(playlistId) {
+      return rev.delete(`/api/v2/playlists/${playlistId}`);
+    },
+    /**
+     * get list of playlists in system.
+     * NOTE: return type is slightly different than API documentation
+     * @see {@link https://revdocs.vbrick.com/reference#getplaylists}
+     */
+    async list() {
+      function parsePlaylist(entry) {
+        return {
+          id: entry.id ?? entry.playlistId ?? entry.featurePlaylistId ?? entry.featuredPlaylist,
+          name: entry.name ?? entry.playlistName,
+          playbackUrl: entry.playbackUrl,
+          videos: entry.videos ?? entry.Videos
+        };
+      }
+      const rawResult = await rev.get("/api/v2/playlists", { responseType: "json" });
+      const hasFeatured = !Array.isArray(rawResult);
+      const rawPlaylists = hasFeatured ? rawResult.playlists : rawResult;
+      const output = {
+        playlists: rawPlaylists.map(parsePlaylist)
+      };
+      if (hasFeatured) {
+        if (isPlainObject(rawResult.featuredPlaylist)) {
+          output.featuredPlaylist = parsePlaylist(rawResult.featuredPlaylist);
+        } else if (Array.isArray(rawResult.videos)) {
+          output.featuredPlaylist = parsePlaylist(rawResult);
         }
-    };
-    return playlistAPI;
-}
-
-function recordingAPIFactory(rev) {
-    const recordingAPI = {
-        async startVideoConferenceRecording(sipAddress, sipPin, title) {
-            const { videoId } = await rev.post('/api/v2/vc/start-recording', { title, sipAddress, sipPin }, { responseType: 'json' });
-            return videoId;
-        },
-        async getVideoConferenceStatus(videoId) {
-            const { status } = await rev.get(`/api/v2/vc/recording-status/${videoId}`, undefined, { responseType: 'json' });
-            return status;
-        },
-        async stopVideoConferenceRecording(videoId) {
-            const payload = { videoId };
-            const result = await rev.post(`/api/v2/vc/stop-recording`, payload, { responseType: 'json' });
-            return isPlainObject(result)
-                ? result.message
-                : result;
-        },
-        async startPresentationProfileRecording(request) {
-            const { scheduledRecordingId } = await rev.post('/api/v2/pp/start-recording', request, { responseType: 'json' });
-            return scheduledRecordingId;
-        },
-        async getPresentationProfileStatus(recordingId) {
-            const result = await rev.get(`/api/v2/pp/recording-status/${recordingId}`, undefined, { responseType: 'json' });
-            return result;
-        },
-        async stopPresentationProfileRecording(recordingId) {
-            const payload = { scheduledRecordingId: recordingId };
-            const result = await rev.get(`/api/v2/vc/recording-status`, payload, { responseType: 'json' });
-            return result;
-        }
-    };
-    return recordingAPI;
-}
-
-const mimeTypes = {
-    '.7z': 'application/x-7z-compressed',
-    '.asf': 'video/x-ms-asf',
-    '.avi': 'video/x-msvideo',
-    '.csv': 'text/csv',
-    '.doc': 'application/msword',
-    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    '.f4v': 'video/x-f4v',
-    '.flv': 'video/x-flv',
-    '.gif': 'image/gif',
-    '.jpg': 'image/jpeg',
-    '.m4a': 'audio/mp4',
-    '.m4v': 'video/x-m4v',
-    '.mkv': 'video/x-matroska',
-    '.mov': 'video/quicktime',
-    '.mp3': 'audio/mpeg',
-    '.mp4': 'video/mp4',
-    '.mpg': 'video/mpeg',
-    '.pdf': 'application/pdf',
-    '.png': 'image/png',
-    '.ppt': 'application/vnd.ms-powerpoint',
-    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    '.rar': 'application/x-rar-compressed',
-    '.srt': 'application/x-subrip',
-    '.svg': 'image/svg+xml',
-    '.swf': 'application/x-shockwave-flash',
-    '.ts': 'video/mp2t',
-    '.txt': 'text/plain',
-    '.wmv': 'video/x-ms-wmv',
-    '.xls': 'application/vnd.ms-excel',
-    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    '.zip': 'application/zip',
-    '.mks': 'video/x-matroska',
-    '.mts': 'model/vnd.mts',
-    '.wma': 'audio/x-ms-wma'
-};
-function getMimeForExtension(extension = '', defaultType = 'video/mp4') {
-    extension = extension.toLowerCase();
-    if (extension && (extension in mimeTypes)) {
-        return mimeTypes[extension];
+      }
+      return output;
     }
-    return defaultType;
+  };
+  return playlistAPI;
 }
-function getExtensionForMime(contentType, defaultExtension = '.mp4') {
-    const match = contentType && Object.entries(mimeTypes)
-        .find(([ext, mime]) => contentType.startsWith((mime)));
-    return match
-        ? match[0]
-        : defaultExtension;
+
+// src/api/recording.ts
+function recordingAPIFactory(rev) {
+  const recordingAPI = {
+    async startVideoConferenceRecording(sipAddress, sipPin, title) {
+      const { videoId } = await rev.post("/api/v2/vc/start-recording", { title, sipAddress, sipPin }, { responseType: "json" });
+      return videoId;
+    },
+    async getVideoConferenceStatus(videoId) {
+      const { status } = await rev.get(`/api/v2/vc/recording-status/${videoId}`, void 0, { responseType: "json" });
+      return status;
+    },
+    async stopVideoConferenceRecording(videoId) {
+      const payload = { videoId };
+      const result = await rev.post(`/api/v2/vc/stop-recording`, payload, { responseType: "json" });
+      return isPlainObject(result) ? result.message : result;
+    },
+    async startPresentationProfileRecording(request) {
+      const { scheduledRecordingId } = await rev.post("/api/v2/pp/start-recording", request, { responseType: "json" });
+      return scheduledRecordingId;
+    },
+    async getPresentationProfileStatus(recordingId) {
+      const result = await rev.get(`/api/v2/pp/recording-status/${recordingId}`, void 0, { responseType: "json" });
+      return result;
+    },
+    async stopPresentationProfileRecording(recordingId) {
+      const payload = { scheduledRecordingId: recordingId };
+      const result = await rev.get(`/api/v2/vc/recording-status`, payload, { responseType: "json" });
+      return result;
+    }
+  };
+  return recordingAPI;
+}
+
+// src/utils/file-utils.ts
+var mimeTypes = {
+  ".7z": "application/x-7z-compressed",
+  ".asf": "video/x-ms-asf",
+  ".avi": "video/x-msvideo",
+  ".csv": "text/csv",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".f4v": "video/x-f4v",
+  ".flv": "video/x-flv",
+  ".gif": "image/gif",
+  ".jpg": "image/jpeg",
+  ".m4a": "audio/mp4",
+  ".m4v": "video/x-m4v",
+  ".mkv": "video/x-matroska",
+  ".mov": "video/quicktime",
+  ".mp3": "audio/mpeg",
+  ".mp4": "video/mp4",
+  ".mpg": "video/mpeg",
+  ".pdf": "application/pdf",
+  ".png": "image/png",
+  ".ppt": "application/vnd.ms-powerpoint",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".rar": "application/x-rar-compressed",
+  ".srt": "application/x-subrip",
+  ".svg": "image/svg+xml",
+  ".swf": "application/x-shockwave-flash",
+  ".ts": "video/mp2t",
+  ".txt": "text/plain",
+  ".wmv": "video/x-ms-wmv",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".zip": "application/zip",
+  ".mks": "video/x-matroska",
+  ".mts": "model/vnd.mts",
+  ".wma": "audio/x-ms-wma"
+};
+function getMimeForExtension(extension = "", defaultType = "video/mp4") {
+  extension = extension.toLowerCase();
+  if (extension && extension in mimeTypes) {
+    return mimeTypes[extension];
+  }
+  return defaultType;
+}
+function getExtensionForMime(contentType, defaultExtension = ".mp4") {
+  const match = contentType && Object.entries(mimeTypes).find(([ext, mime]) => contentType.startsWith(mime));
+  return match ? match[0] : defaultExtension;
 }
 function sanitizeFileUpload(payload) {
-    let { file, options: { filename = 'upload', contentType = '' } } = payload;
-    // sanitize content type
-    if (contentType === 'application/octet-stream') {
-        contentType = '';
+  let {
+    file,
+    options: {
+      filename = "upload",
+      contentType = ""
     }
-    if (/charset/.test(contentType)) {
-        contentType = contentType.replace(/;?.*charset.*$/, '');
-    }
-    let name = filename.replace('\.[^\.]+$', '');
-    let ext = filename.replace(name, '');
-    if (!ext) {
-        ext = getExtensionForMime(contentType);
-    }
-    filename = `${name}${ext}`;
-    if (!contentType) {
-        contentType = getMimeForExtension(ext);
-    }
-    if (isBlobLike(file) && file.type !== contentType) {
-        payload.file = file.slice(0, file.size, contentType);
-    }
-    Object.assign(payload.options, {
-        filename,
-        contentType
-    });
-    return payload;
+  } = payload;
+  if (contentType === "application/octet-stream") {
+    contentType = "";
+  }
+  if (/charset/.test(contentType)) {
+    contentType = contentType.replace(/;?.*charset.*$/, "");
+  }
+  let name = filename.replace(".[^.]+$", "");
+  let ext = filename.replace(name, "");
+  if (!ext) {
+    ext = getExtensionForMime(contentType);
+  }
+  filename = `${name}${ext}`;
+  if (!contentType) {
+    contentType = getMimeForExtension(ext);
+  }
+  if (isBlobLike(file) && file.type !== contentType) {
+    payload.file = file.slice(0, file.size, contentType);
+  }
+  Object.assign(payload.options, {
+    filename,
+    contentType
+  });
+  return payload;
 }
 function appendJSONToForm(form, fieldName, data) {
-    form.append(fieldName, JSON.stringify(data));
+  form.append(fieldName, JSON.stringify(data));
 }
-/**
- * This method is included for isometric support of uploading files in node.js and browser.
- * @param form FormData instance
- * @param fieldName name of field to add to form
- * @param file the file. Can be Blob or File on browser. On node.js it can be anything the 'form-data' package will accept
- * @param options optional filename, contentType and contentLength of upload. Otherwise it will try to guess based on input
- */
 async function appendFileToForm(form, fieldName, file, options = {}) {
-    const opts = {
-        filename: 'upload',
-        contentType: '',
-        ...options
-    };
-    let payload = await polyfills.parseFileUpload(file, opts);
-    payload = sanitizeFileUpload(payload);
-    await polyfills.appendFileToForm(form, fieldName, payload);
-    return payload.options;
+  const opts = {
+    filename: "upload",
+    contentType: "",
+    ...options
+  };
+  let payload = await interop_default.parseFileUpload(file, opts);
+  payload = sanitizeFileUpload(payload);
+  await interop_default.appendFileToForm(form, fieldName, payload);
+  return payload.options;
 }
 async function prepareFileUploadHeaders(form, headers, useChunkedTransfer) {
-    await polyfills.prepareUploadHeaders(form, headers, useChunkedTransfer);
+  await interop_default.prepareUploadHeaders(form, headers, useChunkedTransfer);
 }
-/**
- * helper to upload multipart forms with files attached.
- * This is to work around issues with node.js's FormData implementation
- * @param rev Rev Client
- * @param method
- * @param endpoint
- * @param form
- * @param useChunkedTransfer
- * @param options
- * @returns
- */
 async function uploadMultipart(rev, method, endpoint, form, useChunkedTransfer = false, options = {}) {
-    const { headers: optHeaders } = options;
-    useChunkedTransfer = typeof useChunkedTransfer === 'boolean'
-        ? useChunkedTransfer
-        : !!useChunkedTransfer?.useChunkedTransfer;
-    // coerce to Headers object, may be undefined
-    const headers = new polyfills.Headers(optHeaders);
-    // switches to transfer encoding upload if necessary
-    await prepareFileUploadHeaders(form, headers, useChunkedTransfer);
-    options.headers = headers;
-    const { body } = await rev.request(method, endpoint, form, options);
-    return body;
+  const {
+    headers: optHeaders
+  } = options;
+  useChunkedTransfer = typeof useChunkedTransfer === "boolean" ? useChunkedTransfer : !!useChunkedTransfer?.useChunkedTransfer;
+  const headers = new interop_default.Headers(optHeaders);
+  await prepareFileUploadHeaders(form, headers, useChunkedTransfer);
+  options.headers = headers;
+  const { body } = await rev.request(method, endpoint, form, options);
+  return body;
 }
 
+// src/api/upload.ts
 function splitOptions(options) {
-    const { signal, ...uploadOptions } = options;
-    return {
-        requestOptions: signal ? { signal } : {},
-        uploadOptions
-    };
+  const {
+    signal,
+    ...uploadOptions
+  } = options;
+  return {
+    requestOptions: signal ? { signal } : {},
+    uploadOptions
+  };
 }
 function uploadAPIFactory(rev) {
-    const { FormData } = polyfills;
-    const uploadAPI = {
-        /**
-         * Upload a video, and returns the resulting video ID
-         */
-        async video(file, metadata = { uploader: rev.session.username ?? '' }, options = {}) {
-            const { uploadOptions, requestOptions } = splitOptions(options);
-            // prepare payload
-            const form = new FormData();
-            // at bare minimum the uploader needs to be defined
-            if (!metadata.uploader) {
-                // if using username login then uploader can be set to current user
-                const defaultUsername = rev.session.username;
-                if (defaultUsername) {
-                    metadata.uploader = defaultUsername;
-                }
-                else {
-                    throw new TypeError('metadata must include uploader parameter');
-                }
-            }
-            // add video metadata to body (as json)
-            appendJSONToForm(form, 'video', metadata);
-            // append file (works around some node's form-data library quirks)
-            const filePayload = await appendFileToForm(form, 'VideoFile', file, uploadOptions);
-            rev.log('info', `Uploading ${filePayload.filename} (${filePayload.contentType})`);
-            const { videoId } = await uploadMultipart(rev, 'POST', '/api/v2/uploads/videos', form, filePayload, requestOptions);
-            return videoId;
-        },
-        async transcription(videoId, file, language = 'en', options = {}) {
-            const { uploadOptions, requestOptions } = splitOptions(options);
-            // validate language
-            // TODO put this in a constants file somewhere
-            const supportedLanguages = ['de', 'en', 'en-gb', 'es-es', 'es-419', 'es', 'fr', 'fr-ca', 'id', 'it', 'ko', 'ja', 'nl', 'no', 'pl', 'pt', 'pt-br', 'th', 'tr', 'fi', 'sv', 'ru', 'el', 'zh', 'zh-tw', 'zh-cmn-hans'];
-            let lang = language.toLowerCase();
-            if (!supportedLanguages.includes(lang)) {
-                // try removing trailing language specifier
-                lang = lang.slice(2);
-                if (!supportedLanguages.includes(lang)) {
-                    throw new TypeError(`Invalid language ${language} - supported values are ${supportedLanguages.join(', ')}`);
-                }
-            }
-            const form = new FormData();
-            const filePayload = await appendFileToForm(form, 'File', file, uploadOptions);
-            const metadata = {
-                files: [
-                    { language: lang, fileName: filePayload.filename }
-                ]
-            };
-            appendJSONToForm(form, 'TranscriptionFiles', metadata);
-            rev.log('info', `Uploading transcription to ${videoId} (${lang} ${filePayload.filename} (${filePayload.contentType})`);
-            await uploadMultipart(rev, 'POST', `/api/v2/uploads/transcription-files/${videoId}`, form, filePayload, requestOptions);
-        },
-        async supplementalFile(videoId, file, options = {}) {
-            const { uploadOptions, requestOptions } = splitOptions(options);
-            const form = new FormData();
-            const filePayload = await appendFileToForm(form, 'File', file, uploadOptions);
-            const metadata = {
-                files: [
-                    { fileName: filePayload.filename }
-                ]
-            };
-            appendJSONToForm(form, 'SupplementalFiles', metadata);
-            rev.log('info', `Uploading supplemental content to ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
-            await uploadMultipart(rev, 'POST', `/api/v2/uploads/supplemental-files/${videoId}`, form, filePayload, requestOptions);
-        },
-        /**
-         *
-         * @param videoId id of video to add chapters to
-         * @param chapters list of chapters. Must have time value and one of title or imageFile
-         * @param action replace = POST/replace existing with this payload
-         *               append = PUT/add or edit without removing existing
-         * @param options  additional upload + request options
-         */
-        async chapters(videoId, chapters, action = 'replace', options = {}) {
-            const { uploadOptions, requestOptions } = splitOptions(options);
-            const form = new FormData();
-            const metadata = {
-                chapters: []
-            };
-            for (let chapter of chapters) {
-                const { title, time, imageFile } = chapter;
-                if (imageFile) {
-                    await appendFileToForm(form, 'File', imageFile, uploadOptions);
-                }
-            }
-            appendJSONToForm(form, 'Chapters', metadata);
-            rev.log('info', `${action === 'replace' ? 'Uploading' : 'Updating'} ${metadata.chapters.length} chapters to ${videoId}`);
-            const method = action === 'replace'
-                ? 'POST'
-                : 'PUT';
-            await uploadMultipart(rev, method, `/api/v2/uploads/chapters/${videoId}`, form, uploadOptions, requestOptions);
-        },
-        async thumbnail(videoId, file, options = {}) {
-            const { uploadOptions, requestOptions } = splitOptions(options);
-            const form = new FormData();
-            const filePayload = await appendFileToForm(form, 'ThumbnailFile', file, uploadOptions);
-            rev.log('info', `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
-            await uploadMultipart(rev, 'POST', `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
-        },
-        async presentationChapters(videoId, file, options = {}) {
-            const { uploadOptions, requestOptions } = splitOptions(options);
-            const form = new FormData();
-            const filePayload = await appendFileToForm(form, 'ThumbnailFile', file, uploadOptions);
-            rev.log('info', `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
-            await uploadMultipart(rev, 'POST', `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
-        }
-    };
-    return uploadAPI;
-}
-
-function userAPIFactory(rev) {
-    async function details(userLookupValue, type) {
-        const query = (type === 'username' || type === 'email')
-            ? { type }
-            : undefined;
-        return rev.get(`/api/v2/users/${userLookupValue}`, query);
-    }
-    const userAPI = {
-        /**
-         * get the list of roles available in the system (with role name and id)
-         */
-        get roles() {
-            return rev.admin.roles;
-        },
-        /**
-         * Create a new User in Rev
-         * @param user
-         * @returns the User ID of the created user
-         */
-        async create(user) {
-            const { userId } = await rev.post('/api/v2/users', user);
-            return userId;
-        },
-        async delete(userId) {
-            await rev.delete(`/api/v2/users/${userId}`);
-        },
-        /**
-         * Get details about a specific user
-         * @param userLookupValue default is search by userId
-         * @param type            specify that userLookupValue is email or
-         *                        username instead of userId
-         * @returns {User}        User details
-         */
-        details,
-        /**
-         * get user details by username
-         * @deprecated - use details(username, 'username')
-         */
-        async getByUsername(username) {
-            // equivalent to rev.get<User>(`/api/v2/users/${username}`, { type: 'username' });
-            return userAPI.details(username, 'username');
-        },
-        /**
-         * get user details by email address
-         * @deprecated - use details(email, 'email')
-         */
-        async getByEmail(email) {
-            return userAPI.details(email, 'email');
-        },
-        /**
-         * Check if user exists in the system. Instead of throwing on a 401/403 error if
-         * user does not exist it returns false. Returns user details if does exist,
-         * instead of just true
-         * @param userLookupValue userId, username, or email
-         * @param type
-         * @returns User if exists, otherwise false
-         */
-        async exists(userLookupValue, type) {
-            const query = (type === 'username' || type === 'email')
-                ? { type }
-                : undefined;
-            const response = await rev.request('GET', `/api/v2/users/${userLookupValue}`, query, { responseType: 'json', throwHttpErrors: false });
-            return response.statusCode === 200
-                ? response.body
-                : false;
-        },
-        /**
-         * use PATCH API to add user to the specified group
-         * https://revdocs.vbrick.com/reference#edituserdetails
-         * @param {string} userId id of user in question
-         * @param {string} groupId
-         * @returns {Promise<void>}
-         */
-        async addToGroup(userId, groupId) {
-            const operations = [
-                { op: 'add', path: '/GroupIds/-', value: groupId }
-            ];
-            await rev.patch(`/api/v2/users/${userId}`, operations);
-        },
-        /**
-         * use PATCH API to add user to the specified group
-         * https://revdocs.vbrick.com/reference#edituserdetails
-         * @param {string} userId id of user in question
-         * @param {string} groupId
-         * @returns {Promise<void>}
-         */
-        async removeFromGroup(userId, groupId) {
-            const operations = [
-                { op: 'remove', path: '/GroupIds', value: groupId }
-            ];
-            await rev.patch(`/api/v2/users/${userId}`, operations);
-        },
-        /**
-         * search for users based on text query. Leave blank to return all users.
-         *
-         * @param {string} [searchText]
-         * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
-         */
-        search(searchText, options = {}) {
-            const searchDefinition = {
-                endpoint: '/api/v2/search/access-entity',
-                totalKey: 'totalEntities',
-                hitsKey: 'accessEntities',
-                /**
-                 * the result of this search is uppercase keys. This transforms them to camelcase to match other API responses
-                 */
-                transform: (items) => items.map(formatUserSearchHit)
-            };
-            const query = { type: 'user' };
-            if (searchText) {
-                query.q = searchText;
-            }
-            return new SearchRequest(rev, searchDefinition, query, options);
-        }
-    };
-    return userAPI;
-}
-function formatUserSearchHit(hit) {
-    return {
-        userId: hit.Id,
-        entityType: hit.EntityType,
-        email: hit.Email,
-        firstname: hit.FirstName,
-        lastname: hit.LastName,
-        username: hit.UserName
-    };
-}
-
-const DEFAULT_INCREMENT = 30;
-const DEFAULT_SORT = 'asc';
-function addDays(date, numDays) {
-    const d = new Date(date.getTime());
-    d.setDate(d.getDate() + numDays);
-    return d;
-}
-function parseOptions(options) {
-    let { incrementDays = DEFAULT_INCREMENT, sortDirection = DEFAULT_SORT, videoIds, startDate, endDate, ...otherOptions } = options;
-    // clamp increment to 1 minute - 30 days range
-    incrementDays = Math.min(Math.max(1 / 24 / 60, parseFloat(incrementDays) || DEFAULT_INCREMENT), 30);
-    // API expects videoIds as a string
-    if (Array.isArray(videoIds)) {
-        videoIds = videoIds
-            .map(s => s.trim())
-            .filter(Boolean)
-            .join(',');
-    }
-    return {
-        incrementDays, sortDirection, videoIds,
-        ...parseDates(startDate, endDate),
-        ...otherOptions
-    };
-}
-function parseDates(startArg, endArg) {
-    const now = new Date();
-    let startDate = asValidDate(startArg);
-    let endDate = asValidDate(endArg);
-    // if no end date set then use now, or startDate + 30 days
-    if (!endDate) {
-        if (startDate) {
-            endDate = addDays(startDate, 30);
-            if (endDate.getTime() > now.getTime()) {
-                endDate = now;
-            }
-        }
-        else {
-            endDate = now;
-        }
-    }
-    // if no start/beginning date then use end - 30 days
-    if (!startDate) {
-        startDate = addDays(endDate, -30);
-    }
-    // make sure times aren't swapped
-    if (startDate.getTime() > endDate.getTime()) {
-        [startDate, endDate] = [endDate, startDate];
-    }
-    return { startDate, endDate };
-}
-class VideoReportRequest extends PagedRequest {
-    constructor(rev, options = {}) {
-        super(parseOptions(options));
-        this._rev = rev;
-    }
-    async _requestPage() {
-        const { startDate, endDate } = this;
-        const { incrementDays, sortDirection, videoIds } = this.options;
-        const isAscending = sortDirection === 'asc';
-        let rangeStart = startDate;
-        let rangeEnd = endDate;
-        let done = false;
-        if (isAscending) {
-            rangeEnd = addDays(rangeStart, incrementDays);
-            //
-            if (rangeEnd >= endDate) {
-                done = true;
-                rangeEnd = endDate;
-            }
-        }
-        else {
-            rangeStart = addDays(rangeEnd, -1 * incrementDays);
-            if (rangeStart <= startDate) {
-                done = true;
-                rangeStart = startDate;
-            }
-        }
-        const query = {
-            after: rangeStart.toJSON(),
-            before: rangeEnd.toJSON()
-        };
-        if (videoIds) {
-            query.videoIds = videoIds;
-        }
-        const items = await this._rev.get("/api/v2/videos/report", query, { responseType: "json" });
-        // go to next date range
-        if (!done) {
-            if (isAscending) {
-                this.startDate = rangeEnd;
-            }
-            else {
-                this.endDate = rangeStart;
-            }
-        }
-        return {
-            items,
-            done
-        };
-    }
-    get startDate() { return this.options.startDate; }
-    set startDate(value) { this.options.startDate = value; }
-    get endDate() { return this.options.endDate; }
-    set endDate(value) { this.options.endDate = value; }
-}
-function videoReportAPI(rev) {
-    function report(videoId, options = {}) {
-        if (isPlainObject(videoId)) {
-            options = videoId;
-        }
-        else if (typeof videoId === 'string') {
-            options = {
-                ...(options ?? {}),
-                videoIds: videoId
-            };
-        }
-        return new VideoReportRequest(rev, options);
-    }
-    return {
-        report
-    };
-}
-
-function videoDownloadAPI(rev) {
+  const { FormData } = interop_default;
+  const uploadAPI = {
     /**
-     * Download a video. does not parse the output body. Note that content is sent as transfer-encoding: chunked;
-     * @param videoId
-     * @returns
+     * Upload a video, and returns the resulting video ID
      */
-    async function download(videoId, options = {}) {
-        const response = await rev.request('GET', `/api/v2/videos/${videoId}/download`, undefined, {
-            ...options,
-            responseType: 'stream'
-        });
-        return response;
-    }
-    /**
-     * download specified chapter. The chapter object has an imageUrl, this just wraps the functionality and adds the authorization header
-     * @param videoId
-     * @param chapter chapter object returned from the video.chapters(videoId) API call
-     * @returns
-     */
-    async function downloadChapter(chapter) {
-        const { imageUrl } = chapter;
-        const { body } = await rev.request('GET', imageUrl, undefined, { responseType: 'blob' });
-        return body;
-    }
-    async function downloadSupplemental(videoId, fileId) {
-        const endpoint = isPlainObject(videoId)
-            ? videoId.downloadUrl
-            : `/api/v2/videos/${videoId}/supplemental-files/${fileId}`;
-        const { body } = await rev.request('GET', endpoint, undefined, { responseType: 'blob' });
-        return body;
-    }
-    async function downloadTranscription(videoId, language) {
-        const endpoint = isPlainObject(videoId)
-            ? videoId.downloadUrl
-            : `/api/v2/videos/${videoId}/transcription-files/${language}`;
-        const { body } = await rev.request('GET', endpoint, undefined, { responseType: 'blob' });
-        return body;
-    }
-    async function downloadThumbnail(query) {
-        let { videoId = '', imageId = '' } = typeof query === 'string'
-            ? { imageId: query }
-            : query;
-        if (!(videoId || imageId)) {
-            throw new TypeError('No video/image specified to download');
+    async video(file, metadata = { uploader: rev.session.username ?? "" }, options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options);
+      const form = new FormData();
+      if (!metadata.uploader) {
+        const defaultUsername = rev.session.username;
+        if (defaultUsername) {
+          metadata.uploader = defaultUsername;
+        } else {
+          throw new TypeError("metadata must include uploader parameter");
         }
-        if (!imageId) {
-            // allow getting from api if only know the video ID
-            imageId = (await rev.get(`/api/v2/videos/${videoId}/playback-url`)).video.thumbnailUrl;
+      }
+      appendJSONToForm(form, "video", metadata);
+      const filePayload = await appendFileToForm(form, "VideoFile", file, uploadOptions);
+      rev.log("info", `Uploading ${filePayload.filename} (${filePayload.contentType})`);
+      const { videoId } = await uploadMultipart(rev, "POST", "/api/v2/uploads/videos", form, filePayload, requestOptions);
+      return videoId;
+    },
+    async transcription(videoId, file, language = "en", options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options);
+      const supportedLanguages = ["de", "en", "en-gb", "es-es", "es-419", "es", "fr", "fr-ca", "id", "it", "ko", "ja", "nl", "no", "pl", "pt", "pt-br", "th", "tr", "fi", "sv", "ru", "el", "zh", "zh-tw", "zh-cmn-hans"];
+      let lang = language.toLowerCase();
+      if (!supportedLanguages.includes(lang)) {
+        lang = lang.slice(2);
+        if (!supportedLanguages.includes(lang)) {
+          throw new TypeError(`Invalid language ${language} - supported values are ${supportedLanguages.join(", ")}`);
         }
-        else if (!imageId.endsWith('.jpg')) {
-            // make sure id has ending file extension
-            imageId = `${imageId}.jpg`;
-        }
-        let thumbnailUrl = imageId.startsWith('http')
-            ? imageId
-            : `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
-        const { body } = await rev.request('GET', thumbnailUrl, undefined, { responseType: 'blob' });
-        return body;
-    }
-    return {
-        download,
-        downloadChapter,
-        downloadSupplemental,
-        downloadThumbnail,
-        downloadTranscription
-    };
-}
-
-function videoAPIFactory(rev) {
-    const videoAPI = {
-        /**
-         * This is an example of using the video Patch API to only update a single field
-         * @param videoId
-         * @param title
-         */
-        async setTitle(videoId, title) {
-            const payload = [{ op: 'add', path: '/Title', value: title }];
-            await rev.patch(`/api/v2/videos/${videoId}`, payload);
-        },
-        /**
-         * get processing status of a video
-         * @param videoId
-         */
-        async status(videoId) {
-            return rev.get(`/api/v2/videos/${videoId}/status`);
-        },
-        async details(videoId) {
-            return rev.get(`/api/v2/videos/${videoId}/details`);
-        },
-        /** get list of comments on a video */
-        async comments(videoId) {
-            const response = await rev.get(`/api/v2/videos/${videoId}/comments`);
-            return response.comments;
-        },
-        async chapters(videoId) {
-            try {
-                const { chapters } = await rev.get(`/api/v2/videos/${videoId}/comments`);
-                return chapters;
-            }
-            catch (err) {
-                // if no chapters then this api returns a 400 response
-                if (err instanceof RevError && err.code === "NoVideoChapters") {
-                    return [];
-                }
-                throw err;
-            }
-        },
-        async supplementalFiles(videoId) {
-            const { supplementalFiles } = await rev.get(`/api/v2/videos/${videoId}/supplemental-files`);
-            return supplementalFiles;
-        },
-        // async deleteSupplementalFiles(videoId: string, fileId: string | string[]): Promise<void> {
-        //     const fileIds = Array.isArray(fileId)
-        //         ? fileId.join(',')
-        //         : fileId
-        //     await rev.delete(`/api/v2/videos/${videoId}/supplemental-files`, { fileIds });
-        // },
-        async transcriptions(videoId) {
-            const { transcriptionFiles } = await rev.get(`/api/v2/videos/${videoId}/transcription-files`);
-            return transcriptionFiles;
-        },
-        get upload() {
-            return rev.upload.video;
-        },
-        async migrate(videoId, options) {
-            await rev.put(`/api/v2/videos/${videoId}/migration`, options);
-        },
-        /**
-         * search for videos, return as one big list. leave blank to get all videos in the account
-         */
-        search(query = {}, options = {}) {
-            const searchDefinition = {
-                endpoint: '/api/v2/videos/search',
-                totalKey: 'totalVideos',
-                hitsKey: 'videos'
-            };
-            const request = new SearchRequest(rev, searchDefinition, query, options);
-            return request;
-        },
-        /**
-         * Example of using the video search API to search for videos, then getting
-         * the details of each video
-         * @param query
-         * @param options
-         */
-        searchDetailed(query = {}, options = {}) {
-            const searchDefinition = {
-                endpoint: '/api/v2/videos/search',
-                totalKey: 'totalVideos',
-                hitsKey: 'videos',
-                transform: async (videos) => {
-                    const result = [];
-                    for (let rawVideo of videos) {
-                        const out = rawVideo;
-                        try {
-                            const details = await videoAPI.details(rawVideo.id);
-                            Object.assign(out, details);
-                        }
-                        catch (error) {
-                            out.error = error;
-                        }
-                        result.push(out);
-                    }
-                    return result;
-                }
-            };
-            const request = new SearchRequest(rev, searchDefinition, query, options);
-            return request;
-        },
-        async playbackInfo(videoId) {
-            const { video } = await rev.get(`/api/v2/videos/${videoId}/playback-url`);
-            return video;
-        },
-        ...videoDownloadAPI(rev),
-        ...videoReportAPI(rev)
-    };
-    return videoAPI;
-}
-
-function getSummaryFromResponse(response, hitsKey) {
-    const ignoreKeys = ['scrollId', 'statusCode', 'statusDescription'];
-    const summary = Object.fromEntries(Object.entries(response)
-        .filter(([key, value]) => {
-        // don't include arrays or scroll type keys
-        return !(key === hitsKey || ignoreKeys.includes(key) || Array.isArray(value));
-    }));
-    return summary;
-}
-class RealtimeReportRequest extends SearchRequest {
-    constructor(rev, eventId, query = {}, options = {}) {
-        const searchDefinition = {
-            endpoint: `/api/v2/scheduled-events/${eventId}/real-time/attendees`,
-            totalKey: 'total',
-            hitsKey: 'attendees',
-            // get summary from initial response
-            request: async (endpoint, query, options) => {
-                const response = await rev.post(endpoint, query, options);
-                const summary = getSummaryFromResponse(response, 'attendees');
-                Object.assign(this.summary, summary);
-                return response;
-            }
-        };
-        super(rev, searchDefinition, query, options);
-        this.summary = {};
-    }
-    /**
-     * get the aggregate statistics only, instead of actual session data.
-     * @returns {Webcast.PostEventSummary}
-     */
-    async getSummary() {
-        // set maxResults to 0 to mark request as done, since first page of sessions will be lost
-        this.options.maxResults = 0;
-        // must get first page of results to load summary data
-        await this.nextPage();
-        return this.summary;
-    }
-}
-class PostEventReportRequest extends SearchRequest {
-    constructor(rev, query, options = {}) {
-        const { eventId, runNumber } = query;
-        const runQuery = (runNumber && runNumber >= 0)
-            ? { runNumber }
-            : {};
-        const searchDefinition = {
-            endpoint: `/api/v2/scheduled-events/${eventId}/post-event-report`,
-            totalKey: 'totalSessions',
-            hitsKey: 'sessions',
-            request: async (endpoint, query, options) => {
-                const response = await rev.get(endpoint, query, options);
-                const summary = getSummaryFromResponse(response, 'sessions');
-                Object.assign(this.summary, summary);
-                return response;
-            }
-        };
-        super(rev, searchDefinition, runQuery, options);
-        this.summary = {};
-    }
-    /**
-     * get the aggregate statistics only, instead of actual session data.
-     * @returns {Webcast.PostEventSummary}
-     */
-    async getSummary() {
-        // set maxResults to 0 to mark request as done, since first page of sessions will be lost
-        this.options.maxResults = 0;
-        // must get first page of results to load summary data
-        await this.nextPage();
-        return this.summary;
-    }
-}
-
-function webcastAPIFactory(rev) {
-    const webcastAPI = {
-        async list(options = {}) {
-            return rev.get('/api/v2/scheduled-events', options, { responseType: 'json' });
-        },
-        search(query, options) {
-            const searchDefinition = {
-                endpoint: `/api/v2/search/scheduled-events`,
-                totalKey: 'total',
-                hitsKey: 'events',
-                request: (endpoint, query, options) => rev.post(endpoint, query, options),
-                isPost: true
-            };
-            return new SearchRequest(rev, searchDefinition, query, options);
-        },
-        async create(event) {
-            const { eventId } = await rev.post(`/api/v2/scheduled-events`, event);
-            return eventId;
-        },
-        async details(eventId) {
-            return rev.get(`/api/v2/scheduled-events/${eventId}`);
-        },
-        async edit(eventId, event) {
-            return rev.put(`/api/v2/scheduled-events/${eventId}`, event);
-        },
-        // async patch - not yet implemented
-        async delete(eventId) {
-            return rev.delete(`/api/v2/scheduled-events/${eventId}`);
-        },
-        async editAccess(eventId, entities) {
-            return rev.put(`/api/v2/scheduled-events/${eventId}/access-control`, entities);
-        },
-        attendees(eventId, runNumber, options) {
-            return new PostEventReportRequest(rev, { eventId, runNumber }, options);
-        },
-        realtimeAttendees(eventId, query, options) {
-            return new RealtimeReportRequest(rev, eventId, query, options);
-        },
-        async questions(eventId, runNumber) {
-            const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
-            return rev.get(`/api/v2/scheduled-events/${eventId}/questions`, query, { responseType: 'json' });
-        },
-        async pollResults(eventId, runNumber) {
-            const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
-            return rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: 'json' });
-        },
-        async comments(eventId, runNumber) {
-            const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
-            return rev.get(`/api/v2/scheduled-events/${eventId}/comments`, query, { responseType: 'json' });
-        },
-        async status(eventId) {
-            return rev.get(`/api/v2/scheduled-events/${eventId}/status`);
-        },
-        async playbackUrl(eventId, options = {}) {
-            const { ip, userAgent } = options;
-            const query = ip ? { ip } : undefined;
-            const requestOptions = {
-                responseType: 'json'
-            };
-            if (userAgent) {
-                requestOptions.headers = { 'User-Agent': userAgent };
-            }
-            return rev.get(`/api/v2/scheduled-events/${eventId}/playback-url`, query, requestOptions);
-        },
-        async startEvent(eventId, preProduction = false) {
-            await rev.put(`/api/v2/scheduled-events/${eventId}/start`, { preProduction });
-        },
-        async stopEvent(eventId, preProduction = false) {
-            await rev.delete(`/api/v2/scheduled-events/${eventId}/start`, { preProduction });
-        },
-        async startBroadcast(eventId) {
-            await rev.put(`/api/v2/scheduled-events/${eventId}/broadcast`);
-        },
-        async stopBroadcast(eventId) {
-            await rev.delete(`/api/v2/scheduled-events/${eventId}/broadcast`);
-        },
-        async startRecord(eventId) {
-            await rev.put(`/api/v2/scheduled-events/${eventId}/record`);
-        },
-        async stopRecord(eventId) {
-            await rev.delete(`/api/v2/scheduled-events/${eventId}/record`);
-        },
-        async linkVideo(eventId, videoId, autoRedirect = true) {
-            const payload = {
-                videoId,
-                redirectVod: autoRedirect
-            };
-            return rev.put(`/api/v2/scheduled-events/${eventId}/linked-video`, payload);
-        },
-        async unlinkVideo(eventId) {
-            return rev.delete(`/api/v2/scheduled-events/${eventId}/linked-video`);
-        },
-        /**
-         * Retrieve details of a specific guest user Public webcast registration.
-         * @param eventId - Id of the Public webcast
-         * @param registrationId - Id of guest user's registration to retrieve
-         * @returns
-         */
-        async guestRegistration(eventId, registrationId) {
-            return rev.get(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
-        },
-        /**
-         * Register one attendee/guest user for an upcoming Public webcast. Make sure you first enable Public webcast pre-registration before adding registrations.
-         * @param eventId
-         * @param registration
-         * @returns
-         */
-        async createGuestRegistration(eventId, registration) {
-            return rev.post(`/api/v2/scheduled-events/${eventId}/registrations`, registration);
-        },
-        listGuestRegistrations(eventId, query = {}, options) {
-            const searchDefinition = {
-                endpoint: `/api/v2/scheduled-events/${eventId}/registrations`,
-                /** NOTE: this API doesn't actually return a total, so this will always be undefined */
-                totalKey: 'total',
-                hitsKey: 'guestUsers'
-            };
-            return new SearchRequest(rev, searchDefinition, query, options);
-        },
-        updateGuestRegistration(eventId, registrationId, registration) {
-            return rev.put(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`, registration);
-        },
-        patchGuestRegistration(eventId, registrationId, registration) {
-            const operations = Object.entries(registration)
-                .map(([key, value]) => {
-                let path = `/${titleCase(key)}`;
-                return { op: 'replace', path, value };
-            });
-            return rev.put(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`, operations);
-        },
-        deleteGuestRegistration(eventId, registrationId) {
-            return rev.delete(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
-        },
-    };
-    return webcastAPI;
-}
-
-function zonesAPIFactory(rev) {
-    const zonesAPI = {
-        async list() {
-            return rev.get(`/api/v2/zones`, undefined, { responseType: 'json' });
-        },
-        async flatList() {
-            const { defaultZone, zones } = await zonesAPI.list();
-            const flatZones = [defaultZone];
-            function recursiveAdd(inZone) {
-                const { childZones = [], ...zone } = inZone;
-                flatZones.push(zone);
-                childZones.forEach(recursiveAdd);
-            }
-            zones.forEach(recursiveAdd);
-            return flatZones;
-        },
-        async create(zone) {
-            const { zoneId } = await rev.post(`/api/v2/zones`, zone, { responseType: 'json' });
-            return zoneId;
-        },
-        async edit(zoneId, zone) {
-            return rev.put(`/api/v2/zones/${zoneId}`, zone);
-        },
-        delete(zoneId) {
-            return rev.delete(`/api/v2/zones/${zoneId}`);
-        },
-        get devices() {
-            return rev.device.listZoneDevices;
-        }
-    };
-    return zonesAPI;
-}
-
-const ONE_MINUTE = 1000 * 60;
-// obsfucate credentials to avoid accidental disclosure
-const _credentials = Symbol('credentials');
-class SessionKeepAlive {
-    constructor(session, options = {}) {
-        this._isExtending = false;
-        // TODO verify values?
-        this.extendOptions = {
-            extendThresholdMilliseconds: 3 * ONE_MINUTE,
-            keepAliveInterval: 5 * ONE_MINUTE,
-            verify: true,
-            ...options
-        };
-        Object.defineProperties(this, {
-            _session: {
-                get: () => session,
-                enumerable: false
-            }
-        });
-    }
-    getNextExtendTime() {
-        const { expires } = this._session;
-        if (!expires) {
-            return 0;
-        }
-        const { keepAliveInterval: interval, extendThresholdMilliseconds: threshold } = this.extendOptions;
-        const timeTillExpiration = expires.getTime() - Date.now();
-        // clamp range to within 0 and max interval
-        return Math.max(0, Math.min(timeTillExpiration - threshold, interval));
-    }
-    async _poll() {
-        const { _session: session } = this;
-        // force stop other poll process if already polling
-        // keep reference to controller in case of reset
-        const controller = this._reset();
-        const { signal } = controller;
-        while (session.isConnected && !signal.aborted) {
-            const nextExtendTime = this.getNextExtendTime();
-            await sleep(nextExtendTime, signal);
-            // check if poll was aborted. if so don't try to extend
-            if (signal.aborted) {
-                break;
-            }
-            // extend session
-            // possible this can throw an error
-            try {
-                // extending may re-login, so pause poll resets for now
-                this._isExtending = true;
-                await session.lazyExtend(this.extendOptions);
-            }
-            catch (err) {
-                // swallow error, but signal stopped using abort controller
-                controller.abort();
-                this.error = err;
-            }
-            finally {
-                this._isExtending = false;
-            }
-        }
-    }
-    start() {
-        if (this._isExtending) {
-            return;
-        }
-        this._poll();
-    }
-    stop() {
-        if (this._isExtending) {
-            return;
-        }
-        if (this.controller) {
-            this.controller.abort();
-        }
-    }
-    _reset() {
-        this.error = undefined;
-        this._isExtending = false;
-        const oldController = this.controller;
-        this.controller = new polyfills.AbortController();
-        // stop previous poll
-        if (oldController) {
-            oldController.abort();
-        }
-        return this.controller;
-    }
-    get isAlive() {
-        return this.controller && !this.controller.signal.aborted;
-    }
-}
-class SessionBase {
-    constructor(rev, credentials, keepAliveOptions) {
-        this.expires = new Date();
-        if (keepAliveOptions === true) {
-            this.keepAlive = new SessionKeepAlive(this);
-        }
-        else if (isPlainObject(keepAliveOptions)) {
-            this.keepAlive = new SessionKeepAlive(this, keepAliveOptions);
-        }
-        // add as private member
-        Object.defineProperties(this, {
-            rev: {
-                get() { return rev; },
-                enumerable: false
-            },
-            [_credentials]: {
-                get() { return credentials; },
-                enumerable: false
-            }
-        });
-    }
-    async login() {
-        this.token = undefined;
-        this.expires = new Date();
-        const { expiration, ...session } = await this._login();
-        Object.assign(this, session);
-        const expires = new Date(expiration);
-        // VERY edge case where old date could be returned - just assume 10 min expiration
-        if (expires.getTime() < this.expires.getTime()) {
-            this.expires.setUTCMinutes(this.expires.getUTCMinutes() + 10);
-        }
-        else {
-            this.expires = expires;
-        }
-        if (this.keepAlive) {
-            this.keepAlive.start();
-        }
-    }
-    async extend() {
-        const { expiration } = await this._extend();
-        this.expires = new Date(expiration);
-    }
-    async logoff() {
-        if (this.keepAlive) {
-            this.keepAlive.stop();
-        }
-        try {
-            await this._logoff();
-        }
-        finally {
-            this.token = undefined;
-            this.expires = new Date();
-        }
-    }
-    async verify() {
-        try {
-            await this.rev.auth.verifySession();
-            return true;
-        }
-        catch (err) {
-            return false;
-        }
-    }
+      }
+      const form = new FormData();
+      const filePayload = await appendFileToForm(form, "File", file, uploadOptions);
+      const metadata = {
+        files: [
+          { language: lang, fileName: filePayload.filename }
+        ]
+      };
+      appendJSONToForm(form, "TranscriptionFiles", metadata);
+      rev.log("info", `Uploading transcription to ${videoId} (${lang} ${filePayload.filename} (${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/transcription-files/${videoId}`, form, filePayload, requestOptions);
+    },
+    async supplementalFile(videoId, file, options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options);
+      const form = new FormData();
+      const filePayload = await appendFileToForm(form, "File", file, uploadOptions);
+      const metadata = {
+        files: [
+          { fileName: filePayload.filename }
+        ]
+      };
+      appendJSONToForm(form, "SupplementalFiles", metadata);
+      rev.log("info", `Uploading supplemental content to ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/supplemental-files/${videoId}`, form, filePayload, requestOptions);
+    },
     /**
      *
-     * @returns wasExtended - whether session was extended / re-logged in
+     * @param videoId id of video to add chapters to
+     * @param chapters list of chapters. Must have time value and one of title or imageFile
+     * @param action replace = POST/replace existing with this payload
+     *               append = PUT/add or edit without removing existing
+     * @param options  additional upload + request options
      */
-    async lazyExtend(options = {}) {
-        const { extendThresholdMilliseconds: threshold = 3 * ONE_MINUTE, verify: shouldVerify = true } = options;
-        const { expires } = this;
-        const timeLeft = expires
-            ? expires.getTime() - Date.now()
-            : -1;
-        // login if session expired
-        if (timeLeft <= 0) {
-            await this.login();
-            return true;
+    async chapters(videoId, chapters, action = "replace", options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options);
+      const form = new FormData();
+      const metadata = {
+        chapters: []
+      };
+      for (let chapter of chapters) {
+        const {
+          title,
+          time,
+          imageFile
+        } = chapter;
+        const chapterEntry = { time };
+        if (title) {
+          chapterEntry.title = title;
         }
-        // extend if within extend window
-        if (timeLeft > threshold) {
+        if (imageFile) {
+          const filePayload = await appendFileToForm(form, "File", imageFile, uploadOptions);
+          chapterEntry.imageFile = filePayload.filename;
+        }
+      }
+      appendJSONToForm(form, "Chapters", metadata);
+      rev.log("info", `${action === "replace" ? "Uploading" : "Updating"} ${metadata.chapters.length} chapters to ${videoId}`);
+      const method = action === "replace" ? "POST" : "PUT";
+      await uploadMultipart(rev, method, `/api/v2/uploads/chapters/${videoId}`, form, uploadOptions, requestOptions);
+    },
+    async thumbnail(videoId, file, options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options);
+      const form = new FormData();
+      const filePayload = await appendFileToForm(form, "ThumbnailFile", file, uploadOptions);
+      rev.log("info", `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
+    },
+    async presentationChapters(videoId, file, options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options);
+      const form = new FormData();
+      const filePayload = await appendFileToForm(form, "ThumbnailFile", file, uploadOptions);
+      rev.log("info", `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
+    }
+  };
+  return uploadAPI;
+}
+
+// src/api/user.ts
+function userAPIFactory(rev) {
+  async function details(userLookupValue, type) {
+    const query = type === "username" || type === "email" ? { type } : void 0;
+    return rev.get(`/api/v2/users/${userLookupValue}`, query);
+  }
+  const userAPI = {
+    /**
+     * get the list of roles available in the system (with role name and id)
+     */
+    get roles() {
+      return rev.admin.roles;
+    },
+    /**
+     * Create a new User in Rev
+     * @param user
+     * @returns the User ID of the created user
+     */
+    async create(user) {
+      const { userId } = await rev.post("/api/v2/users", user);
+      return userId;
+    },
+    async delete(userId) {
+      await rev.delete(`/api/v2/users/${userId}`);
+    },
+    /**
+     * Get details about a specific user
+     * @param userLookupValue default is search by userId
+     * @param type            specify that userLookupValue is email or
+     *                        username instead of userId
+     * @returns {User}        User details
+     */
+    details,
+    /**
+     * get user details by username
+     * @deprecated - use details(username, 'username')
+     */
+    async getByUsername(username) {
+      return userAPI.details(username, "username");
+    },
+    /**
+     * get user details by email address
+     * @deprecated - use details(email, 'email')
+     */
+    async getByEmail(email) {
+      return userAPI.details(email, "email");
+    },
+    /**
+     * Check if user exists in the system. Instead of throwing on a 401/403 error if
+     * user does not exist it returns false. Returns user details if does exist,
+     * instead of just true
+     * @param userLookupValue userId, username, or email
+     * @param type
+     * @returns User if exists, otherwise false
+     */
+    async exists(userLookupValue, type) {
+      const query = type === "username" || type === "email" ? { type } : void 0;
+      const response = await rev.request("GET", `/api/v2/users/${userLookupValue}`, query, { responseType: "json", throwHttpErrors: false });
+      return response.statusCode === 200 ? response.body : false;
+    },
+    /**
+     * use PATCH API to add user to the specified group
+     * https://revdocs.vbrick.com/reference#edituserdetails
+     * @param {string} userId id of user in question
+     * @param {string} groupId
+     * @returns {Promise<void>}
+     */
+    async addToGroup(userId, groupId) {
+      const operations = [
+        { op: "add", path: "/GroupIds/-", value: groupId }
+      ];
+      await rev.patch(`/api/v2/users/${userId}`, operations);
+    },
+    /**
+     * use PATCH API to add user to the specified group
+     * https://revdocs.vbrick.com/reference#edituserdetails
+     * @param {string} userId id of user in question
+     * @param {string} groupId
+     * @returns {Promise<void>}
+     */
+    async removeFromGroup(userId, groupId) {
+      const operations = [
+        { op: "remove", path: "/GroupIds", value: groupId }
+      ];
+      await rev.patch(`/api/v2/users/${userId}`, operations);
+    },
+    /**
+     * search for users based on text query. Leave blank to return all users.
+     *
+     * @param {string} [searchText]
+     * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
+     */
+    search(searchText, options = {}) {
+      const searchDefinition = {
+        endpoint: "/api/v2/search/access-entity",
+        totalKey: "totalEntities",
+        hitsKey: "accessEntities",
+        /**
+         * the result of this search is uppercase keys. This transforms them to camelcase to match other API responses
+         */
+        transform: (items) => items.map(formatUserSearchHit)
+      };
+      const query = { type: "user" };
+      if (searchText) {
+        query.q = searchText;
+      }
+      return new SearchRequest(rev, searchDefinition, query, options);
+    },
+    /**
+     * Returns the channel and category subscriptions for the user making the API call.
+     */
+    async listSubscriptions() {
+      return rev.get("/api/v2/users/subscriptions");
+    },
+    async subscribe(id, type) {
+      return rev.post("/api/v2/users/subscribe", { id, type });
+    },
+    /**
+     * Unsubscribe from specific channel or category.
+     */
+    async unsubscribe(id, type) {
+      return rev.post("/api/v2/users/unsubscribe", { id, type });
+    },
+    async getNotifications(unread = false) {
+      return rev.get("/api/v2/users/notifications", { unread });
+    },
+    /**
+     *
+     * @param notificationId If notificationId not provided, then all notifications for the user are marked as read.
+     */
+    async markNotificationRead(notificationId) {
+      await rev.put("/api/v2/users/notifications", notificationId ? { notificationId } : void 0);
+    }
+  };
+  return userAPI;
+}
+function formatUserSearchHit(hit) {
+  return {
+    userId: hit.Id,
+    entityType: hit.EntityType,
+    email: hit.Email,
+    firstname: hit.FirstName,
+    lastname: hit.LastName,
+    username: hit.UserName
+  };
+}
+
+// src/api/video-report-request.ts
+var DEFAULT_INCREMENT = 30;
+var DEFAULT_SORT = "asc";
+function addDays(date, numDays) {
+  const d = new Date(date.getTime());
+  d.setDate(d.getDate() + numDays);
+  return d;
+}
+function parseOptions(options) {
+  let {
+    incrementDays = DEFAULT_INCREMENT,
+    sortDirection = DEFAULT_SORT,
+    videoIds,
+    startDate,
+    endDate,
+    ...otherOptions
+  } = options;
+  incrementDays = Math.min(
+    Math.max(
+      1 / 24 / 60,
+      parseFloat(incrementDays) || DEFAULT_INCREMENT
+    ),
+    30
+  );
+  if (Array.isArray(videoIds)) {
+    videoIds = videoIds.map((s) => s.trim()).filter(Boolean).join(",");
+  }
+  return {
+    incrementDays,
+    sortDirection,
+    videoIds,
+    ...parseDates(startDate, endDate),
+    ...otherOptions
+  };
+}
+function parseDates(startArg, endArg) {
+  const now = /* @__PURE__ */ new Date();
+  let startDate = asValidDate(startArg);
+  let endDate = asValidDate(endArg);
+  if (!endDate) {
+    if (startDate) {
+      endDate = addDays(startDate, 30);
+      if (endDate.getTime() > now.getTime()) {
+        endDate = now;
+      }
+    } else {
+      endDate = now;
+    }
+  }
+  if (!startDate) {
+    startDate = addDays(endDate, -30);
+  }
+  if (startDate.getTime() > endDate.getTime()) {
+    [startDate, endDate] = [endDate, startDate];
+  }
+  return { startDate, endDate };
+}
+var VideoReportRequest = class extends PagedRequest {
+  constructor(rev, options = {}) {
+    super(parseOptions(options));
+    this._rev = rev;
+  }
+  async _requestPage() {
+    const { startDate, endDate } = this;
+    const { incrementDays, sortDirection, videoIds } = this.options;
+    const isAscending = sortDirection === "asc";
+    let rangeStart = startDate;
+    let rangeEnd = endDate;
+    let done = false;
+    if (isAscending) {
+      rangeEnd = addDays(rangeStart, incrementDays);
+      if (rangeEnd >= endDate) {
+        done = true;
+        rangeEnd = endDate;
+      }
+    } else {
+      rangeStart = addDays(rangeEnd, -1 * incrementDays);
+      if (rangeStart <= startDate) {
+        done = true;
+        rangeStart = startDate;
+      }
+    }
+    const query = {
+      after: rangeStart.toJSON(),
+      before: rangeEnd.toJSON()
+    };
+    if (videoIds) {
+      query.videoIds = videoIds;
+    }
+    const items = await this._rev.get("/api/v2/videos/report", query, { responseType: "json" });
+    if (!done) {
+      if (isAscending) {
+        this.startDate = rangeEnd;
+      } else {
+        this.endDate = rangeStart;
+      }
+    }
+    return {
+      items,
+      done
+    };
+  }
+  get startDate() {
+    return this.options.startDate;
+  }
+  set startDate(value) {
+    this.options.startDate = value;
+  }
+  get endDate() {
+    return this.options.endDate;
+  }
+  set endDate(value) {
+    this.options.endDate = value;
+  }
+};
+function videoReportAPI(rev) {
+  function report(videoId, options = {}) {
+    if (isPlainObject(videoId)) {
+      options = videoId;
+    } else if (typeof videoId === "string") {
+      options = {
+        ...options ?? {},
+        videoIds: videoId
+      };
+    }
+    return new VideoReportRequest(rev, options);
+  }
+  return {
+    report
+  };
+}
+
+// src/api/video-download.ts
+function videoDownloadAPI(rev) {
+  async function download(videoId, options = {}) {
+    const response = await rev.request("GET", `/api/v2/videos/${videoId}/download`, void 0, {
+      ...options,
+      responseType: "stream"
+    });
+    return response;
+  }
+  async function downloadChapter(chapter) {
+    const { imageUrl } = chapter;
+    const { body } = await rev.request("GET", imageUrl, void 0, { responseType: "blob" });
+    return body;
+  }
+  async function downloadSupplemental(videoId, fileId) {
+    const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/supplemental-files/${fileId}`;
+    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob" });
+    return body;
+  }
+  async function downloadTranscription(videoId, language) {
+    const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/transcription-files/${language}`;
+    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob" });
+    return body;
+  }
+  async function downloadThumbnail(query) {
+    let {
+      videoId = "",
+      imageId = ""
+    } = typeof query === "string" ? { imageId: query } : query;
+    if (!(videoId || imageId)) {
+      throw new TypeError("No video/image specified to download");
+    }
+    if (!imageId) {
+      imageId = (await rev.get(`/api/v2/videos/${videoId}/playback-url`)).video.thumbnailUrl;
+    } else if (!imageId.endsWith(".jpg")) {
+      imageId = `${imageId}.jpg`;
+    }
+    let thumbnailUrl = imageId.startsWith("http") ? imageId : `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
+    const { body } = await rev.request("GET", thumbnailUrl, void 0, { responseType: "blob" });
+    return body;
+  }
+  return {
+    download,
+    downloadChapter,
+    downloadSupplemental,
+    downloadThumbnail,
+    downloadTranscription
+  };
+}
+
+// src/api/video.ts
+function videoAPIFactory(rev) {
+  async function comments(videoId, showAll = false) {
+    const response = await rev.get(`/api/v2/videos/${videoId}/comments`, showAll ? { showAll: "true" } : void 0);
+    return response.comments;
+  }
+  const videoAPI = {
+    /**
+     * This is an example of using the video Patch API to only update a single field
+     * @param videoId
+     * @param title
+     */
+    async setTitle(videoId, title) {
+      const payload = [{ op: "add", path: "/Title", value: title }];
+      await rev.patch(`/api/v2/videos/${videoId}`, payload);
+    },
+    /**
+     * Use the Patch API to update a single Custom Field.
+     * @param videoId - id of video to update
+     * @param customField - the custom field object (with id and value)
+     */
+    async setCustomField(videoId, customField) {
+      const payload = [
+        { op: "remove", path: "/customFields", value: customField.id },
+        { op: "add", path: "/customFields/-", value: customField }
+      ];
+      await rev.patch(`/api/v2/videos/${videoId}`, payload);
+    },
+    /**
+     * get processing status of a video
+     * @param videoId
+     */
+    async status(videoId) {
+      return rev.get(`/api/v2/videos/${videoId}/status`);
+    },
+    async details(videoId) {
+      return rev.get(`/api/v2/videos/${videoId}/details`);
+    },
+    comments,
+    async chapters(videoId) {
+      try {
+        const { chapters } = await rev.get(`/api/v2/videos/${videoId}/chapters`);
+        return chapters;
+      } catch (err) {
+        if (err instanceof RevError && err.code === "NoVideoChapters") {
+          return [];
+        }
+        throw err;
+      }
+    },
+    async supplementalFiles(videoId) {
+      const { supplementalFiles } = await rev.get(`/api/v2/videos/${videoId}/supplemental-files`);
+      return supplementalFiles;
+    },
+    // async deleteSupplementalFiles(videoId: string, fileId: string | string[]): Promise<void> {
+    //     const fileIds = Array.isArray(fileId)
+    //         ? fileId.join(',')
+    //         : fileId
+    //     await rev.delete(`/api/v2/videos/${videoId}/supplemental-files`, { fileIds });
+    // },
+    async transcriptions(videoId) {
+      const { transcriptionFiles } = await rev.get(`/api/v2/videos/${videoId}/transcription-files`);
+      return transcriptionFiles;
+    },
+    get upload() {
+      return rev.upload.video;
+    },
+    async migrate(videoId, options) {
+      await rev.put(`/api/v2/videos/${videoId}/migration`, options);
+    },
+    /**
+     * search for videos, return as one big list. leave blank to get all videos in the account
+     */
+    search(query = {}, options = {}) {
+      const searchDefinition = {
+        endpoint: "/api/v2/videos/search",
+        totalKey: "totalVideos",
+        hitsKey: "videos"
+      };
+      const request = new SearchRequest(rev, searchDefinition, query, options);
+      return request;
+    },
+    /**
+     * Example of using the video search API to search for videos, then getting
+     * the details of each video
+     * @param query
+     * @param options
+     */
+    searchDetailed(query = {}, options = {}) {
+      const searchDefinition = {
+        endpoint: "/api/v2/videos/search",
+        totalKey: "totalVideos",
+        hitsKey: "videos",
+        transform: async (videos) => {
+          const result = [];
+          for (let rawVideo of videos) {
+            const out = rawVideo;
             try {
-                await this.extend();
-                // successful extend, nothing more to do
-                return true;
+              const details = await videoAPI.details(rawVideo.id);
+              Object.assign(out, details);
+            } catch (error) {
+              out.error = error;
             }
-            catch (error) {
-                this.rev.log('warn', 'Error extending session - re-logging in', error);
-            }
-            // check if valid session if plenty of time left
+            result.push(out);
+          }
+          return result;
         }
-        else if (!shouldVerify || await this.verify()) {
-            // valid, no change
-            return false;
-        }
-        // if reached here then need to re-login
-        await this.login();
-        return true;
+      };
+      const request = new SearchRequest(rev, searchDefinition, query, options);
+      return request;
+    },
+    async playbackInfo(videoId) {
+      const { video } = await rev.get(`/api/v2/videos/${videoId}/playback-url`);
+      return video;
+    },
+    ...videoDownloadAPI(rev),
+    ...videoReportAPI(rev),
+    async trim(videoId, removedSegments) {
+      return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);
     }
-    /**
-     * check if expiration time of session has passed
-     */
-    get isExpired() {
-        const { expires } = this;
-        if (!expires) {
-            return true;
-        }
-        return Date.now() > expires.getTime();
-    }
-    /**
-     * returns true if session isn't expired and has a token
-     */
-    get isConnected() {
-        return !!this.token && !this.isExpired;
-    }
-    get username() {
-        return this[_credentials].username;
-    }
-}
-class OAuthSession extends SessionBase {
-    async _login() {
-        const { oauthConfig, authCode } = this[_credentials];
-        if (!oauthConfig || !authCode) {
-            throw new TypeError('OAuth Config / auth code not specified');
-        }
-        const { accessToken: token, expiration, refreshToken, userId } = await this.rev.auth.loginOAuth(oauthConfig, authCode);
-        return { token, expiration, refreshToken, userId };
-    }
-    async _extend() {
-        const { [_credentials]: { oauthConfig } } = this;
-        const { 
-        // other API calls call this "token" instead of "accessToken", hence the rename
-        accessToken: token, expiration, refreshToken } = await this.rev.auth.extendSessionOAuth(oauthConfig, this.refreshToken);
-        // unlike other extend methods this updates the token + refreshToken each time
-        Object.assign(this, { token, refreshToken });
-        return { expiration };
-    }
-    async _logoff() {
-        // nothing to do
-        return;
-    }
-    toJSON() {
-        return {
-            token: this.token || '',
-            expiration: this.expires,
-            refreshToken: this.refreshToken
-        };
-    }
-}
-class UserSession extends SessionBase {
-    async _login() {
-        const { username, password } = this[_credentials];
-        if (!username || !password) {
-            throw new TypeError('username/password not specified');
-        }
-        const { token, expiration, id: userId } = await this.rev.auth.loginUser(username, password);
-        return { token, expiration, userId };
-    }
-    async _extend() {
-        const { userId } = this;
-        return this.rev.auth.extendSessionUser(userId);
-    }
-    async _logoff() {
-        const { userId } = this;
-        return this.rev.auth.logoffUser(userId);
-    }
-    toJSON() {
-        return {
-            token: this.token || '',
-            expiration: this.expires,
-            userId: this.userId
-        };
-    }
-}
-class ApiKeySession extends SessionBase {
-    async _login() {
-        const { apiKey, secret } = this[_credentials];
-        if (!apiKey || !secret) {
-            throw new TypeError('apiKey/secret not specified');
-        }
-        return this.rev.auth.loginToken(apiKey, secret);
-    }
-    async _extend() {
-        const { apiKey } = this[_credentials];
-        return this.rev.auth.extendSessionToken(apiKey);
-    }
-    async _logoff() {
-        const { apiKey } = this[_credentials];
-        return this.rev.auth.logoffToken(apiKey);
-    }
-    toJSON() {
-        return {
-            token: this.token || '',
-            expiration: this.expires,
-            apiKey: this[_credentials].apiKey
-        };
-    }
-}
-function createSession(rev, credentials, keepAliveOptions) {
-    let session;
-    const { session: sessionState = {}, ...creds } = credentials;
-    const { token, expiration, refreshToken, userId } = sessionState;
-    const now = Date.now();
-    const expires = new Date(expiration || now);
-    const hasSession = (token && typeof token === 'string') && (expires.getTime() > now);
-    const isOauthLogin = credentials.oauthConfig && (credentials.authCode || (hasSession && refreshToken));
-    const isApiKeyLogin = credentials.apiKey && (credentials.secret || (hasSession && !userId));
-    const isUsernameLogin = credentials.username && (credentials.password || (hasSession && userId));
-    // prefer oauth first, then apikey then username if multiple params specified
-    if (isOauthLogin) {
-        session = new OAuthSession(rev, creds, keepAliveOptions);
-        if (refreshToken) {
-            session.refreshToken = refreshToken;
-        }
-    }
-    else if (isApiKeyLogin) {
-        session = new ApiKeySession(rev, creds, keepAliveOptions);
-    }
-    else if (isUsernameLogin) {
-        session = new UserSession(rev, creds, keepAliveOptions);
-        if (userId) {
-            session.userId = userId;
-        }
-    }
-    else {
-        throw new TypeError('Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)');
-    }
-    if (hasSession) {
-        session.token = token;
-        session.expires = expires;
-    }
-    return session;
+  };
+  return videoAPI;
 }
 
-class RevClient {
-    constructor(options) {
-        if (!isPlainObject(options) || !options.url) {
-            throw new TypeError('Missing configuration options for client - url and username/password or apiKey/secret');
-        }
-        const { url, log, logEnabled = false, keepAlive = true, ...credentials } = options;
-        // get just the origin of provided url
-        const urlObj = new URL(url);
-        this.url = urlObj.origin;
-        // will throw error if credentials are invalid
-        this.session = createSession(this, credentials, keepAlive);
-        // add logging functionality
-        this.logEnabled = !!logEnabled;
-        if (log) {
-            this.log = (severity, ...args) => {
-                if (!this.logEnabled) {
-                    return;
-                }
-                log(severity, ...args);
-            };
-        }
-        // add all API endpoints
-        Object.defineProperties(this, {
-            admin: { value: adminAPIFactory(this), writable: false },
-            audit: { value: auditAPIFactory(this), writable: false },
-            auth: { value: authAPIFactory(this), writable: false },
-            category: { value: categoryAPIFactory(this), writable: false },
-            channel: { value: channelAPIFactory(this), writable: false },
-            device: { value: deviceAPIFactory(this), writable: false },
-            group: { value: groupAPIFactory(this), writable: false },
-            playlist: { value: playlistAPIFactory(this), writable: false },
-            recording: { value: recordingAPIFactory(this), writable: false },
-            upload: { value: uploadAPIFactory(this), writable: false },
-            user: { value: userAPIFactory(this), writable: false },
-            video: { value: videoAPIFactory(this), writable: false },
-            webcast: { value: webcastAPIFactory(this), writable: false },
-            // COMBAK - DEPRECATED
-            webcasts: { get: () => {
-                    this.log('debug', 'webcasts is deprecated - use rev.webcast instead');
-                    return this.webcast;
-                }, enumerable: false },
-            zones: { value: zonesAPIFactory(this), writable: false }
-        });
-    }
-    /**
-     * make a REST request
-     */
-    async request(method, endpoint, data = undefined, options = {}) {
-        const url = new URL(endpoint, this.url);
-        // ensure url matches Rev url, to avoid sending authorization header elsewhere
-        if (url.origin !== this.url) {
-            throw new TypeError(`Invalid endpoint - must be relative to ${this.url}`);
-        }
-        let { headers: optHeaders, responseType, throwHttpErrors = true, ...requestOpts } = options;
-        // setup headers for JSON communication (by default)
-        const headers = new polyfills.Headers(optHeaders);
-        // add authorization header from stored token
-        if (this.session.token && !headers.has('Authorization')) {
-            headers.set('Authorization', `VBrick ${this.session.token}`);
-        }
-        if (headers.get('Authorization') === '') {
-            // if Auth is explicitly set to '' then remove from list
-            headers.delete('Authorization');
-        }
-        const fetchOptions = {
-            mode: 'cors',
-            method,
-            ...requestOpts,
-            headers
-        };
-        // default to JSON request payload, but allow it to be overridden
-        let shouldSetAsJSON = !headers.has('Content-Type');
-        // add provided data to request body or as query string parameters
-        if (data) {
-            if (['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
-                if (typeof data === 'string') {
-                    fetchOptions.body = data;
-                }
-                else if (data instanceof polyfills.FormData) {
-                    shouldSetAsJSON = false;
-                    fetchOptions.body = data;
-                }
-                else if (isPlainObject(data) || Array.isArray(data)) {
-                    fetchOptions.body = JSON.stringify(data);
-                }
-                else {
-                    fetchOptions.body = data;
-                }
-            }
-            else if (isPlainObject(data)) {
-                // add values to query string of URL
-                for (let [key, value] of Object.entries(data)) {
-                    url.searchParams.append(key, value);
-                }
-            }
-            else {
-                throw new TypeError(`Invalid payload for request to ${method} ${endpoint}`);
-            }
-        }
-        // default to JSON communication
-        if (!headers.has('Accept')) {
-            headers.set('Accept', 'application/json');
-        }
-        // set to JSON payload
-        if (shouldSetAsJSON) {
-            headers.set('Content-Type', 'application/json');
-        }
-        // OPTIONAL log request and response
-        this.log('debug', `Request ${method} ${endpoint}`);
-        // NOTE: will throw error on AbortError or client fetch errors
-        const response = await polyfills.fetch(`${url}`, {
-            ...fetchOptions,
-            method,
-            headers
-        });
-        const { ok, status: statusCode, statusText, headers: responseHeaders } = response;
-        this.log('debug', `Response ${method} ${endpoint} ${statusCode} ${statusText}`);
-        // check for error response code
-        if (!ok) {
-            if (throwHttpErrors) {
-                const err = await RevError.create(response);
-                throw err;
-            }
-            // if not throwwing then force responseType to auto (could be text or json)
-            responseType = undefined;
-        }
-        let body = response.body;
-        switch (responseType) {
-            case 'json':
-                body = await response.json();
-                break;
-            case 'text':
-                body = await response.text();
-                break;
-            case 'blob':
-                body = await response.blob();
-                break;
-            case 'stream':
-                body = response.body;
-                break;
-            default:
-                // if no mimetype in response then assume JSON unless otherwise specified
-                body = await decodeBody(response, headers.get('Accept'));
-        }
-        return {
-            statusCode,
-            headers: responseHeaders,
-            body,
-            response
-        };
-    }
-    async get(endpoint, data, options) {
-        const { body } = await this.request('GET', endpoint, data, options);
-        return body;
-    }
-    async post(endpoint, data, options) {
-        const { body } = await this.request('POST', endpoint, data, options);
-        return body;
-    }
-    async put(endpoint, data, options) {
-        const { body } = await this.request('PUT', endpoint, data, options);
-        return body;
-    }
-    async patch(endpoint, data, options) {
-        await this.request('PATCH', endpoint, data, options);
-    }
-    async delete(endpoint, data, options) {
-        await this.request('DELETE', endpoint, data, options);
-    }
-    /**
-     * authenticate with Rev
-     */
-    async connect() {
-        // Rarely the login call will fail on first attempt, therefore this code attempts to login
-        // multiple times
-        await retry(() => this.session.login(), 
-        // Do not re-attempt logins with invalid user/password or rate limiting - it can lock out the user
-        (err) => ![401, 429].includes(err.status));
-    }
-    /**
-     * end rev session
-     */
-    async disconnect() {
-        try {
-            await this.session.logoff();
-        }
-        catch (error) {
-            this.log('warn', `Error in logoff, ignoring: ${error}`);
-        }
-    }
-    // this should get called every 15 minutes or so to extend the connection session
-    async extendSession() {
-        return this.session.extend();
-    }
-    /**
-     * Returns true/false based on if the session is currently valid
-     * @returns Promise<boolean>
-     */
-    async verifySession() {
-        return this.session.verify();
-    }
-    get isConnected() {
-        return !!this.session.token && !this.session.isExpired;
-    }
-    get token() {
-        return this.session.token;
-    }
-    get sessionExpires() {
-        return this.session.expires;
-    }
-    get sessionState() {
-        return this.session.toJSON();
-    }
-    set sessionState(state) {
-        this.session.token = `${state.token}`;
-        this.session.expires = new Date(state.expiration);
-        for (let key of ['apiKey', 'refreshToken', 'userId']) {
-            if (key in state) {
-                this.session[key] = `${state[key] || ''}`;
-            }
-        }
-    }
-    log(severity, ...args) {
-        if (!this.logEnabled) {
-            return;
-        }
-        const ts = (new Date()).toJSON().replace('T', ' ').slice(0, -5);
-        console.debug(`${ts} REV-CLIENT [${severity}]`, ...args);
-    }
+// src/api/webcast-report-request.ts
+function getSummaryFromResponse(response, hitsKey) {
+  const ignoreKeys = ["scrollId", "statusCode", "statusDescription"];
+  const summary = Object.fromEntries(Object.entries(response).filter(([key, value]) => {
+    return !(key === hitsKey || ignoreKeys.includes(key) || Array.isArray(value));
+  }));
+  return summary;
 }
-
-const utils = {
-    rateLimit,
-    getExtensionForMime,
-    getMimeForExtension
+var RealtimeReportRequest = class extends SearchRequest {
+  constructor(rev, eventId, query = {}, options = {}) {
+    const searchDefinition = {
+      endpoint: `/api/v2/scheduled-events/${eventId}/real-time/attendees`,
+      totalKey: "total",
+      hitsKey: "attendees",
+      // get summary from initial response
+      request: async (endpoint, query2, options2) => {
+        const response = await rev.post(endpoint, query2, options2);
+        const summary = getSummaryFromResponse(response, "attendees");
+        Object.assign(this.summary, summary);
+        return response;
+      }
+    };
+    super(rev, searchDefinition, query, options);
+    this.summary = {};
+  }
+  /**
+   * get the aggregate statistics only, instead of actual session data.
+   * @returns {Webcast.PostEventSummary}
+   */
+  async getSummary() {
+    this.options.maxResults = 0;
+    await this.nextPage();
+    return this.summary;
+  }
+};
+var PostEventReportRequest = class extends SearchRequest {
+  constructor(rev, query, options = {}) {
+    const { eventId, runNumber } = query;
+    const runQuery = runNumber && runNumber >= 0 ? { runNumber } : {};
+    const searchDefinition = {
+      endpoint: `/api/v2/scheduled-events/${eventId}/post-event-report`,
+      totalKey: "totalSessions",
+      hitsKey: "sessions",
+      request: async (endpoint, query2, options2) => {
+        const response = await rev.get(endpoint, query2, options2);
+        const summary = getSummaryFromResponse(response, "sessions");
+        Object.assign(this.summary, summary);
+        return response;
+      }
+    };
+    super(rev, searchDefinition, runQuery, options);
+    this.summary = {};
+  }
+  /**
+   * get the aggregate statistics only, instead of actual session data.
+   * @returns {Webcast.PostEventSummary}
+   */
+  async getSummary() {
+    this.options.maxResults = 0;
+    await this.nextPage();
+    return this.summary;
+  }
 };
 
-export { RevClient, RevError, ScrollError, RevClient as default, utils };
+// src/api/webcast.ts
+function webcastAPIFactory(rev) {
+  const webcastAPI = {
+    async list(options = {}) {
+      return rev.get("/api/v2/scheduled-events", options, { responseType: "json" });
+    },
+    search(query, options) {
+      const searchDefinition = {
+        endpoint: `/api/v2/search/scheduled-events`,
+        totalKey: "total",
+        hitsKey: "events",
+        request: (endpoint, query2, options2) => rev.post(endpoint, query2, options2),
+        isPost: true
+      };
+      return new SearchRequest(rev, searchDefinition, query, options);
+    },
+    async create(event) {
+      const { eventId } = await rev.post(`/api/v2/scheduled-events`, event);
+      return eventId;
+    },
+    async details(eventId) {
+      return rev.get(`/api/v2/scheduled-events/${eventId}`);
+    },
+    async edit(eventId, event) {
+      return rev.put(`/api/v2/scheduled-events/${eventId}`, event);
+    },
+    // async patch - not yet implemented
+    async delete(eventId) {
+      return rev.delete(`/api/v2/scheduled-events/${eventId}`);
+    },
+    async editAccess(eventId, entities) {
+      return rev.put(`/api/v2/scheduled-events/${eventId}/access-control`, entities);
+    },
+    attendees(eventId, runNumber, options) {
+      return new PostEventReportRequest(rev, { eventId, runNumber }, options);
+    },
+    realtimeAttendees(eventId, query, options) {
+      return new RealtimeReportRequest(rev, eventId, query, options);
+    },
+    async questions(eventId, runNumber) {
+      const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+      return rev.get(`/api/v2/scheduled-events/${eventId}/questions`, query, { responseType: "json" });
+    },
+    async pollResults(eventId, runNumber) {
+      const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+      return rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: "json" });
+    },
+    async comments(eventId, runNumber) {
+      const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+      return rev.get(`/api/v2/scheduled-events/${eventId}/comments`, query, { responseType: "json" });
+    },
+    async status(eventId) {
+      return rev.get(`/api/v2/scheduled-events/${eventId}/status`);
+    },
+    async playbackUrl(eventId, options = {}) {
+      const {
+        ip,
+        userAgent
+      } = options;
+      const query = ip ? { ip } : void 0;
+      const requestOptions = {
+        responseType: "json"
+      };
+      if (userAgent) {
+        requestOptions.headers = { "User-Agent": userAgent };
+      }
+      return rev.get(`/api/v2/scheduled-events/${eventId}/playback-url`, query, requestOptions);
+    },
+    async startEvent(eventId, preProduction = false) {
+      await rev.put(`/api/v2/scheduled-events/${eventId}/start`, { preProduction });
+    },
+    async stopEvent(eventId, preProduction = false) {
+      await rev.delete(`/api/v2/scheduled-events/${eventId}/start`, { preProduction });
+    },
+    async startBroadcast(eventId) {
+      await rev.put(`/api/v2/scheduled-events/${eventId}/broadcast`);
+    },
+    async stopBroadcast(eventId) {
+      await rev.delete(`/api/v2/scheduled-events/${eventId}/broadcast`);
+    },
+    async startRecord(eventId) {
+      await rev.put(`/api/v2/scheduled-events/${eventId}/record`);
+    },
+    async stopRecord(eventId) {
+      await rev.delete(`/api/v2/scheduled-events/${eventId}/record`);
+    },
+    async linkVideo(eventId, videoId, autoRedirect = true) {
+      const payload = {
+        videoId,
+        redirectVod: autoRedirect
+      };
+      return rev.put(`/api/v2/scheduled-events/${eventId}/linked-video`, payload);
+    },
+    async unlinkVideo(eventId) {
+      return rev.delete(`/api/v2/scheduled-events/${eventId}/linked-video`);
+    },
+    /**
+     * Retrieve details of a specific guest user Public webcast registration.
+     * @param eventId - Id of the Public webcast
+     * @param registrationId - Id of guest user's registration to retrieve
+     * @returns
+     */
+    async guestRegistration(eventId, registrationId) {
+      return rev.get(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
+    },
+    /**
+     * Register one attendee/guest user for an upcoming Public webcast. Make sure you first enable Public webcast pre-registration before adding registrations.
+     * @param eventId
+     * @param registration
+     * @returns
+     */
+    async createGuestRegistration(eventId, registration) {
+      return rev.post(`/api/v2/scheduled-events/${eventId}/registrations`, registration);
+    },
+    listGuestRegistrations(eventId, query = {}, options) {
+      const searchDefinition = {
+        endpoint: `/api/v2/scheduled-events/${eventId}/registrations`,
+        /** NOTE: this API doesn't actually return a total, so this will always be undefined */
+        totalKey: "total",
+        hitsKey: "guestUsers"
+      };
+      return new SearchRequest(rev, searchDefinition, query, options);
+    },
+    updateGuestRegistration(eventId, registrationId, registration) {
+      return rev.put(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`, registration);
+    },
+    patchGuestRegistration(eventId, registrationId, registration) {
+      const operations = Object.entries(registration).map(([key, value]) => {
+        let path = `/${titleCase(key)}`;
+        return { op: "replace", path, value };
+      });
+      return rev.put(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`, operations);
+    },
+    deleteGuestRegistration(eventId, registrationId) {
+      return rev.delete(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
+    }
+  };
+  return webcastAPI;
+}
+
+// src/api/zones.ts
+function zonesAPIFactory(rev) {
+  const zonesAPI = {
+    async list() {
+      return rev.get(`/api/v2/zones`, void 0, { responseType: "json" });
+    },
+    async flatList() {
+      const {
+        defaultZone,
+        zones
+      } = await zonesAPI.list();
+      const flatZones = [defaultZone];
+      function recursiveAdd(inZone) {
+        const {
+          childZones = [],
+          ...zone
+        } = inZone;
+        flatZones.push(zone);
+        childZones.forEach(recursiveAdd);
+      }
+      zones.forEach(recursiveAdd);
+      return flatZones;
+    },
+    async create(zone) {
+      const { zoneId } = await rev.post(`/api/v2/zones`, zone, { responseType: "json" });
+      return zoneId;
+    },
+    async edit(zoneId, zone) {
+      return rev.put(`/api/v2/zones/${zoneId}`, zone);
+    },
+    delete(zoneId) {
+      return rev.delete(`/api/v2/zones/${zoneId}`);
+    },
+    get devices() {
+      return rev.device.listZoneDevices;
+    }
+  };
+  return zonesAPI;
+}
+
+// src/rev-session.ts
+var ONE_MINUTE2 = 1e3 * 60;
+var _credentials = Symbol("credentials");
+var SessionKeepAlive = class {
+  constructor(session, options = {}) {
+    this._isExtending = false;
+    this.extendOptions = {
+      extendThresholdMilliseconds: 3 * ONE_MINUTE2,
+      keepAliveInterval: 5 * ONE_MINUTE2,
+      verify: true,
+      ...options
+    };
+    Object.defineProperties(this, {
+      _session: {
+        get: () => session,
+        enumerable: false
+      }
+    });
+  }
+  getNextExtendTime() {
+    const { expires } = this._session;
+    if (!expires) {
+      return 0;
+    }
+    const {
+      keepAliveInterval: interval,
+      extendThresholdMilliseconds: threshold
+    } = this.extendOptions;
+    const timeTillExpiration = expires.getTime() - Date.now();
+    return Math.max(0, Math.min(timeTillExpiration - threshold, interval));
+  }
+  async _poll() {
+    const { _session: session } = this;
+    const controller = this._reset();
+    const { signal } = controller;
+    while (session.isConnected && !signal.aborted) {
+      const nextExtendTime = this.getNextExtendTime();
+      await sleep(nextExtendTime, signal);
+      if (signal.aborted) {
+        break;
+      }
+      try {
+        this._isExtending = true;
+        await session.lazyExtend(this.extendOptions);
+      } catch (err) {
+        controller.abort();
+        this.error = err;
+      } finally {
+        this._isExtending = false;
+      }
+    }
+  }
+  start() {
+    if (this._isExtending) {
+      return;
+    }
+    this._poll();
+  }
+  stop() {
+    if (this._isExtending) {
+      return;
+    }
+    if (this.controller) {
+      this.controller.abort();
+    }
+  }
+  _reset() {
+    this.error = void 0;
+    this._isExtending = false;
+    const oldController = this.controller;
+    this.controller = new interop_default.AbortController();
+    if (oldController) {
+      oldController.abort();
+    }
+    return this.controller;
+  }
+  get isAlive() {
+    return this.controller && !this.controller.signal.aborted;
+  }
+};
+var SessionBase = class {
+  constructor(rev, credentials, keepAliveOptions) {
+    this.expires = /* @__PURE__ */ new Date();
+    if (keepAliveOptions === true) {
+      this.keepAlive = new SessionKeepAlive(this);
+    } else if (isPlainObject(keepAliveOptions)) {
+      this.keepAlive = new SessionKeepAlive(this, keepAliveOptions);
+    }
+    Object.defineProperties(this, {
+      rev: {
+        get() {
+          return rev;
+        },
+        enumerable: false
+      },
+      [_credentials]: {
+        get() {
+          return credentials;
+        },
+        enumerable: false
+      }
+    });
+  }
+  async login() {
+    this.token = void 0;
+    this.expires = /* @__PURE__ */ new Date();
+    const {
+      expiration,
+      ...session
+    } = await this._login();
+    Object.assign(this, session);
+    const expires = new Date(expiration);
+    if (expires.getTime() < this.expires.getTime()) {
+      this.expires.setUTCMinutes(this.expires.getUTCMinutes() + 10);
+    } else {
+      this.expires = expires;
+    }
+    if (this.keepAlive) {
+      this.keepAlive.start();
+    }
+  }
+  async extend() {
+    const { expiration } = await this._extend();
+    this.expires = new Date(expiration);
+  }
+  async logoff() {
+    if (this.keepAlive) {
+      this.keepAlive.stop();
+    }
+    try {
+      await this._logoff();
+    } finally {
+      this.token = void 0;
+      this.expires = /* @__PURE__ */ new Date();
+    }
+  }
+  async verify() {
+    try {
+      await this.rev.auth.verifySession();
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+  /**
+   *
+   * @returns wasExtended - whether session was extended / re-logged in
+   */
+  async lazyExtend(options = {}) {
+    const {
+      extendThresholdMilliseconds: threshold = 3 * ONE_MINUTE2,
+      verify: shouldVerify = true
+    } = options;
+    const { expires } = this;
+    const timeLeft = expires ? expires.getTime() - Date.now() : -1;
+    if (timeLeft <= 0) {
+      await this.login();
+      return true;
+    }
+    if (timeLeft > threshold) {
+      try {
+        await this.extend();
+        return true;
+      } catch (error) {
+        this.rev.log("warn", "Error extending session - re-logging in", error);
+      }
+    } else if (!shouldVerify || await this.verify()) {
+      return false;
+    }
+    await this.login();
+    return true;
+  }
+  /**
+   * check if expiration time of session has passed
+   */
+  get isExpired() {
+    const { expires } = this;
+    if (!expires) {
+      return true;
+    }
+    return Date.now() > expires.getTime();
+  }
+  /**
+   * returns true if session isn't expired and has a token
+   */
+  get isConnected() {
+    return !!this.token && !this.isExpired;
+  }
+  get username() {
+    return this[_credentials].username;
+  }
+};
+_credentials;
+var OAuthSession = class extends SessionBase {
+  async _login() {
+    const { oauthConfig, authCode } = this[_credentials];
+    if (!oauthConfig || !authCode) {
+      throw new TypeError("OAuth Config / auth code not specified");
+    }
+    const {
+      accessToken: token,
+      expiration,
+      refreshToken,
+      userId
+    } = await this.rev.auth.loginOAuth(oauthConfig, authCode);
+    return { token, expiration, refreshToken, userId };
+  }
+  async _extend() {
+    const { [_credentials]: { oauthConfig } } = this;
+    const {
+      // other API calls call this "token" instead of "accessToken", hence the rename
+      accessToken: token,
+      expiration,
+      refreshToken
+    } = await this.rev.auth.extendSessionOAuth(oauthConfig, this.refreshToken);
+    Object.assign(this, { token, refreshToken });
+    return { expiration };
+  }
+  async _logoff() {
+    return;
+  }
+  toJSON() {
+    return {
+      token: this.token || "",
+      expiration: this.expires,
+      refreshToken: this.refreshToken
+    };
+  }
+};
+var OAuth2Session = class extends SessionBase {
+  async _login() {
+    const { oauthConfig, code, codeVerifier } = this[_credentials];
+    if (!oauthConfig || !code || !codeVerifier) {
+      throw new TypeError("OAuth Config / auth code / verifier not specified");
+    }
+    const {
+      access_token: token,
+      expires_in,
+      refresh_token: refreshToken,
+      userId
+    } = await this.rev.auth.loginOAuth2(oauthConfig, code, codeVerifier);
+    const expiresTime = Date.now() + parseInt(expires_in, 10) * 1e3;
+    const expiration = new Date(expiresTime).toISOString();
+    return { token, expiration, refreshToken, userId };
+  }
+  async _extend() {
+    return this.rev.auth.extendSession();
+  }
+  async _logoff() {
+    return;
+  }
+  toJSON() {
+    return {
+      token: this.token || "",
+      expiration: this.expires
+    };
+  }
+};
+var UserSession = class extends SessionBase {
+  async _login() {
+    const { username, password } = this[_credentials];
+    if (!username || !password) {
+      throw new TypeError("username/password not specified");
+    }
+    const {
+      token,
+      expiration,
+      id: userId
+    } = await this.rev.auth.loginUser(username, password);
+    return { token, expiration, userId };
+  }
+  async _extend() {
+    const { userId } = this;
+    return this.rev.auth.extendSessionUser(userId);
+  }
+  async _logoff() {
+    const { userId } = this;
+    return this.rev.auth.logoffUser(userId);
+  }
+  toJSON() {
+    return {
+      token: this.token || "",
+      expiration: this.expires,
+      userId: this.userId
+    };
+  }
+};
+var ApiKeySession = class extends SessionBase {
+  async _login() {
+    const { apiKey, secret } = this[_credentials];
+    if (!apiKey || !secret) {
+      throw new TypeError("apiKey/secret not specified");
+    }
+    return this.rev.auth.loginToken(apiKey, secret);
+  }
+  async _extend() {
+    const { apiKey } = this[_credentials];
+    return this.rev.auth.extendSessionToken(apiKey);
+  }
+  async _logoff() {
+    const { apiKey } = this[_credentials];
+    return this.rev.auth.logoffToken(apiKey);
+  }
+  toJSON() {
+    return {
+      token: this.token || "",
+      expiration: this.expires,
+      apiKey: this[_credentials].apiKey
+    };
+  }
+};
+var JWTSession = class extends SessionBase {
+  async _login() {
+    const { jwtToken } = this[_credentials];
+    if (!jwtToken) {
+      throw new TypeError("JWT Token not specified");
+    }
+    const { accessToken: token, expiration } = await this.rev.auth.loginJWT(jwtToken);
+    return { token, expiration, issuer: "vbrick" };
+  }
+  async _extend() {
+    return this.rev.auth.extendSession();
+  }
+  async _logoff() {
+    return;
+  }
+  toJSON() {
+    return {
+      token: this.token || "",
+      expiration: this.expires
+    };
+  }
+};
+var AccessTokenSession = class extends SessionBase {
+  // just verify user on login
+  async _login() {
+    await this.rev.auth.verifySession();
+    return {
+      token: this.token || "",
+      expiration: this.expires?.toISOString(),
+      issuer: "vbrick"
+    };
+  }
+  async _extend() {
+    return this.rev.auth.extendSession();
+  }
+  async _logoff() {
+    return;
+  }
+  toJSON() {
+    return {
+      token: this.token || "",
+      expiration: this.expires
+    };
+  }
+};
+function createSession(rev, credentials, keepAliveOptions) {
+  let session;
+  const {
+    session: sessionState = {},
+    ...creds
+  } = credentials;
+  const {
+    token,
+    expiration,
+    refreshToken,
+    userId
+  } = sessionState;
+  const now = Date.now();
+  const expires = new Date(expiration || now);
+  const hasSession = token && typeof token === "string" && expires.getTime() > now;
+  const isOAuth2Login = credentials.oauthConfig && (credentials.code && credentials.codeVerifier);
+  const isLegacyOauthLogin = credentials.oauthConfig && (credentials.authCode || hasSession && refreshToken);
+  const isApiKeyLogin = credentials.apiKey && (credentials.secret || hasSession && !userId);
+  const isUsernameLogin = credentials.username && (credentials.password || hasSession && userId);
+  const isJWTLogin = credentials.jwtToken;
+  if (isOAuth2Login) {
+    session = new OAuth2Session(rev, creds, keepAliveOptions);
+  } else if (isLegacyOauthLogin) {
+    session = new OAuthSession(rev, creds, keepAliveOptions);
+    if (refreshToken) {
+      session.refreshToken = refreshToken;
+    }
+  } else if (isApiKeyLogin) {
+    session = new ApiKeySession(rev, creds, keepAliveOptions);
+  } else if (isJWTLogin) {
+    session = new JWTSession(rev, creds, keepAliveOptions);
+  } else if (isUsernameLogin) {
+    session = new UserSession(rev, creds, keepAliveOptions);
+    if (userId) {
+      session.userId = userId;
+    }
+  } else if (hasSession) {
+    session = new AccessTokenSession(rev, creds, keepAliveOptions);
+  } else {
+    throw new TypeError("Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)");
+  }
+  if (hasSession) {
+    session.token = token;
+    session.expires = expires;
+  }
+  return session;
+}
+
+// src/rev-client.ts
+var RevClient = class {
+  constructor(options) {
+    if (!isPlainObject(options) || !options.url) {
+      throw new TypeError("Missing configuration options for client - url and username/password or apiKey/secret");
+    }
+    const {
+      url,
+      log,
+      logEnabled = false,
+      keepAlive = true,
+      ...credentials
+    } = options;
+    const urlObj = new URL(url);
+    this.url = urlObj.origin;
+    this.session = createSession(this, credentials, keepAlive);
+    this.logEnabled = !!logEnabled;
+    if (log) {
+      this.log = (severity, ...args) => {
+        if (!this.logEnabled) {
+          return;
+        }
+        log(severity, ...args);
+      };
+    }
+    Object.defineProperties(this, {
+      admin: { value: adminAPIFactory(this), writable: false },
+      audit: { value: auditAPIFactory(this), writable: false },
+      auth: { value: authAPIFactory(this), writable: false },
+      category: { value: categoryAPIFactory(this), writable: false },
+      channel: { value: channelAPIFactory(this), writable: false },
+      device: { value: deviceAPIFactory(this), writable: false },
+      group: { value: groupAPIFactory(this), writable: false },
+      playlist: { value: playlistAPIFactory(this), writable: false },
+      recording: { value: recordingAPIFactory(this), writable: false },
+      upload: { value: uploadAPIFactory(this), writable: false },
+      user: { value: userAPIFactory(this), writable: false },
+      video: { value: videoAPIFactory(this), writable: false },
+      webcast: { value: webcastAPIFactory(this), writable: false },
+      // COMBAK - DEPRECATED
+      webcasts: { get: () => {
+        this.log("debug", "webcasts is deprecated - use rev.webcast instead");
+        return this.webcast;
+      }, enumerable: false },
+      zones: { value: zonesAPIFactory(this), writable: false }
+    });
+  }
+  /**
+   * make a REST request
+   */
+  async request(method, endpoint, data = void 0, options = {}) {
+    const url = new URL(endpoint, this.url);
+    if (url.origin !== this.url) {
+      throw new TypeError(`Invalid endpoint - must be relative to ${this.url}`);
+    }
+    let {
+      headers: optHeaders,
+      responseType,
+      throwHttpErrors = true,
+      ...requestOpts
+    } = options;
+    const headers = new interop_default.Headers(optHeaders);
+    if (this.session.token && !headers.has("Authorization")) {
+      headers.set("Authorization", `VBrick ${this.session.token}`);
+    }
+    if (headers.get("Authorization") === "") {
+      headers.delete("Authorization");
+    }
+    const fetchOptions = {
+      mode: "cors",
+      method,
+      ...requestOpts,
+      headers
+    };
+    let shouldSetAsJSON = !headers.has("Content-Type");
+    if (data) {
+      if (["POST", "PUT", "PATCH"].includes(method.toUpperCase())) {
+        if (typeof data === "string") {
+          fetchOptions.body = data;
+        } else if (data instanceof interop_default.FormData) {
+          shouldSetAsJSON = false;
+          fetchOptions.body = data;
+        } else if (isPlainObject(data) || Array.isArray(data)) {
+          fetchOptions.body = JSON.stringify(data);
+        } else {
+          fetchOptions.body = data;
+        }
+      } else if (isPlainObject(data)) {
+        for (let [key, value] of Object.entries(data)) {
+          url.searchParams.append(key, value);
+        }
+      } else {
+        throw new TypeError(`Invalid payload for request to ${method} ${endpoint}`);
+      }
+    }
+    if (!headers.has("Accept")) {
+      headers.set("Accept", "application/json");
+    }
+    if (shouldSetAsJSON) {
+      headers.set("Content-Type", "application/json");
+    }
+    this.log("debug", `Request ${method} ${endpoint}`);
+    const response = await interop_default.fetch(`${url}`, {
+      ...fetchOptions,
+      method,
+      headers
+    });
+    const {
+      ok,
+      status: statusCode,
+      statusText,
+      headers: responseHeaders
+    } = response;
+    this.log("debug", `Response ${method} ${endpoint} ${statusCode} ${statusText}`);
+    if (!ok) {
+      if (throwHttpErrors) {
+        const err = await RevError.create(response);
+        throw err;
+      }
+      responseType = void 0;
+    }
+    let body = response.body;
+    switch (responseType) {
+      case "json":
+        body = await response.json();
+        break;
+      case "text":
+        body = await response.text();
+        break;
+      case "blob":
+        body = await response.blob();
+        break;
+      case "stream":
+        body = response.body;
+        break;
+      default:
+        body = await decodeBody(response, headers.get("Accept"));
+    }
+    return {
+      statusCode,
+      headers: responseHeaders,
+      body,
+      response
+    };
+  }
+  async get(endpoint, data, options) {
+    const { body } = await this.request("GET", endpoint, data, options);
+    return body;
+  }
+  async post(endpoint, data, options) {
+    const { body } = await this.request("POST", endpoint, data, options);
+    return body;
+  }
+  async put(endpoint, data, options) {
+    const { body } = await this.request("PUT", endpoint, data, options);
+    return body;
+  }
+  async patch(endpoint, data, options) {
+    await this.request("PATCH", endpoint, data, options);
+  }
+  async delete(endpoint, data, options) {
+    await this.request("DELETE", endpoint, data, options);
+  }
+  /**
+   * authenticate with Rev
+   */
+  async connect() {
+    await retry(
+      () => this.session.login(),
+      // Do not re-attempt logins with invalid user/password or rate limiting - it can lock out the user
+      (err) => ![401, 429].includes(err.status)
+    );
+  }
+  /**
+   * end rev session
+   */
+  async disconnect() {
+    try {
+      await this.session.logoff();
+    } catch (error) {
+      this.log("warn", `Error in logoff, ignoring: ${error}`);
+    }
+  }
+  // this should get called every 15 minutes or so to extend the connection session
+  async extendSession() {
+    return this.session.extend();
+  }
+  /**
+   * Returns true/false based on if the session is currently valid
+   * @returns Promise<boolean>
+   */
+  async verifySession() {
+    return this.session.verify();
+  }
+  get isConnected() {
+    return !!this.session.token && !this.session.isExpired;
+  }
+  get token() {
+    return this.session.token;
+  }
+  get sessionExpires() {
+    return this.session.expires;
+  }
+  get sessionState() {
+    return this.session.toJSON();
+  }
+  set sessionState(state) {
+    this.session.token = `${state.token}`;
+    this.session.expires = new Date(state.expiration);
+    for (let key of ["apiKey", "refreshToken", "userId"]) {
+      if (key in state) {
+        this.session[key] = `${state[key] || ""}`;
+      }
+    }
+  }
+  log(severity, ...args) {
+    if (!this.logEnabled) {
+      return;
+    }
+    const ts = (/* @__PURE__ */ new Date()).toJSON().replace("T", " ").slice(0, -5);
+    console.debug(`${ts} REV-CLIENT [${severity}]`, ...args);
+  }
+};
+
+// src/index.ts
+var utils = {
+  rateLimit: rate_limit_default,
+  getExtensionForMime,
+  getMimeForExtension
+};
+var src_default = RevClient;
+export {
+  RevClient,
+  RevError,
+  ScrollError,
+  src_default as default,
+  utils
+};
 //# sourceMappingURL=rev-client.js.map

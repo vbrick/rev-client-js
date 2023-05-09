@@ -64,4 +64,10 @@ export namespace Category {
         parentCategory?: null | Parent;
     }
 
+    export interface Assignable {
+        id: string;
+        name: string;
+        fullPath: string;
+    }
+
 }

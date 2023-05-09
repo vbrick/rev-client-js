@@ -28,6 +28,12 @@ export default function categoryAPIFactory(rev: RevClient) {
             );
             const { categories } = await rev.get('/api/v2/categories', payload, { responseType: 'json' });
             return categories;
+        },
+        /**
+         * get list of categories that current user has ability to add videos to
+         */
+        async listAssignable(): Promise<Category.Assignable[]> {
+            return rev.get('/api/v2/assignable-categories');
         }
     };
     return categoryAPI;
