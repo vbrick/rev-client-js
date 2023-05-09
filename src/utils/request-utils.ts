@@ -101,6 +101,10 @@ export class SearchRequest<T> extends PagedRequest<T> {
                 ? await Promise.resolve(transform(rawItems))
                 : rawItems;
 
+            if (items.length === 0) {
+                done = true;
+            }
+
             // check for error response
             const error = (statusCode >= 400 && !!statusDescription)
                 ? new ScrollError(statusCode, statusDescription)

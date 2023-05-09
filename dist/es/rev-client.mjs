@@ -500,6 +500,9 @@ var SearchRequest = class extends PagedRequest {
         done = true;
       }
       const items = typeof transform === "function" ? await Promise.resolve(transform(rawItems)) : rawItems;
+      if (items.length === 0) {
+        done = true;
+      }
       const error = statusCode >= 400 && !!statusDescription ? new ScrollError(statusCode, statusDescription) : void 0;
       return {
         total,
