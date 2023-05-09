@@ -21,7 +21,8 @@
         "require": "./dist/node18/rev-client.cjs"
       },
       "default": "./dist/rev-client.js"
-    }
+    },
+    "./iife": "./dist/rev-client.iife.js"
   },
   "files": [
     "dist",

@@ -52,6 +52,14 @@ export default defineConfig((options) => {
             format: 'cjs',
             platform: 'node',
             ...commonConfig
+        },
+        {
+            ...fileEntry('src/index.ts', pkg.exports['./iife']),
+            format: 'iife',
+            platform: 'browser',
+            globalName: 'revClientLib',
+            ...commonConfig,
+            dts: false
         }
     ];
     console.log('CFG', cfg);

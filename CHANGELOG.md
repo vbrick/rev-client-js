@@ -1,3 +1,23 @@
+## 0.12.0
+
+### Features
+
+* Add user notification/subscription endpoints
+* Add admin user location service and get expiration rules endpoints
+* Other 7.51 / 7.52 endpoints and updates
+
+### Breaking Changes
+
+* Stop a search request pager early if a page has zero results. This is a bugfix for the Get Guest Registration List API endpoint, but may impact other search results.
+
+### Bugfixes
+
+* bugs in new oauth2 endpoint support
+
+### Experimental
+
+* Add IIFE compiled version - `/dist/rev-client.iife.js`. Global name is `revClientLib`. Filename / global subject to change in future releases
+
 ## 0.11.0
 
 ### Features
