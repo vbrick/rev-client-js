@@ -1437,6 +1437,7 @@ var revClientLib = (() => {
     ".zip": "application/zip",
     ".mks": "video/x-matroska",
     ".mts": "model/vnd.mts",
+    ".vtt": "text/vtt",
     ".wma": "audio/x-ms-wma"
   };
   function getMimeForExtension(extension = "", defaultType = "video/mp4") {
@@ -1450,7 +1451,7 @@ var revClientLib = (() => {
     const match = contentType && Object.entries(mimeTypes).find(([ext, mime]) => contentType.startsWith(mime));
     return match ? match[0] : defaultExtension;
   }
-  function sanitizeFileUpload(payload) {
+  function sanitizeFileUpload(payload, defaultContentType) {
     let {
       file,
       options: {
@@ -1464,14 +1465,14 @@ var revClientLib = (() => {
     if (/charset/.test(contentType)) {
       contentType = contentType.replace(/;?.*charset.*$/, "");
     }
-    let name = filename.replace(".[^.]+$", "");
+    let name = filename.replace(/\.[^\.]+$/, "");
     let ext = filename.replace(name, "");
     if (!ext) {
       ext = getExtensionForMime(contentType);
     }
     filename = `${name}${ext}`;
     if (!contentType) {
-      contentType = getMimeForExtension(ext);
+      contentType = getMimeForExtension(ext, defaultContentType);
     }
     if (isBlobLike(file) && file.type !== contentType) {
       payload.file = file.slice(0, file.size, contentType);

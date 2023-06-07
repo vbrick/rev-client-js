@@ -1,3 +1,8 @@
+## 0.12.1
+
+* added `vtt` to mimetypes
+* fixed bug in setting content-type for non-video uploads
+
 ## 0.12.0
 
 ### Features

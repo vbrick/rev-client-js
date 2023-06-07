@@ -55,6 +55,7 @@ export const mimeTypes = {
     '.zip': 'application/zip',
     '.mks': 'video/x-matroska',
     '.mts': 'model/vnd.mts',
+    '.vtt': 'text/vtt',
     '.wma': 'audio/x-ms-wma'
 };
 
@@ -75,7 +76,7 @@ export function getExtensionForMime(contentType: string, defaultExtension = '.mp
 
 }
 
-function sanitizeFileUpload(payload: FileUploadPayloadInternal) {
+function sanitizeFileUpload(payload: FileUploadPayloadInternal, defaultContentType?: string) {
     let {
         file,
         options: {
@@ -91,14 +92,14 @@ function sanitizeFileUpload(payload: FileUploadPayloadInternal) {
     if (/charset/.test(contentType)) {
         contentType = contentType.replace(/;?.*charset.*$/, '');
     }
-    let name = filename.replace('\.[^\.]+$', '');
+    let name = filename.replace(/\.[^\.]+$/, '');
     let ext = filename.replace(name, '');
     if (!ext) {
         ext = getExtensionForMime(contentType);
     }
     filename = `${name}${ext}`;
     if (!contentType) {
-        contentType = getMimeForExtension(ext);
+        contentType = getMimeForExtension(ext, defaultContentType);
     }
     if (isBlobLike(file) && file.type !== contentType) {
         payload.file = file.slice(0, file.size, contentType);
