@@ -1,3 +1,4 @@
+import { Role } from '.';
 import { LiteralString } from './rev';
 
 export interface User {
@@ -10,7 +11,7 @@ export interface User {
     title: string | null;
     phone: string | null;
     groups: { id: string, name: string; }[];
-    roles: { id: string, name: string; }[];
+    roles: Role[];
     channels: { id: string, name: string; }[];
     profileImageUri: string | null;
     permissions: User.Permissions;
