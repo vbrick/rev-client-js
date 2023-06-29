@@ -145,7 +145,7 @@ export default function videoAPIFactory(rev: RevClient) {
          * @param videoId
          * @param options
          */
-        async waitTranscode(videoId: string, options: Video.WaitTranscodeOptions) {
+        async waitTranscode(videoId: string, options: Video.WaitTranscodeOptions): Promise<Video.StatusResponse> {
             const {
                 pollIntervalSeconds = 30,
                 timeoutMinutes = 240,
@@ -195,6 +195,7 @@ export default function videoAPIFactory(rev: RevClient) {
 
                 await sleep(pollInterval, signal);
             }
+            return statusResponse;
         }
     };
     return videoAPI;
