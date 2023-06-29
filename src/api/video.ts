@@ -4,6 +4,7 @@ import { Video, Rev, Admin } from '../types';
 import { SearchRequest } from '../utils/request-utils';
 import { videoReportAPI } from './video-report-request';
 import { videoDownloadAPI } from './video-download';
+import { sleep } from '../utils';
 
 type VideoSearchDetailedItem = Video.SearchHit & (Video.Details | { error?: Error });
 
@@ -137,6 +138,63 @@ export default function videoAPIFactory(rev: RevClient) {
         },
         async patch(videoId: string, operations: Rev.PatchOperation[]) {
             await rev.patch(`/api/v2/videos/${videoId}`, operations);
+        },
+        /**
+         * Helper - wait for video transcode to complete.
+         * This doesn't indicate that a video is playable, rather that all transcoding jobs are complete
+         * @param videoId
+         * @param options
+         */
+        async waitTranscode(videoId: string, options: Video.WaitTranscodeOptions) {
+            const {
+                pollIntervalSeconds = 30,
+                timeoutMinutes = 240,
+                signal,
+                onProgress,
+                onError = (error: Error) => { throw error; }
+            } = options;
+
+            const timeoutDate = (Date.now() + (timeoutMinutes * 1000) || Infinity);
+            const pollInterval = Math.max(pollIntervalSeconds * 1000 || 30000, 1000);
+            let statusResponse = {status: 'UploadFailed'} as Video.StatusResponse;
+            while (Date.now() < timeoutDate && !signal?.aborted) {
+                // call video status API
+                try {
+                    statusResponse = await videoAPI.status(videoId);
+                    let {
+                        isProcessing,
+                        overallProgress = 0,
+                        status
+                    } = statusResponse;
+
+                    if (status === 'ProcessingFailed') {
+                        Object.assign(statusResponse, {
+                            overallProgress: 1,
+                            isProcessing: false
+                        });
+                        break;
+                    }
+
+                    // processing is initially false, so wait till overallProgress changes to complete
+                    if (overallProgress === 1 && !isProcessing) {
+                        // finished, break out of loop
+                        break;
+                    }
+
+                    // status may be Ready initially even though about to go to Processing state
+                    if (status === 'Ready' && isProcessing) {
+                        status = 'Processing';
+                        statusResponse.status = status;
+                    }
+
+                    onProgress?.({ status, isProcessing, overallProgress });
+                } catch (error) {
+                    // by default will throw error
+                    await Promise.resolve(onError(error as Error));
+                }
+
+                await sleep(pollInterval, signal);
+            }
         }
     };
     return videoAPI;

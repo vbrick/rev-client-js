@@ -503,4 +503,30 @@ export namespace Video {
         sessionId: string;
         timeStamp: string;
     }
+
+    export interface WaitTranscodeOptions {
+        /**
+         * How often to check video status
+         * @default 30
+         */
+        pollIntervalSeconds?: number;
+        /**
+         * How long to wait for transcode to complete before stopping poll loop
+         * @default 240 (4 hours)
+         */
+        timeoutMinutes?: number;
+        /**
+         * callback to report current transcode progress
+         */
+        onProgress?: (state: Pick<Video.StatusResponse, 'isProcessing' | 'overallProgress' | 'status'>) => void;
+        /**
+         * callback on error getting video status
+         * @default throw error immediately
+         */
+        onError?: (error: Error) => void | Promise<void>;
+        /**
+         * Signal to stop poll loop early
+         */
+        signal?: AbortSignal;
+    }
 }
