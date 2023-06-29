@@ -169,16 +169,18 @@ function rateLimit(fn, options = {}) {
       queue.set(timeout, reject);
     });
   };
-  throttled.abort = (message = "Cancelled rate-limit queue") => {
+  let abortHandler = signal ? () => throttled.abort(signal.reason ? `${signal.reason}` : void 0, true) : void 0;
+  throttled.abort = (message = "Cancelled rate-limit queue", dispose = false) => {
+    if (dispose) {
+      signal?.removeEventListener("abort", abortHandler);
+    }
     for (const [timeout, reject] of queue.entries()) {
       clearTimeout(timeout);
       reject(interop_default.createAbortError(message));
     }
     queue.clear();
   };
-  if (signal) {
-    signal.addEventListener("abort", () => throttled.abort());
-  }
+  signal?.addEventListener("abort", abortHandler);
   return throttled;
 }
 var rate_limit_default = rateLimit;
@@ -217,7 +219,7 @@ async function sleep(ms, signal) {
       signal?.removeEventListener("abort", cleanup);
       done();
     };
-    timer = setTimeout(done, ms);
+    timer = setTimeout(cleanup, ms);
     signal?.addEventListener("abort", cleanup);
   });
 }
@@ -436,7 +438,8 @@ var PagedRequest = class {
 // src/utils/request-utils.ts
 async function decodeBody(response, acceptType) {
   const contentType = response.headers.get("Content-Type") || acceptType || "";
-  if (contentType.startsWith("application/json")) {
+  const contentLength = response.headers.get("Content-Length");
+  if (contentType.startsWith("application/json") && contentLength !== "0") {
     try {
       return await response.json();
     } catch (err) {
@@ -533,18 +536,18 @@ function adminAPIFactory(rev) {
     },
     /**
     * Get a Role (with the role id) based on its name
-    * @param name Name of the Role, i.e. "Media Viewer"
+    * @param name Name of the Role OR RoleType. You can specify the specific enum value (preferred, only Rev 7.53+), or the localized string value in the current user's language, i.e. "Media Viewer" for english
     * @param fromCache - if true then use previously cached Role listing (more efficient)
     */
     async getRoleByName(name, fromCache = true) {
       const roles2 = await adminAPI.roles(fromCache);
-      const role = roles2.find((r) => r.name === name);
+      const role = roles2.find((r) => r.roleType === name || r.name === name);
       if (!role) {
-        throw new TypeError(`Invalid Role Name ${name}. Valid values are: ${roles2.map((r) => r.name).join(", ")}`);
+        throw new TypeError(`Invalid Role Name ${name}. Valid values are: ${roles2.flatMap((r) => r.roleType ? [r.roleType, r.name] : [r.name]).join(", ")}`);
       }
       return {
         id: role.id,
-        name: role.name
+        name: role.roleType || role.name
       };
     },
     /**
@@ -624,6 +627,10 @@ function adminAPIFactory(rev) {
      */
     async expirationRules() {
       return rev.get("/api/v2/expiration-rules");
+    },
+    async featureSettings(videoId) {
+      const params = videoId ? { videoId } : void 0;
+      return rev.get("/api/v2/videos/feature-settings", params);
     }
   };
   return adminAPI;
@@ -1568,16 +1575,18 @@ function uploadAPIFactory(rev) {
         const {
           title,
           time,
-          imageFile
+          imageFile,
+          uploadOptions: fileUploadOptions = {}
         } = chapter;
         const chapterEntry = { time };
         if (title) {
           chapterEntry.title = title;
         }
         if (imageFile) {
-          const filePayload = await appendFileToForm(form, "File", imageFile, uploadOptions);
+          const filePayload = await appendFileToForm(form, "File", imageFile, { ...uploadOptions, ...fileUploadOptions });
           chapterEntry.imageFile = filePayload.filename;
         }
+        metadata.chapters.push(chapterEntry);
       }
       appendJSONToForm(form, "Chapters", metadata);
       rev.log("info", `${action === "replace" ? "Uploading" : "Updating"} ${metadata.chapters.length} chapters to ${videoId}`);
@@ -1745,7 +1754,8 @@ function formatUserSearchHit(hit) {
     email: hit.Email,
     firstname: hit.FirstName,
     lastname: hit.LastName,
-    username: hit.UserName
+    username: hit.UserName,
+    profileImageUri: hit.ProfileImageUri
   };
 }
 
@@ -2050,6 +2060,58 @@ function videoAPIFactory(rev) {
     ...videoReportAPI(rev),
     async trim(videoId, removedSegments) {
       return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);
+    },
+    async patch(videoId, operations) {
+      await rev.patch(`/api/v2/videos/${videoId}`, operations);
+    },
+    /**
+     * Helper - wait for video transcode to complete.
+     * This doesn't indicate that a video is playable, rather that all transcoding jobs are complete
+     * @param videoId
+     * @param options
+     */
+    async waitTranscode(videoId, options) {
+      const {
+        pollIntervalSeconds = 30,
+        timeoutMinutes = 240,
+        signal,
+        onProgress,
+        onError = (error) => {
+          throw error;
+        }
+      } = options;
+      const timeoutDate = Date.now() + timeoutMinutes * 1e3 || Infinity;
+      const pollInterval = Math.max(pollIntervalSeconds * 1e3 || 3e4, 1e3);
+      let statusResponse = { status: "UploadFailed" };
+      while (Date.now() < timeoutDate && !signal?.aborted) {
+        try {
+          statusResponse = await videoAPI.status(videoId);
+          let {
+            isProcessing,
+            overallProgress = 0,
+            status
+          } = statusResponse;
+          if (status === "ProcessingFailed") {
+            Object.assign(statusResponse, {
+              overallProgress: 1,
+              isProcessing: false
+            });
+            break;
+          }
+          if (overallProgress === 1 && !isProcessing) {
+            break;
+          }
+          if (status === "Ready" && isProcessing) {
+            status = "Processing";
+            statusResponse.status = status;
+          }
+          onProgress?.({ status, isProcessing, overallProgress });
+        } catch (error) {
+          await Promise.resolve(onError(error));
+        }
+        await sleep(pollInterval, signal);
+      }
+      return statusResponse;
     }
   };
   return videoAPI;

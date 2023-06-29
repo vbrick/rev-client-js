@@ -106,6 +106,11 @@ type LiteralString<T> = T | (string & {
 type FetchResponse = Response;
 declare namespace Rev {
     type HTTPMethod = LiteralString<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD'>;
+    type PatchOperation = {
+        type: 'add' | 'remove' | 'replace';
+        path: string;
+        value: any;
+    };
     interface Response<T> {
         statusCode: number;
         headers: Headers;
@@ -251,6 +256,19 @@ declare namespace Rev {
         done: boolean;
     }
     type SortDirection = LiteralString<'asc' | 'desc'>;
+    type FileUploadType = string | File | Blob | AsyncIterable<any>;
+    interface UploadFileOptions {
+        /** specify filename of video as reported to Rev */
+        filename?: string;
+        /** specify content type of video */
+        contentType?: string;
+        /** if content length is known this will avoid needing to detect it */
+        contentLength?: number;
+        /** node-only - bypass dealing with content length and just upload as transfer-encoding: chunked */
+        useChunkedTransfer?: boolean;
+        /** An AbortSignal to set request's signal. */
+        signal?: AbortSignal | null;
+    }
 }
 
 declare namespace AccessControl {
@@ -262,22 +280,6 @@ declare namespace AccessControl {
         canEdit: boolean;
     }
 }
-
-type FileUploadType = string | File | Blob | AsyncIterable<any>;
-interface UploadFileOptions {
-    /** specify filename of video as reported to Rev */
-    filename?: string;
-    /** specify content type of video */
-    contentType?: string;
-    /** if content length is known this will avoid needing to detect it */
-    contentLength?: number;
-    /** node-only - bypass dealing with content length and just upload as transfer-encoding: chunked */
-    useChunkedTransfer?: boolean;
-    /** An AbortSignal to set request's signal. */
-    signal?: AbortSignal | null;
-}
-declare function getMimeForExtension(extension?: string, defaultType?: string): string;
-declare function getExtensionForMime(contentType: string, defaultExtension?: string): string;
 
 declare namespace Video {
     type AccessControl = LiteralString<"AllUsers" | "Public" | "Private" | "Channels">;
@@ -712,7 +714,9 @@ declare namespace Video {
              */
             time: string;
             title?: string;
-            imageFile?: FileUploadType;
+            imageFile?: Rev.FileUploadType;
+            /** set filename/contenttype or other options for appended file */
+            uploadOptions?: Rev.UploadFileOptions;
         }
     }
     interface SupplementalFile {
@@ -740,6 +744,31 @@ declare namespace Video {
     interface PausedVideoItem extends Video.SearchHit {
         sessionId: string;
         timeStamp: string;
+    }
+    interface WaitTranscodeOptions {
+        /**
+         * How often to check video status
+         * @default 30
+         */
+        pollIntervalSeconds?: number;
+        /**
+         * How long to wait for transcode to complete before stopping poll loop
+         * @default 240 (4 hours)
+         */
+        timeoutMinutes?: number;
+        /**
+         * callback to report current transcode progress
+         */
+        onProgress?: (state: Pick<Video.StatusResponse, 'isProcessing' | 'overallProgress' | 'status'>) => void;
+        /**
+         * callback on error getting video status
+         * @default throw error immediately
+         */
+        onError?: (error: Error) => void | Promise<void>;
+        /**
+         * Signal to stop poll loop early
+         */
+        signal?: AbortSignal;
     }
 }
 
@@ -1352,10 +1381,7 @@ interface User {
         id: string;
         name: string;
     }[];
-    roles: {
-        id: string;
-        name: string;
-    }[];
+    roles: Role[];
     channels: {
         id: string;
         name: string;
@@ -1371,6 +1397,7 @@ declare namespace User {
         firstname: string;
         lastname: string;
         username: string;
+        profileImageUri: string;
     }
     interface RawSearchHit {
         Id: string;
@@ -1379,6 +1406,7 @@ declare namespace User {
         FirstName: string;
         LastName: string;
         UserName: string;
+        ProfileImageUri: string;
     }
     interface Request {
         username: string;
@@ -1414,15 +1442,21 @@ interface Playlist {
     id: string;
     name: string;
     playbackUrl: string;
-    videos: Array<{
-        id: string;
-        title: string;
-    }>;
+    videos: Playlist.Video[];
 }
 declare namespace Playlist {
     interface List {
         featuredPlaylist?: Playlist;
         playlists: Playlist[];
+    }
+    interface Video {
+        id: string;
+        title: string;
+        /**
+         * Added Rev 7.53
+         */
+        ownerFullName: string;
+        ownerProfileImageUri: string;
     }
     interface UpdateAction {
         /**
@@ -1989,13 +2023,17 @@ declare namespace Zone {
 
 interface Role {
     id: string;
-    name: Role.RoleName;
+    name: Role.RoleType;
 }
 declare namespace Role {
-    type RoleName = LiteralString<'Account Admin' | 'Media Admin' | 'Media Contributor' | 'Media Viewer' | 'Event Admin' | 'Event Host' | 'Channel Creator' | 'Category Creator'>;
-    type Details = Role & {
+    type RoleType = LiteralString<'AccountAdmin' | 'MediaAdmin' | 'EventAdmin' | 'EventHost' | 'InternalEventHost' | 'MediaContributor' | 'InternalMediaContributor' | 'MediaViewer' | 'TeamCreator' | 'CategoryCreator' | 'VodAnalyst' | 'EventAnalyst' | 'RevIqUser' | 'ChannelCreator'>;
+    type RoleName = LiteralString<'Account Admin' | 'Media Admin' | 'Media Contributor' | 'Media Viewer' | 'Event Admin' | 'Event Host' | 'Channel Creator' | 'Category Creator' | 'Internal Event Host' | 'Internal Media Contributor' | 'VOD Analyst' | 'Event Analyst' | 'Rev IQ User'>;
+    interface Details {
+        id: string;
+        name: string;
         description: string;
-    };
+        roleType: Role.RoleType;
+    }
 }
 interface RegistrationField {
     id: string;
@@ -2088,10 +2126,10 @@ declare function adminAPIFactory(rev: RevClient): {
     roles(cache?: CacheOption): Promise<Role.Details[]>;
     /**
     * Get a Role (with the role id) based on its name
-    * @param name Name of the Role, i.e. "Media Viewer"
+    * @param name Name of the Role OR RoleType. You can specify the specific enum value (preferred, only Rev 7.53+), or the localized string value in the current user's language, i.e. "Media Viewer" for english
     * @param fromCache - if true then use previously cached Role listing (more efficient)
     */
-    getRoleByName(name: Role.RoleName, fromCache?: CacheOption): Promise<Role>;
+    getRoleByName(name: Role.RoleType | Role.RoleName, fromCache?: CacheOption): Promise<Role>;
     /**
     * get list of custom fields
     * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
@@ -2136,6 +2174,7 @@ declare function adminAPIFactory(rev: RevClient): {
      * returns an array of all expiration rules
      */
     expirationRules(): Promise<Admin.ExpirationRule[]>;
+    featureSettings(videoId?: string): Promise<Admin.FeatureSettings>;
 };
 
 declare class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
@@ -2383,22 +2422,22 @@ declare function recordingAPIFactory(rev: RevClient): {
     stopPresentationProfileRecording(recordingId: string): Promise<Recording.StopPresentationProfileResponse>;
 };
 
-type PresentationChaptersOptions = Rev.RequestOptions & UploadFileOptions & {
+type PresentationChaptersOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
     contentType?: 'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 };
-type TranscriptionOptions = Rev.RequestOptions & UploadFileOptions & {
+type TranscriptionOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
     contentType?: 'text/plain' | 'application/x-subrip';
 };
-type ChaptersOptions = Rev.RequestOptions & Omit<UploadFileOptions, 'filename' | 'contentLength'> & {
+type ChaptersOptions = Rev.RequestOptions & Omit<Rev.UploadFileOptions, 'filename' | 'contentLength'> & {
     contentType?: 'application/x-7z-compressed' | 'text/csv' | 'application/msword' | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' | 'image/gif' | 'image/jpeg' | 'application/pdf' | 'image/png' | 'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation' | 'application/x-rar-compressed' | 'image/svg+xml' | 'text/plain' | 'application/vnd.ms-excel' | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' | 'application/zip';
 };
 declare function uploadAPIFactory(rev: RevClient): {
     /**
      * Upload a video, and returns the resulting video ID
      */
-    video(file: FileUploadType, metadata?: Video.UploadMetadata, options?: UploadFileOptions): Promise<string>;
-    transcription(videoId: string, file: FileUploadType, language?: Video.Transcription.SupportedLanguages, options?: TranscriptionOptions): Promise<void>;
-    supplementalFile(videoId: string, file: FileUploadType, options?: Rev.RequestOptions & UploadFileOptions): Promise<void>;
+    video(file: Rev.FileUploadType, metadata?: Video.UploadMetadata, options?: Rev.UploadFileOptions): Promise<string>;
+    transcription(videoId: string, file: Rev.FileUploadType, language?: Video.Transcription.SupportedLanguages, options?: TranscriptionOptions): Promise<void>;
+    supplementalFile(videoId: string, file: Rev.FileUploadType, options?: Rev.RequestOptions & Rev.UploadFileOptions): Promise<void>;
     /**
      *
      * @param videoId id of video to add chapters to
@@ -2408,8 +2447,8 @@ declare function uploadAPIFactory(rev: RevClient): {
      * @param options  additional upload + request options
      */
     chapters(videoId: string, chapters: Video.Chapter.Request[], action?: 'append' | 'replace', options?: ChaptersOptions): Promise<void>;
-    thumbnail(videoId: string, file: FileUploadType, options?: Rev.RequestOptions & UploadFileOptions): Promise<void>;
-    presentationChapters(videoId: string, file: FileUploadType, options?: PresentationChaptersOptions): Promise<void>;
+    thumbnail(videoId: string, file: Rev.FileUploadType, options?: Rev.RequestOptions & Rev.UploadFileOptions): Promise<void>;
+    presentationChapters(videoId: string, file: Rev.FileUploadType, options?: PresentationChaptersOptions): Promise<void>;
 };
 
 declare function userAPIFactory(rev: RevClient): {
@@ -2534,6 +2573,14 @@ declare function videoAPIFactory(rev: RevClient): {
         start: string;
         end: string;
     }>): Promise<any>;
+    patch(videoId: string, operations: Rev.PatchOperation[]): Promise<void>;
+    /**
+     * Helper - wait for video transcode to complete.
+     * This doesn't indicate that a video is playable, rather that all transcoding jobs are complete
+     * @param videoId
+     * @param options
+     */
+    waitTranscode(videoId: string, options: Video.WaitTranscodeOptions): Promise<Video.StatusResponse>;
     report: {
         (options?: Video.VideoReportOptions | undefined): VideoReportRequest;
         (videoId: string, options?: Video.VideoReportOptions | undefined): VideoReportRequest;
@@ -2582,7 +2629,7 @@ declare function videoAPIFactory(rev: RevClient): {
     chapters(videoId: string): Promise<Video.Chapter[]>;
     supplementalFiles(videoId: string): Promise<Video.SupplementalFile[]>;
     transcriptions(videoId: string): Promise<Video.Transcription[]>;
-    upload: (file: FileUploadType, metadata?: Video.UploadMetadata, options?: UploadFileOptions) => Promise<string>;
+    upload: (file: Rev.FileUploadType, metadata?: Video.UploadMetadata, options?: Rev.UploadFileOptions) => Promise<string>;
     migrate(videoId: string, options: Video.MigrateRequest): Promise<void>;
     /**
      * search for videos, return as one big list. leave blank to get all videos in the account
@@ -2783,9 +2830,11 @@ interface RateLimitOptions {
 }
 type ThrottledFunction<T extends (...args: any[]) => any> = ((...args: Parameters<T>) => ReturnType<T> extends PromiseLike<infer Return> ? Promise<Return> : Promise<ReturnType<T>>) & {
     /**
-    Abort pending executions. All unresolved promises are rejected with a `CancelError` error.
-    */
-    abort: () => void;
+     * Abort pending executions. All unresolved promises are rejected with a `AbortError` error.
+     * @param {string} [message] - message parameter for rejected AbortError
+     * @param {boolean} [dispose] - remove abort signal listener as well
+     */
+    abort: (message?: string, dispose?: boolean) => void;
 };
 interface RateLimitOptionsWithFn<T> extends RateLimitOptions {
     /**
@@ -2796,6 +2845,9 @@ interface RateLimitOptionsWithFn<T> extends RateLimitOptions {
 declare function rateLimit<T extends (...args: any) => any>(options: RateLimitOptionsWithFn<T>): ThrottledFunction<T>;
 declare function rateLimit<T extends (...args: any) => any>(fn: T, options: RateLimitOptions): ThrottledFunction<T>;
 declare function rateLimit<T extends (...args: any) => any>(fn: T | RateLimitOptionsWithFn<T>, options?: RateLimitOptions): ThrottledFunction<T>;
+
+declare function getMimeForExtension(extension?: string, defaultType?: string): string;
+declare function getExtensionForMime(contentType: string, defaultExtension?: string): string;
 
 declare const utils: {
     rateLimit: typeof rateLimit;
