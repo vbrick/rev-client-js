@@ -55,7 +55,7 @@ export async function sleep(ms: number, signal?: AbortSignal) {
             signal?.removeEventListener('abort', cleanup);
             done();
         };
-        timer = setTimeout(done, ms);
+        timer = setTimeout(cleanup, ms);
         signal?.addEventListener('abort', cleanup);
     });
 }
