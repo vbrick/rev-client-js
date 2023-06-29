@@ -1,3 +1,22 @@
+## 0.13.0
+
+### Features
+
+* Add `video.waitTranscode(videoId, options)` helper - this function simplifies the process of querying the [https://revdocs.vbrick.com/reference/getvideostatus](Get Video Status) API to check if a video has finished processing after upload.
+* Added `admin.featureSettings()` wrapper for the [https://revdocs.vbrick.com/reference/getvideofeatures-1](Get Video Feature Settings API)
+* Added `video.patch()` for calling the Video Patch API
+* export `Rev.FileUploadType` and `Rev.UploadFileOptions` to make typing uploads easier
+
+### Breaking Changes
+* `admin.getRoleByName()` now prefers comparing against the `roleType` value in the Get Roles API response, falling back to the Role Name (which is translated depending on user's language settings).
+* Role type's `name` field values changed to better reflect the actual response. The underlying type `string` did not change.
+* `utils.rateLimit()`'s `.abort()` helper in response now includes optional `message` and `dispose` parameters.
+
+### Bugfixes
+
+* Fixed Chapter upload
+* Avoid memory leaks when adding AbortSignal listeners.
+
 ## 0.12.1
 
 * added `vtt` to mimetypes
