@@ -36,7 +36,7 @@ export namespace User {
         FirstName: string;
         LastName: string;
         UserName: string;
-        ProfileImageUri?: string;
+        ProfileImageUri: string;
     }
 
     export interface Request {
