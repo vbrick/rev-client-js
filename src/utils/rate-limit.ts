@@ -34,9 +34,11 @@ type ThrottledFunction<T extends (...args: any[]) => any> = (
     (...args: Parameters<T>) => ReturnType<T> extends PromiseLike<infer Return> ? Promise<Return> : Promise<ReturnType<T>>
 ) & {
     /**
-    Abort pending executions. All unresolved promises are rejected with a `CancelError` error.
-    */
-    abort: () => void;
+     * Abort pending executions. All unresolved promises are rejected with a `AbortError` error.
+     * @param {string} [message] - message parameter for rejected AbortError
+     * @param {boolean} [dispose] - remove abort signal listener as well
+     */
+    abort: (message?: string, dispose?: boolean) => void;
 };
 
 interface RateLimitOptionsWithFn<T> extends RateLimitOptions {
@@ -136,7 +138,14 @@ function rateLimit<T extends (...args: any) => any> (fn: T | RateLimitOptionsWit
         }) as Return;
     };
 
-    throttled.abort = (message: string = 'Cancelled rate-limit queue') => {
+    let abortHandler = signal
+        ? () => throttled.abort(signal.reason ? `${signal.reason}` : undefined, true)
+        : undefined;
+
+    throttled.abort = (message: string = 'Cancelled rate-limit queue', dispose: boolean = false) => {
+        if (dispose) {
+            signal?.removeEventListener('abort', abortHandler!);
+        }
         for (const [timeout, reject] of queue.entries()) {
             clearTimeout(timeout);
             reject(polyfills.createAbortError(message));
@@ -145,9 +154,7 @@ function rateLimit<T extends (...args: any) => any> (fn: T | RateLimitOptionsWit
         queue.clear();
     };
 
-    if (signal) {
-        signal.addEventListener('abort', () => throttled.abort());
-    }
+    signal?.addEventListener('abort', abortHandler!);
 
     return throttled;
 }
