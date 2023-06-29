@@ -165,6 +165,7 @@ export default function uploadAPIFactory(rev: RevClient) {
                     // add image filename based on what was appended to form
                     chapterEntry.imageFile = filePayload.filename;
                 }
+                metadata.chapters.push(chapterEntry);
             }
 
             appendJSONToForm(form, 'Chapters', metadata);
