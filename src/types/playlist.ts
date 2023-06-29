@@ -2,13 +2,22 @@ export interface Playlist {
     id: string;
     name: string;
     playbackUrl: string;
-    videos: Array<{ id: string; title: string; }>;
+    videos: Playlist.Video[];
 }
 
 export namespace Playlist {
     export interface List {
         featuredPlaylist?: Playlist;
         playlists: Playlist[];
+    }
+    export interface Video {
+        id: string;
+        title: string;
+        /**
+         * Added Rev 7.53
+         */
+        ownerFullName: string;
+        ownerProfileImageUri: string;
     }
 
     export interface UpdateAction {

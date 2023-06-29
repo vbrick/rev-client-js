@@ -26,6 +26,7 @@ export namespace User {
         firstname: string;
         lastname: string;
         username: string;
+        profileImageUri: string;
     }
 
     export interface RawSearchHit {
@@ -35,6 +36,7 @@ export namespace User {
         FirstName: string;
         LastName: string;
         UserName: string;
+        ProfileImageUri?: string;
     }
 
     export interface Request {

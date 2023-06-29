@@ -161,6 +161,7 @@ function formatUserSearchHit(hit: User.RawSearchHit): User.SearchHit {
         email: hit.Email,
         firstname: hit.FirstName,
         lastname: hit.LastName,
-        username: hit.UserName
+        username: hit.UserName,
+        profileImageUri: hit.ProfileImageUri
     };
 }
