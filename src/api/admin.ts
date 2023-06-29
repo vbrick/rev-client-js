@@ -121,6 +121,10 @@ export default function adminAPIFactory(rev: RevClient) {
          */
         async expirationRules(): Promise<Admin.ExpirationRule[]> {
             return rev.get('/api/v2/expiration-rules');
+        },
+        async featureSettings(videoId?: string): Promise<Admin.FeatureSettings> {
+            const params = videoId ? { videoId } : undefined;
+            return rev.get('/api/v2/videos/feature-settings', params);
         }
     };
     return adminAPI;

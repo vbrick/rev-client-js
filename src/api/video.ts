@@ -134,6 +134,9 @@ export default function videoAPIFactory(rev: RevClient) {
         ...videoReportAPI(rev),
         async trim(videoId: string, removedSegments: Array<{ start: string, end: string }>) {
             return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);
+        },
+        async patch(videoId: string, operations: Rev.PatchOperation[]) {
+            await rev.patch(`/api/v2/videos/${videoId}`, operations);
         }
     };
     return videoAPI;
