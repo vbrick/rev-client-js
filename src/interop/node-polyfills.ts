@@ -5,7 +5,8 @@ import { promisify } from 'util';
 import fetch, { Headers, Request, Response } from 'node-fetch';
 import FormData, { AppendOptions } from 'form-data';
 import { isBlobLike, isReadable } from '../utils';
-import type { UploadFileOptions, FileUploadPayloadInternal, FileUploadType } from '../utils/file-utils';
+import type { Rev } from '../types/rev';
+import type { FileUploadPayloadInternal } from '../utils/file-utils';
 import { AbortSignal, AbortController } from 'node-abort-controller';
 import polyfills from '.';
 
@@ -54,7 +55,7 @@ async function getLengthFromStream(source: Record<string, any>) {
 /**
  * For node.js support this allows uploading videos based on filename or from a readable stream
  */
-async function parseFileUpload(file: FileUploadType, options: UploadFileOptions): Promise<FileUploadPayloadInternal> {
+async function parseFileUpload(file: Rev.FileUploadType, options: Rev.UploadFileOptions): Promise<FileUploadPayloadInternal> {
     let {
         filename,
         contentType,

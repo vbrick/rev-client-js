@@ -1,5 +1,4 @@
 import type { AccessControl, Category, Admin, Rev } from '.';
-import { FileUploadType } from '../utils/file-utils';
 import { LiteralString } from './rev';
 
 export namespace Video {
@@ -466,7 +465,9 @@ export namespace Video {
              */
             time: string;
             title?: string;
-            imageFile?: FileUploadType
+            imageFile?: Rev.FileUploadType;
+            /** set filename/contenttype or other options for appended file */
+            uploadOptions?: Rev.UploadFileOptions;
         }
     }
 

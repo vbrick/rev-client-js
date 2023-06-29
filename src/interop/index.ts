@@ -4,7 +4,8 @@
  * allowing uploading a video from the local filesystem on node.js
  */
 import { isBlobLike } from '../utils/is-utils';
-import type { UploadFileOptions, FileUploadPayloadInternal, FileUploadType } from '../utils/file-utils';
+import type { Rev } from '../types/rev';
+import type { FileUploadPayloadInternal } from '../utils/file-utils';
 
 
 /**
@@ -73,7 +74,7 @@ export default {
      * @param contentType
      * @returns
      */
-    async parseFileUpload(file: FileUploadType, options: UploadFileOptions): Promise<FileUploadPayloadInternal> {
+    async parseFileUpload(file: Rev.FileUploadType, options: Rev.UploadFileOptions): Promise<FileUploadPayloadInternal> {
         let {
             filename,
             contentType,

@@ -166,4 +166,18 @@ export namespace Rev {
     }
 
     export type SortDirection = LiteralString<'asc' | 'desc'>;
+
+    export type FileUploadType = string | File | Blob | AsyncIterable<any>;
+    export interface UploadFileOptions {
+        /** specify filename of video as reported to Rev */
+        filename?: string;
+        /** specify content type of video */
+        contentType?: string;
+        /** if content length is known this will avoid needing to detect it */
+        contentLength?: number;
+        /** node-only - bypass dealing with content length and just upload as transfer-encoding: chunked */
+        useChunkedTransfer?: boolean;
+        /** An AbortSignal to set request's signal. */
+        signal?: AbortSignal | null;
+    }
 }

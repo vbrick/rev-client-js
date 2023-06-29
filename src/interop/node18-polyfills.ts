@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { createHmac, randomBytes, createHash } from 'crypto';
 import { isBlobLike, isReadable } from '../utils';
-import type { UploadFileOptions, FileUploadPayloadInternal, FileUploadType } from '../utils/file-utils';
+import type { FileUploadPayloadInternal } from '../utils/file-utils';
+import type { Rev } from '../types/rev';
 import polyfills from '.';
 
 async function getLengthFromStream(source: Record<string, any>) {
@@ -50,7 +51,7 @@ async function getLengthFromStream(source: Record<string, any>) {
 /**
  * For node.js support this allows uploading videos based on filename or from a readable stream
  */
-async function parseFileUpload(file: FileUploadType, options: UploadFileOptions): Promise<FileUploadPayloadInternal> {
+async function parseFileUpload(file: Rev.FileUploadType, options: Rev.UploadFileOptions): Promise<FileUploadPayloadInternal> {
     let {
         filename,
         contentType,
