@@ -1,6 +1,6 @@
 # Vbrick Rev Client Library (beta)
 
-This is a javascript client library for interacting with the [Vbrick Rev API](https://revdocs.vbrick.com/reference). It should work in node.js 14+, evergreen browsers (i.e. not IE), and deno.
+This is a javascript client library for interacting with the [Vbrick Rev API](https://revdocs.vbrick.com/reference). It should work in node.js 16+, browsers, and deno.
 
 This library is intended for use with **[VBrick Rev](https://vbrick.com)**.
 
@@ -420,6 +420,7 @@ The ID of the video
 #### `video.downloadSupplemental(videoId, fileId)`
 #### `video.downloadChapter(chapter)`
 #### `video.downloadThumbnail(query)`
+#### `video.waitTranscode(videoId, options?)` - wait for a video to finish transcoding
 #### `video.search(query?, options?)` - Search for videos
 
 ##### Options
