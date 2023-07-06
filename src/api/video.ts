@@ -156,12 +156,16 @@ export default function videoAPIFactory(rev: RevClient) {
                 pollIntervalSeconds = 30,
                 timeoutMinutes = 240,
                 signal,
+                ignorePlaybackWhileTranscoding = true,
                 onProgress,
                 onError = (error: Error) => { throw error; }
             } = options;
 
-            const timeoutDate = (Date.now() + (timeoutMinutes * 1000) || Infinity);
-            const pollInterval = Math.max(pollIntervalSeconds * 1000 || 30000, 1000);
+            const ONE_MINUTE = 1000 * 60;
+            const timeoutDate = (Date.now() + (timeoutMinutes * ONE_MINUTE) || Infinity);
+            // sanity check: ensure at least 5 seconds between calls
+            const pollInterval = Math.max((pollIntervalSeconds || 30) * 1000, 5000);
+            // set as failed initially in case no error thrown but times out
             let statusResponse = {status: 'UploadFailed'} as Video.StatusResponse;
             while (Date.now() < timeoutDate && !signal?.aborted) {
                 // call video status API
@@ -173,27 +177,26 @@ export default function videoAPIFactory(rev: RevClient) {
                         status
                     } = statusResponse;
 
-                    if (status === 'ProcessingFailed') {
-                        Object.assign(statusResponse, {
-                            overallProgress: 1,
-                            isProcessing: false
-                        });
-                        break;
+                    // status may be Ready initially even though about to go to Processing state
+                    if (ignorePlaybackWhileTranscoding && status === 'Ready' && isProcessing) {
+                        status = 'Processing';
                     }
 
-                    // processing is initially false, so wait till overallProgress changes to complete
+                    // force failed processing as finished
+                    if (status === 'ProcessingFailed') {
+                        overallProgress = 1;
+                        isProcessing = false;
+                    }
+                    // override API values as per above
+                    Object.assign(statusResponse, { status, overallProgress, isProcessing });
+
+                    onProgress?.(statusResponse);
+
+                    // isProcessing is initially false, so wait till overallProgress changes to complete
                     if (overallProgress === 1 && !isProcessing) {
                         // finished, break out of loop
                         break;
                     }
-
-                    // status may be Ready initially even though about to go to Processing state
-                    if (status === 'Ready' && isProcessing) {
-                        status = 'Processing';
-                        statusResponse.status = status;
-                    }
-
-                    onProgress?.({ status, isProcessing, overallProgress });
                 } catch (error) {
                     // by default will throw error
                     await Promise.resolve(onError(error as Error));
