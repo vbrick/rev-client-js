@@ -107,9 +107,9 @@ type FetchResponse = Response;
 declare namespace Rev {
     type HTTPMethod = LiteralString<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD'>;
     type PatchOperation = {
-        type: 'add' | 'remove' | 'replace';
+        op: 'add' | 'remove' | 'replace';
         path: string;
-        value: any;
+        value?: any;
     };
     interface Response<T> {
         statusCode: number;
@@ -759,12 +759,19 @@ declare namespace Video {
         /**
          * callback to report current transcode progress
          */
-        onProgress?: (state: Pick<Video.StatusResponse, 'isProcessing' | 'overallProgress' | 'status'>) => void;
+        onProgress?: (state: Video.StatusResponse) => void;
         /**
          * callback on error getting video status
          * @default throw error immediately
          */
         onError?: (error: Error) => void | Promise<void>;
+        /**
+         * If true set the status of video as "Processing" until transcode completes, instead of the
+         * default behavior of indicating "Ready" as soon as a playable version is available.
+         * See https://revdocs.vbrick.com/docs/allow-playback-during-transcoding
+         * @default {true} - set status to "Processing" until all processing jobs are complete.
+         */
+        ignorePlaybackWhileTranscoding?: boolean;
         /**
          * Signal to stop poll loop early
          */

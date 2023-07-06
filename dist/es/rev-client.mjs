@@ -1972,10 +1972,11 @@ function videoAPIFactory(rev) {
      * @param customField - the custom field object (with id and value)
      */
     async setCustomField(videoId, customField) {
-      const payload = [
-        { op: "remove", path: "/customFields", value: customField.id },
-        { op: "add", path: "/customFields/-", value: customField }
-      ];
+      const payload = [{
+        op: "replace",
+        path: "/CustomFields",
+        value: [customField]
+      }];
       await rev.patch(`/api/v2/videos/${videoId}`, payload);
     },
     /**
@@ -2084,13 +2085,15 @@ function videoAPIFactory(rev) {
         pollIntervalSeconds = 30,
         timeoutMinutes = 240,
         signal,
+        ignorePlaybackWhileTranscoding = true,
         onProgress,
         onError = (error) => {
           throw error;
         }
       } = options;
-      const timeoutDate = Date.now() + timeoutMinutes * 1e3 || Infinity;
-      const pollInterval = Math.max(pollIntervalSeconds * 1e3 || 3e4, 1e3);
+      const ONE_MINUTE3 = 1e3 * 60;
+      const timeoutDate = Date.now() + timeoutMinutes * ONE_MINUTE3 || Infinity;
+      const pollInterval = Math.max((pollIntervalSeconds || 30) * 1e3, 5e3);
       let statusResponse = { status: "UploadFailed" };
       while (Date.now() < timeoutDate && !signal?.aborted) {
         try {
@@ -2100,21 +2103,18 @@ function videoAPIFactory(rev) {
             overallProgress = 0,
             status
           } = statusResponse;
-          if (status === "ProcessingFailed") {
-            Object.assign(statusResponse, {
-              overallProgress: 1,
-              isProcessing: false
-            });
-            break;
+          if (ignorePlaybackWhileTranscoding && status === "Ready" && isProcessing) {
+            status = "Processing";
           }
+          if (status === "ProcessingFailed") {
+            overallProgress = 1;
+            isProcessing = false;
+          }
+          Object.assign(statusResponse, { status, overallProgress, isProcessing });
+          onProgress?.(statusResponse);
           if (overallProgress === 1 && !isProcessing) {
             break;
           }
-          if (status === "Ready" && isProcessing) {
-            status = "Processing";
-            statusResponse.status = status;
-          }
-          onProgress?.({ status, isProcessing, overallProgress });
         } catch (error) {
           await Promise.resolve(onError(error));
         }
