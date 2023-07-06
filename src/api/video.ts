@@ -34,10 +34,16 @@ export default function videoAPIFactory(rev: RevClient) {
          * @param customField - the custom field object (with id and value)
          */
         async setCustomField(videoId: string, customField: Pick<Admin.CustomField, 'id' | 'value'>) {
-            const payload = [
-                { op: 'remove', path: '/customFields', value: customField.id },
-                { op: 'add', path: '/customFields/-', value: customField }
-            ];
+            // LEGACY behavior, only relevant for Rev < 7.48
+            // const payload = [
+            //     { op: 'remove', path: '/customFields', value: customField.id },
+            //     { op: 'add', path: '/customFields/-', value: customField }
+            // ];
+            const payload = [{
+                op: 'replace',
+                path: '/CustomFields',
+                value: [customField]
+            }];
             await rev.patch(`/api/v2/videos/${videoId}`, payload);
         },
         /**

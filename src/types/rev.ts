@@ -9,9 +9,9 @@ export namespace Rev {
     // HTTP Method for requests
     export type HTTPMethod = LiteralString<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD'>;
     export type PatchOperation = {
-        type: 'add' | 'remove' | 'replace';
+        op: 'add' | 'remove' | 'replace';
         path: string;
-        value: any;
+        value?: any;
     }
     export interface Response<T> {
         statusCode: number;
