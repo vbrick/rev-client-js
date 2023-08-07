@@ -938,11 +938,11 @@ function parseLegacyOAuthRedirectResponse(url) {
 // src/api/auth.ts
 function authAPIFactory(rev) {
   const authAPI = {
-    async loginToken(apiKey, secret) {
+    async loginToken(apiKey, secret, options) {
       return rev.post("/api/v2/authenticate", {
         apiKey,
         secret
-      });
+      }, options);
     },
     async extendSessionToken(apiKey) {
       return rev.post(`/api/v2/auth/extend-session-timeout/${apiKey}`);
@@ -950,11 +950,11 @@ function authAPIFactory(rev) {
     async logoffToken(apiKey) {
       return rev.delete(`/api/v2/tokens/${apiKey}`);
     },
-    async loginUser(username, password) {
+    async loginUser(username, password, options) {
       return rev.post("/api/v2/user/login", {
         username,
         password
-      });
+      }, options);
     },
     async logoffUser(userId) {
       return rev.post("/api/v2/user/logoff", { userId });
@@ -962,8 +962,8 @@ function authAPIFactory(rev) {
     async extendSessionUser(userId) {
       return rev.post("/api/v2/user/extend-session-timeout", { userId });
     },
-    async loginJWT(jwtToken) {
-      return rev.get("/api/v2/jwtauthenticate", { jwt_token: jwtToken });
+    async loginJWT(jwtToken, options) {
+      return rev.get("/api/v2/jwtauthenticate", { jwt_token: jwtToken }, options);
     },
     async extendSession() {
       return rev.post("/api/v2/user/extend-session");
@@ -1001,7 +1001,7 @@ function authAPIFactory(rev) {
         codeVerifier
       };
     },
-    async loginOAuth2(config, code, codeVerifier) {
+    async loginOAuth2(config, code, codeVerifier, options) {
       return rev.post("/api/v2/oauth2/token", {
         // sometimes the authCode can get mangled, with the pluses in the code being replaced by spaces.
         code: code.replace(/ /g, "+"),
@@ -1009,7 +1009,7 @@ function authAPIFactory(rev) {
         grant_type: "authorization_code",
         redirect_uri: config.redirectUri,
         code_verifier: codeVerifier
-      });
+      }, options);
     },
     /**
      * @deprecated
@@ -1991,6 +1991,13 @@ function videoDownloadAPI(rev) {
   };
 }
 
+// src/utils/merge-headers.ts
+function mergeHeaders(source, other) {
+  const merged = new interop_default.Headers(source);
+  new interop_default.Headers(other).forEach((value, key) => merged.set(key, value));
+  return merged;
+}
+
 // src/api/video.ts
 function videoAPIFactory(rev) {
   async function comments(videoId, showAll = false) {
@@ -2106,6 +2113,16 @@ function videoAPIFactory(rev) {
     async playbackInfo(videoId) {
       const { video } = await rev.get(`/api/v2/videos/${videoId}/playback-url`);
       return video;
+    },
+    async playbackUrls(videoId, { ipAddress, userAgent } = {}, options) {
+      const query = ipAddress ? { ip: ipAddress } : void 0;
+      const opts = {
+        ...options,
+        ...userAgent && {
+          headers: mergeHeaders(options?.headers, { "User-Agent": userAgent })
+        }
+      };
+      return rev.get(`/api/v2/videos/${videoId}/playback-urls`, query, opts);
     },
     ...videoDownloadAPI(rev),
     ...videoReportAPI(rev),

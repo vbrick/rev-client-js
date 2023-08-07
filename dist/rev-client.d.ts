@@ -634,6 +634,42 @@ declare namespace Video {
         thumbnailUrl: string;
         playbackUrl: string;
     }
+    interface PlaybackUrlsRequest {
+        /**
+         * IP address of viewer that will use this stream - used for Zoning rules.
+         * Use the User Location Service endpoint to get the correct IP
+         * await revClient.admin.userLocationService()
+         * https://revdocs.vbrick.com/reference/user-location
+         * If not specified then the public IP address of rev client will be used
+         */
+        ipAddress?: string;
+        /**
+         * Override user agent of viewer. This should match the eventual viewing
+         * browser device, otherwise authenticated streams may return Unauthorized.
+         * Default is to use user agent of rev client.
+         */
+        userAgent?: string;
+    }
+    interface PlaybackUrlsResponse {
+        playbackResults: PlaybackUrlResult[];
+        jwtToken: string;
+    }
+    interface PlaybackUrlResult {
+        label: string;
+        qValue: number;
+        player: LiteralString<'Native' | 'Vbrick' | 'NativeIos' | 'NativeAndroid' | 'NativeMfStb'>;
+        url: string;
+        zoneId: string;
+        zoneName?: string;
+        slideDelaySeconds: number;
+        name?: null | LiteralString<'RevConnect'>;
+        videoFormat: string;
+        videoInstanceId: string;
+        deviceId?: string;
+        deviceName?: string;
+        isEnriched: boolean;
+        streamDeliveryType: LiteralString<'PublicCDN' | 'ECDN' | 'Custom'>;
+    }
     interface VideoReportEntry {
         videoId: string;
         title: string;
@@ -1873,16 +1909,7 @@ declare namespace Webcast {
         ip?: string;
         userAgent?: string;
     }
-    interface Playback {
-        label: string;
-        qValue: number;
-        player: string;
-        url: string;
-        zoneId: string;
-        slideDelaySeconds: number;
-        videoFormat: string;
-        videoInstanceId: string;
-        deviceId: string;
+    interface Playback extends Video.PlaybackUrlResult {
     }
 }
 interface GuestRegistration {
@@ -2253,13 +2280,13 @@ declare function buildLegacyOAuthQuery(config: OAuth.Config, oauthSecret: string
 declare function parseLegacyOAuthRedirectResponse(url: string | URL | URLSearchParams | Record<string, string>): OAuth.RedirectResponse;
 
 declare function authAPIFactory(rev: RevClient): {
-    loginToken(apiKey: string, secret: string): Promise<Auth.LoginResponse>;
+    loginToken(apiKey: string, secret: string, options?: Rev.RequestOptions): Promise<Auth.LoginResponse>;
     extendSessionToken(apiKey: string): Promise<Auth.ExtendResponse>;
     logoffToken(apiKey: string): Promise<void>;
-    loginUser(username: string, password: string): Promise<Auth.UserLoginResponse>;
+    loginUser(username: string, password: string, options?: Rev.RequestOptions): Promise<Auth.UserLoginResponse>;
     logoffUser(userId: string): Promise<void>;
     extendSessionUser(userId: string): Promise<Auth.ExtendResponse>;
-    loginJWT(jwtToken: string): Promise<Auth.JWTLoginResponse>;
+    loginJWT(jwtToken: string, options?: Rev.RequestOptions): Promise<Auth.JWTLoginResponse>;
     extendSession(): Promise<Auth.ExtendResponse>;
     verifySession(): Promise<void>;
     /**
@@ -2281,7 +2308,7 @@ declare function authAPIFactory(rev: RevClient): {
      * @returns A valid oauth flow URL + the code_verifier to save for later verification
      */
     buildOAuth2Authentication(config: OAuth.ServerConfig, state?: string, verifier?: string): Promise<OAuth.AuthenticationData>;
-    loginOAuth2(config: OAuth.Config, code: string, codeVerifier: string): Promise<OAuth.AuthTokenResponse>;
+    loginOAuth2(config: OAuth.Config, code: string, codeVerifier: string, options?: Rev.RequestOptions): Promise<OAuth.AuthTokenResponse>;
     /**
      * @deprecated
      * @param config OAuth signing settings, retrieved from Rev Admin -> Security -> API Keys page
@@ -2650,6 +2677,7 @@ declare function videoAPIFactory(rev: RevClient): {
      */
     searchDetailed(query?: Video.SearchOptions, options?: Rev.SearchOptions<VideoSearchDetailedItem>): Rev.ISearchRequest<VideoSearchDetailedItem>;
     playbackInfo(videoId: string): Promise<Video.Playback>;
+    playbackUrls(videoId: string, { ipAddress, userAgent }?: Video.PlaybackUrlsRequest, options?: Rev.RequestOptions): Promise<Video.PlaybackUrlResult[]>;
 };
 
 declare class RealtimeReportRequest<T extends Webcast.RealtimeSession = Webcast.RealtimeSession> extends SearchRequest<T> {

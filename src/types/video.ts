@@ -379,6 +379,46 @@ export namespace Video {
         playbackUrl: string;
     }
 
+    export interface PlaybackUrlsRequest {
+        /**
+         * IP address of viewer that will use this stream - used for Zoning rules.
+         * Use the User Location Service endpoint to get the correct IP
+         * await revClient.admin.userLocationService()
+         * https://revdocs.vbrick.com/reference/user-location
+         * If not specified then the public IP address of rev client will be used
+         */
+        ipAddress?: string;
+        /**
+         * Override user agent of viewer. This should match the eventual viewing
+         * browser device, otherwise authenticated streams may return Unauthorized.
+         * Default is to use user agent of rev client.
+         */
+        userAgent?: string;
+    }
+
+    export interface PlaybackUrlsResponse {
+        playbackResults: PlaybackUrlResult[];
+        jwtToken: string;
+    }
+
+    export interface PlaybackUrlResult {
+        label: string;
+        qValue: number;
+        player: LiteralString<'Native' | 'Vbrick' | 'NativeIos' | 'NativeAndroid' | 'NativeMfStb'>;
+        url: string;
+        zoneId: string;
+        zoneName?: string;
+        slideDelaySeconds: number;
+
+        name?: null | LiteralString<'RevConnect'>;
+        videoFormat: string;
+        videoInstanceId: string;
+        deviceId?: string;
+        deviceName?: string;
+        isEnriched: boolean;
+        streamDeliveryType: LiteralString<'PublicCDN' | 'ECDN' | 'Custom'>;
+    }
+
     export interface VideoReportEntry {
         videoId: string;
         title: string;

@@ -5,6 +5,7 @@ import { SearchRequest } from '../utils/request-utils';
 import { videoReportAPI } from './video-report-request';
 import { videoDownloadAPI } from './video-download';
 import { sleep } from '../utils';
+import { mergeHeaders } from '../utils/merge-headers';
 
 type VideoSearchDetailedItem = Video.SearchHit & (Video.Details | { error?: Error });
 
@@ -136,6 +137,20 @@ export default function videoAPIFactory(rev: RevClient) {
         async playbackInfo(videoId: string): Promise<Video.Playback> {
             const { video } = await rev.get(`/api/v2/videos/${videoId}/playback-url`);
             return video;
+        },
+        async playbackUrls(videoId: string, {ipAddress, userAgent}: Video.PlaybackUrlsRequest = {}, options?: Rev.RequestOptions): Promise<Video.PlaybackUrlResult[]> {
+            const query = ipAddress
+                ? { ip: ipAddress }
+                : undefined;
+
+            const opts = {
+                ...options,
+                ...userAgent && {
+                    headers: mergeHeaders(options?.headers, { 'User-Agent': userAgent })
+                }
+            };
+
+            return rev.get(`/api/v2/videos/${videoId}/playback-urls`, query, opts);
         },
         ...videoDownloadAPI(rev),
         ...videoReportAPI(rev),

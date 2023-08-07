@@ -1,3 +1,9 @@
+## 0.14.0
+
+### Features
+* Add optional `options` parameter to authentication API calls, to allow passing a custom `User-Agent` / `Authorization` headers. This may be needed if generating tokens server-side for use in the browser, where user agent mismatches can cause video playback issues. Also note that you can pass `{ headers: { Authorization: '' } }` to not pass any existing authentication token.
+* Added `video.playbackUrls` endpoint (Get Video Playback URLS)
+
 ## 0.13.1
 
 ### Features
