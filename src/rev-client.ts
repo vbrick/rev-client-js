@@ -261,7 +261,7 @@ export class RevClient {
         return this.session.verify();
     }
     get isConnected() {
-        return !!this.session.token && !this.session.isExpired;
+        return this.session.isConnected;
     }
     get token() {
         return this.session.token;

@@ -82,6 +82,7 @@ export namespace Rev {
         token?: string;
         expires: Date;
         readonly isExpired: boolean;
+        readonly isConnected: boolean;
         readonly username: string | undefined;
         login(): Promise<void>;
         extend(): Promise<void>;
