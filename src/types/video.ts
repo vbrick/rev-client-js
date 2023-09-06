@@ -387,7 +387,7 @@ export namespace Video {
          * https://revdocs.vbrick.com/reference/user-location
          * If not specified then the public IP address of rev client will be used
          */
-        ipAddress?: string;
+        ip?: string;
         /**
          * Override user agent of viewer. This should match the eventual viewing
          * browser device, otherwise authenticated streams may return Unauthorized.

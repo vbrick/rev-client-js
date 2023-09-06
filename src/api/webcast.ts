@@ -4,6 +4,7 @@ import { Webcast, GuestRegistration } from '../types/webcast';
 import { SearchRequest } from '../utils/request-utils';
 import { titleCase } from '../utils';
 import { PostEventReportRequest, RealtimeReportRequest } from './webcast-report-request';
+import { mergeHeaders } from '../utils/merge-headers';
 
 type RealtimeSession<T extends Webcast.RealtimeRequest | undefined> = T extends { attendeeDetails: 'All' }
     ? Webcast.RealtimeSessionDetail
@@ -72,22 +73,29 @@ export default function webcastAPIFactory(rev: RevClient) {
         async status(eventId: string): Promise<Webcast.Status> {
             return rev.get(`/api/v2/scheduled-events/${eventId}/status`);
         },
-        async playbackUrl(eventId: string, options: Webcast.PlaybackUrlRequest = { }): Promise<Webcast.Playback[]> {
-            const {
-                ip,
-                userAgent
-            } = options;
-
+        async playbackUrls(eventId: string, {ip, userAgent}: Webcast.PlaybackUrlRequest = { }, options?: Rev.RequestOptions): Promise<Webcast.PlaybackUrlsResponse> {
             const query = ip ? { ip } : undefined;
 
-            const requestOptions: Rev.RequestOptions = {
+            const opts: Rev.RequestOptions = {
+                ...options,
+                ...userAgent && {
+                    headers: mergeHeaders(options?.headers, { 'User-Agent': userAgent })
+                },
                 responseType: 'json'
             };
-            if (userAgent) {
-                requestOptions.headers = { 'User-Agent': userAgent };
-            }
 
-            return rev.get(`/api/v2/scheduled-events/${eventId}/playback-url`, query, requestOptions);
+            return rev.get(`/api/v2/scheduled-events/${eventId}/playback-url`, query, opts);
+        },
+        /**
+         * @deprecated
+         * @param eventId
+         * @param options
+         * @returns
+         */
+        async playbackUrl(eventId: string, options: Webcast.PlaybackUrlRequest = { }): Promise<Webcast.Playback[]> {
+            rev.log('debug', 'webcast.playbackUrl is deprecated - use webcast.playbackUrls instead');
+            const {playbackResults} = await webcastAPI.playbackUrls(eventId, options);
+            return playbackResults;
         },
         async startEvent(eventId: string, preProduction: boolean = false): Promise<void> {
             await rev.put(`/api/v2/scheduled-events/${eventId}/start`, { preProduction });

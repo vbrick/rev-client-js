@@ -401,6 +401,8 @@ export namespace Webcast {
         userAgent?: string;
     }
 
+    export interface PlaybackUrlsResponse extends Video.PlaybackUrlsResponse {}
+
     export interface Playback extends Video.PlaybackUrlResult {
 
     }

@@ -138,16 +138,15 @@ export default function videoAPIFactory(rev: RevClient) {
             const { video } = await rev.get(`/api/v2/videos/${videoId}/playback-url`);
             return video;
         },
-        async playbackUrls(videoId: string, {ipAddress, userAgent}: Video.PlaybackUrlsRequest = {}, options?: Rev.RequestOptions): Promise<Video.PlaybackUrlResult[]> {
-            const query = ipAddress
-                ? { ip: ipAddress }
-                : undefined;
+        async playbackUrls(videoId: string, {ip, userAgent}: Video.PlaybackUrlsRequest = {}, options?: Rev.RequestOptions): Promise<Video.PlaybackUrlsResponse> {
+            const query = ip ? { ip } : undefined;
 
-            const opts = {
+            const opts: Rev.RequestOptions = {
                 ...options,
                 ...userAgent && {
                     headers: mergeHeaders(options?.headers, { 'User-Agent': userAgent })
-                }
+                },
+                responseType: 'json'
             };
 
             return rev.get(`/api/v2/videos/${videoId}/playback-urls`, query, opts);
