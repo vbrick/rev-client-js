@@ -519,7 +519,10 @@ export namespace Video {
         title: string;
     }
 
-    export interface Transcription extends SupplementalFile {
+    export interface Transcription {
+        downloadUrl: string,
+        fileSize: number;
+        filename: string;
         locale: string;
     }
 
