@@ -18,6 +18,7 @@ export class RevClient {
     readonly category!: ReturnType<typeof api.category>;
     readonly channel!: ReturnType<typeof api.channel>;
     readonly device!: ReturnType<typeof api.device>;
+    readonly environment!: ReturnType<typeof api.environment>;
     readonly group!: ReturnType<typeof api.group>;
     readonly playlist!: ReturnType<typeof api.playlist>;
     readonly recording!: ReturnType<typeof api.recording>;
@@ -64,6 +65,7 @@ export class RevClient {
             category: { value: api.category(this), writable: false },
             channel: { value: api.channel(this), writable: false },
             device: { value: api.device(this), writable: false },
+            environment: { value: api.environment(this), writable: false },
             group: { value: api.group(this), writable: false },
             playlist: { value: api.playlist(this), writable: false },
             recording: { value: api.recording(this), writable: false },
