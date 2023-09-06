@@ -102,7 +102,7 @@ const rev = new RevClient({
 * `logEnabled`: `true`/`false` *(Default: `false`)* - Enable/disable debug logging
 * `log`: `(logLevel, ...args) => void` - Custom log function. Default is to log to console
 
-And **one** of following login options (`apiKey`+`secret`, `username`+`password`, `oauthConfig`):
+And **one** of following login options (`apiKey`+`secret`, `username`+`password`, `oauthConfig`+`code`+`codeVerifier`, `jwtToken`, `guestRegistrationToken`+`webcastId`, `publicOnly`):
 
 1. User API Key:
 
@@ -133,9 +133,17 @@ And **one** of following login options (`apiKey`+`secret`, `username`+`password`
 5. JWT session:
    * `jwtToken`: The [JWT Token](https://revdocs.vbrick.com/reference/jwt-authentication)
 
-6. Access Token (existing sessions)
-   * `token`: The Access Token previously received via some login method (see below)
-   * `expiration`: The expiration time of the session.
+6. Guest Registration session:
+   * `guestRegistrationToken`: The [Token](https://revdocs.vbrick.com/reference/createguestwebcastuser-1) returned when creating a guest registration.
+   * `webcastId`: ID of the webcast in question
+
+7. Access Token *(existing sessions)*
+   * `session.token`: The Access Token previously received via some login method (see below)
+   * `session.expiration`: The expiration time of the session.
+
+8. Public Only usage *(no authentication)*
+
+* `publicOnly`: Don't use any authentication. This limits use to endpoints that don't require authentication.
 
 ##### Existing Sessions:
 
@@ -316,6 +324,13 @@ The Response payload, already decoded based on `options.responseType`
 #### `device.add(dme)`
 #### `device.healthStatus(deviceId)`
 #### `device.delete(deviceId)`
+
+### [Environment]
+
+#### `environment.getAccountId()`
+#### `environment.getRevVersion()`
+#### `environment.getUserLocalIp(timeoutMilliseconds)`
+Wrapper around the Use the [Get User Location Service](https://revdocs.vbrick.com/reference/user-location) to get a user's IP Address for zoning purposes.
 
 ### [Groups](https://revdocs.vbrick.com/reference/creategroup)
 

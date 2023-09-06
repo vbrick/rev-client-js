@@ -1,3 +1,19 @@
+
+
+## 0.15.0
+
+### Features
+* Add additional [environment api](README.md#environment).
+* Add additional `publicOnly` option to [`Rev.Credentials`](README.md#options)
+* Add additional Guest Registration login option
+* Add `webcast.playbackUrls()` to match `video.playbackUrls()` shape
+
+### Deprecations
+* Deprecate `webcast.playbackUrl()` *(use `webcast.playbackUrls()` instead)*
+
+### Bugfixes
+* Correct `Video.Transcription` type definition
+
 ## 0.14.0
 
 ### Features
