@@ -20,6 +20,10 @@ declare namespace Auth {
         expiration: string;
         language?: string;
     }
+    interface GuestRegistrationResposne {
+        accessToken: string;
+        csrfToken: string;
+    }
     interface ExtendResponse {
         /** ISO Date format */
         expiration: string;
@@ -100,9 +104,7 @@ declare namespace OAuth {
     }
 }
 
-type LiteralString<T> = T | (string & {
-    _?: never;
-});
+type LiteralString<T> = T | (string & Record<never, never>);
 type FetchResponse = Response;
 declare namespace Rev {
     type HTTPMethod = LiteralString<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD'>;
@@ -146,8 +148,14 @@ declare namespace Rev {
         codeVerifier?: string;
         /** JWT Token */
         jwtToken?: string;
+        /** Webcast Guest Registration */
+        guestRegistrationToken?: string;
+        /** Webcast ID for Guest Registration */
+        webcastId?: string;
         /** existing token/extend session details */
         session?: Rev.IRevSessionState;
+        /** use public APIs only - no authentication */
+        publicOnly?: boolean;
     }
     type LogSeverity = LiteralString<'debug' | 'info' | 'warn' | 'error'>;
     type LogFunction = (severity: LogSeverity, ...args: any[]) => void;
@@ -167,6 +175,7 @@ declare namespace Rev {
         token?: string;
         expires: Date;
         readonly isExpired: boolean;
+        readonly isConnected: boolean;
         readonly username: string | undefined;
         login(): Promise<void>;
         extend(): Promise<void>;
@@ -642,7 +651,7 @@ declare namespace Video {
          * https://revdocs.vbrick.com/reference/user-location
          * If not specified then the public IP address of rev client will be used
          */
-        ipAddress?: string;
+        ip?: string;
         /**
          * Override user agent of viewer. This should match the eventual viewing
          * browser device, otherwise authenticated streams may return Unauthorized.
@@ -762,7 +771,10 @@ declare namespace Video {
         size: number;
         title: string;
     }
-    interface Transcription extends SupplementalFile {
+    interface Transcription {
+        downloadUrl: string;
+        fileSize: number;
+        filename: string;
         locale: string;
     }
     namespace Transcription {
@@ -1909,6 +1921,8 @@ declare namespace Webcast {
         ip?: string;
         userAgent?: string;
     }
+    interface PlaybackUrlsResponse extends Video.PlaybackUrlsResponse {
+    }
     interface Playback extends Video.PlaybackUrlResult {
     }
 }
@@ -2287,6 +2301,7 @@ declare function authAPIFactory(rev: RevClient): {
     logoffUser(userId: string): Promise<void>;
     extendSessionUser(userId: string): Promise<Auth.ExtendResponse>;
     loginJWT(jwtToken: string, options?: Rev.RequestOptions): Promise<Auth.JWTLoginResponse>;
+    loginGuestRegistration(webcastId: string, jwtToken: string, options?: Rev.RequestOptions): Promise<Auth.GuestRegistrationResposne>;
     extendSession(): Promise<Auth.ExtendResponse>;
     verifySession(): Promise<void>;
     /**
@@ -2677,7 +2692,7 @@ declare function videoAPIFactory(rev: RevClient): {
      */
     searchDetailed(query?: Video.SearchOptions, options?: Rev.SearchOptions<VideoSearchDetailedItem>): Rev.ISearchRequest<VideoSearchDetailedItem>;
     playbackInfo(videoId: string): Promise<Video.Playback>;
-    playbackUrls(videoId: string, { ipAddress, userAgent }?: Video.PlaybackUrlsRequest, options?: Rev.RequestOptions): Promise<Video.PlaybackUrlResult[]>;
+    playbackUrls(videoId: string, { ip, userAgent }?: Video.PlaybackUrlsRequest, options?: Rev.RequestOptions): Promise<Video.PlaybackUrlsResponse>;
 };
 
 declare class RealtimeReportRequest<T extends Webcast.RealtimeSession = Webcast.RealtimeSession> extends SearchRequest<T> {
@@ -2721,6 +2736,13 @@ declare function webcastAPIFactory(rev: RevClient): {
     pollResults(eventId: string, runNumber?: number): Promise<Webcast.PollResults[]>;
     comments(eventId: string, runNumber?: number): Promise<Webcast.Comment[]>;
     status(eventId: string): Promise<Webcast.Status>;
+    playbackUrls(eventId: string, { ip, userAgent }?: Webcast.PlaybackUrlRequest, options?: Rev.RequestOptions): Promise<Webcast.PlaybackUrlsResponse>;
+    /**
+     * @deprecated
+     * @param eventId
+     * @param options
+     * @returns
+     */
     playbackUrl(eventId: string, options?: Webcast.PlaybackUrlRequest): Promise<Webcast.Playback[]>;
     startEvent(eventId: string, preProduction?: boolean): Promise<void>;
     stopEvent(eventId: string, preProduction?: boolean): Promise<void>;
@@ -2762,6 +2784,33 @@ declare function zonesAPIFactory(rev: RevClient): {
     readonly devices: () => Promise<Device.ZoneDevice[]>;
 };
 
+declare function environmentAPIFactory(rev: RevClient): {
+    /**
+     * Get's the accountId embedded in Rev's main entry point
+     * @returns
+     */
+    getAccountId(forceRefresh?: boolean): Promise<string>;
+    /**
+     * Get's the version of Rev returned by /js/version.js
+     * @returns
+     */
+    getRevVersion(forceRefresh?: boolean): Promise<string>;
+    /**
+     * Use the Get User Location Service API to get a user's IP address for zoning purposes
+     * Returns the IP if ULS enabled and one successfully found, otherwise undefined.
+     * undefined response indicates Rev should use the user's public IP for zoning.
+     * @param timeoutMs    - how many milliseconds to wait for a response (if user is not)
+     *                       on VPN / intranet with ULS DME then DNS lookup or request
+     *                       can time out, so don't set this too long.
+     *                       Default is 10 seconds
+     * @param forceRefresh   By default the User Location Services settings is cached
+     *                       (not the user's detected IP). Use this to force reloading
+     *                       the settings from Rev.
+     * @returns
+     */
+    getUserLocalIp(timeoutMs?: number, forceRefresh?: boolean): Promise<string | undefined>;
+};
+
 type PayloadType = {
     [key: string]: any;
 } | Record<string, any> | any[];
@@ -2775,6 +2824,7 @@ declare class RevClient {
     readonly category: ReturnType<typeof categoryAPIFactory>;
     readonly channel: ReturnType<typeof channelAPIFactory>;
     readonly device: ReturnType<typeof deviceAPIFactory>;
+    readonly environment: ReturnType<typeof environmentAPIFactory>;
     readonly group: ReturnType<typeof groupAPIFactory>;
     readonly playlist: ReturnType<typeof playlistAPIFactory>;
     readonly recording: ReturnType<typeof recordingAPIFactory>;

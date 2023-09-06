@@ -836,6 +836,13 @@ function auditAPIFactory(rev) {
   return auditAPI;
 }
 
+// src/utils/merge-headers.ts
+function mergeHeaders(source, other) {
+  const merged = new interop_default.Headers(source);
+  new interop_default.Headers(other).forEach((value, key) => merged.set(key, value));
+  return merged;
+}
+
 // src/api/oauth.ts
 var PLACEHOLDER = "http://rev";
 function getOAuth2AuthorizationUrl(config, code_challenge, state) {
@@ -923,6 +930,13 @@ function authAPIFactory(rev) {
     },
     async loginJWT(jwtToken, options) {
       return rev.get("/api/v2/jwtauthenticate", { jwt_token: jwtToken }, options);
+    },
+    async loginGuestRegistration(webcastId, jwtToken, options) {
+      const opts = {
+        ...options,
+        headers: mergeHeaders(options?.headers, { "x-requested-with": "xmlhttprequest" })
+      };
+      return rev.post(`/external/auth/jwt/${webcastId}`, { token: `vbrick_rev ${jwtToken}` }, options);
     },
     async extendSession() {
       return rev.post("/api/v2/user/extend-session");
@@ -1950,13 +1964,6 @@ function videoDownloadAPI(rev) {
   };
 }
 
-// src/utils/merge-headers.ts
-function mergeHeaders(source, other) {
-  const merged = new interop_default.Headers(source);
-  new interop_default.Headers(other).forEach((value, key) => merged.set(key, value));
-  return merged;
-}
-
 // src/api/video.ts
 function videoAPIFactory(rev) {
   async function comments(videoId, showAll = false) {
@@ -2073,13 +2080,14 @@ function videoAPIFactory(rev) {
       const { video } = await rev.get(`/api/v2/videos/${videoId}/playback-url`);
       return video;
     },
-    async playbackUrls(videoId, { ipAddress, userAgent } = {}, options) {
-      const query = ipAddress ? { ip: ipAddress } : void 0;
+    async playbackUrls(videoId, { ip, userAgent } = {}, options) {
+      const query = ip ? { ip } : void 0;
       const opts = {
         ...options,
         ...userAgent && {
           headers: mergeHeaders(options?.headers, { "User-Agent": userAgent })
-        }
+        },
+        responseType: "json"
       };
       return rev.get(`/api/v2/videos/${videoId}/playback-urls`, query, opts);
     },
@@ -2261,19 +2269,27 @@ function webcastAPIFactory(rev) {
     async status(eventId) {
       return rev.get(`/api/v2/scheduled-events/${eventId}/status`);
     },
-    async playbackUrl(eventId, options = {}) {
-      const {
-        ip,
-        userAgent
-      } = options;
+    async playbackUrls(eventId, { ip, userAgent } = {}, options) {
       const query = ip ? { ip } : void 0;
-      const requestOptions = {
+      const opts = {
+        ...options,
+        ...userAgent && {
+          headers: mergeHeaders(options?.headers, { "User-Agent": userAgent })
+        },
         responseType: "json"
       };
-      if (userAgent) {
-        requestOptions.headers = { "User-Agent": userAgent };
-      }
-      return rev.get(`/api/v2/scheduled-events/${eventId}/playback-url`, query, requestOptions);
+      return rev.get(`/api/v2/scheduled-events/${eventId}/playback-url`, query, opts);
+    },
+    /**
+     * @deprecated
+     * @param eventId
+     * @param options
+     * @returns
+     */
+    async playbackUrl(eventId, options = {}) {
+      rev.log("debug", "webcast.playbackUrl is deprecated - use webcast.playbackUrls instead");
+      const { playbackResults } = await webcastAPI.playbackUrls(eventId, options);
+      return playbackResults;
     },
     async startEvent(eventId, preProduction = false) {
       await rev.put(`/api/v2/scheduled-events/${eventId}/start`, { preProduction });
@@ -2385,6 +2401,84 @@ function zonesAPIFactory(rev) {
     }
   };
   return zonesAPI;
+}
+
+// src/api/environment.ts
+function environmentAPIFactory(rev) {
+  let accountId = "";
+  let version = "";
+  let ulsInfo = void 0;
+  const environmentAPI = {
+    /**
+     * Get's the accountId embedded in Rev's main entry point
+     * @returns
+     */
+    async getAccountId(forceRefresh = false) {
+      if (!accountId || forceRefresh) {
+        const text = await rev.get("/", void 0, { responseType: "text" }).catch((error) => "");
+        accountId = (/BootstrapContext.*account[":{ ]*"id"\s*:\s*"([^"]+)"/.exec(text) || [])[1] || "";
+      }
+      return accountId;
+    },
+    /**
+     * Get's the version of Rev returned by /js/version.js
+     * @returns
+     */
+    async getRevVersion(forceRefresh = false) {
+      if (!version || forceRefresh) {
+        const text = await rev.get("/js/version.js", void 0, { responseType: "text" }).catch((error) => "");
+        version = (/buildNumber:\s+['"]([\d.]+)/.exec(text) || [])[1] || "";
+      }
+      return version;
+    },
+    /**
+     * Use the Get User Location Service API to get a user's IP address for zoning purposes
+     * Returns the IP if ULS enabled and one successfully found, otherwise undefined.
+     * undefined response indicates Rev should use the user's public IP for zoning.
+     * @param timeoutMs    - how many milliseconds to wait for a response (if user is not)
+     *                       on VPN / intranet with ULS DME then DNS lookup or request
+     *                       can time out, so don't set this too long.
+     *                       Default is 10 seconds
+     * @param forceRefresh   By default the User Location Services settings is cached
+     *                       (not the user's detected IP). Use this to force reloading
+     *                       the settings from Rev.
+     * @returns
+     */
+    async getUserLocalIp(timeoutMs = 10 * 1e3, forceRefresh = false) {
+      if (!ulsInfo || forceRefresh) {
+        ulsInfo = await rev.get("/api/v2/user-location");
+      }
+      if (!ulsInfo?.enabled || ulsInfo.locationUrls.length === 0) {
+        return void 0;
+      }
+      const controller = new AbortController();
+      const getIp = async function(ulsUrl) {
+        try {
+          let { ip = "" } = await rev.get(ulsUrl, {}, {
+            headers: { Authorization: "" },
+            responseType: "json",
+            signal: controller.signal
+          });
+          ip = `${ip}`.split(",")[0].trim();
+          if (ip) {
+            controller.abort();
+          }
+          return ip;
+        } catch (error) {
+          rev.log("debug", `ULS URL Failed: ${ulsUrl}`, error);
+          return void 0;
+        }
+      };
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const ips = await Promise.all(ulsInfo.locationUrls.map(getIp));
+        return ips.find((ip) => !!ip);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  };
+  return environmentAPI;
 }
 
 // src/rev-session.ts
@@ -2720,6 +2814,30 @@ var JWTSession = class extends SessionBase {
     };
   }
 };
+var GuestRegistrationSession = class extends SessionBase {
+  async _login() {
+    const { webcastId, guestRegistrationToken } = this[_credentials];
+    if (!guestRegistrationToken || !webcastId) {
+      throw new TypeError("Guest Registration Token or Webcast ID not specified");
+    }
+    const { accessToken: token } = await this.rev.auth.loginGuestRegistration(webcastId, guestRegistrationToken);
+    const expiresTime = Date.now() + 1e3 * 60 * 15;
+    const expiration = new Date(expiresTime).toISOString();
+    return { token, expiration, issuer: "vbrick" };
+  }
+  async _extend() {
+    return this.rev.auth.extendSession();
+  }
+  async _logoff() {
+    return;
+  }
+  toJSON() {
+    return {
+      token: this.token || "",
+      expiration: this.expires
+    };
+  }
+};
 var AccessTokenSession = class extends SessionBase {
   // just verify user on login
   async _login() {
@@ -2742,11 +2860,21 @@ var AccessTokenSession = class extends SessionBase {
       expiration: this.expires
     };
   }
+  async verify() {
+    return true;
+  }
+  get isConnected() {
+    return true;
+  }
+  get isExpired() {
+    return false;
+  }
 };
 function createSession(rev, credentials, keepAliveOptions) {
   let session;
   const {
     session: sessionState = {},
+    publicOnly,
     ...creds
   } = credentials;
   const {
@@ -2763,6 +2891,7 @@ function createSession(rev, credentials, keepAliveOptions) {
   const isApiKeyLogin = credentials.apiKey && (credentials.secret || hasSession && !userId);
   const isUsernameLogin = credentials.username && (credentials.password || hasSession && userId);
   const isJWTLogin = credentials.jwtToken;
+  const isGuestRegistration = credentials.webcastId && credentials.guestRegistrationToken;
   if (isOAuth2Login) {
     session = new OAuth2Session(rev, creds, keepAliveOptions);
   } else if (isLegacyOauthLogin) {
@@ -2774,12 +2903,14 @@ function createSession(rev, credentials, keepAliveOptions) {
     session = new ApiKeySession(rev, creds, keepAliveOptions);
   } else if (isJWTLogin) {
     session = new JWTSession(rev, creds, keepAliveOptions);
+  } else if (isGuestRegistration) {
+    session = new GuestRegistrationSession(rev, creds, keepAliveOptions);
   } else if (isUsernameLogin) {
     session = new UserSession(rev, creds, keepAliveOptions);
     if (userId) {
       session.userId = userId;
     }
-  } else if (hasSession) {
+  } else if (hasSession || publicOnly) {
     session = new AccessTokenSession(rev, creds, keepAliveOptions);
   } else {
     throw new TypeError("Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)");
@@ -2823,6 +2954,7 @@ var RevClient = class {
       category: { value: categoryAPIFactory(this), writable: false },
       channel: { value: channelAPIFactory(this), writable: false },
       device: { value: deviceAPIFactory(this), writable: false },
+      environment: { value: environmentAPIFactory(this), writable: false },
       group: { value: groupAPIFactory(this), writable: false },
       playlist: { value: playlistAPIFactory(this), writable: false },
       recording: { value: recordingAPIFactory(this), writable: false },
@@ -2986,7 +3118,7 @@ var RevClient = class {
     return this.session.verify();
   }
   get isConnected() {
-    return !!this.session.token && !this.session.isExpired;
+    return this.session.isConnected;
   }
   get token() {
     return this.session.token;
