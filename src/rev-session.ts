@@ -410,6 +410,34 @@ export class JWTSession extends SessionBase {
     }
 }
 
+export class GuestRegistrationSession extends SessionBase {
+    async _login() {
+        const { webcastId, guestRegistrationToken } = this[_credentials];
+        if (!guestRegistrationToken || !webcastId) {
+            throw new TypeError('Guest Registration Token or Webcast ID not specified');
+        }
+        const {accessToken: token} = await this.rev.auth.loginGuestRegistration(webcastId, guestRegistrationToken);
+
+        // expires time is not sent, so just assume 15 minutes
+        const expiresTime = Date.now() + 1000 * 60 * 15;
+        const expiration = new Date(expiresTime).toISOString();
+
+        return { token, expiration, issuer: 'vbrick' };
+    }
+    async _extend() {
+        return this.rev.auth.extendSession();
+    }
+    async _logoff() {
+        return;
+    }
+    public toJSON(): Rev.IRevSessionState {
+        return {
+            token: this.token || '',
+            expiration: this.expires
+        };
+    }
+}
+
 export class AccessTokenSession extends SessionBase {
     // just verify user on login
     async _login() {
@@ -432,6 +460,42 @@ export class AccessTokenSession extends SessionBase {
             expiration: this.expires
         };
     }
+    async verify() {
+        return true;
+    }
+    get isConnected() {
+        return true;
+    }
+    get isExpired() {
+        return false;
+    }
+}
+
+export class PublicOnlySession extends SessionBase {
+    async _login() {
+        this.rev.log('debug', 'Using client with no authentication (publicOnly) - non-public endpoints will return 401');
+        // no verify
+        return {
+            token: this.token || '',
+            // very long expiration
+            expiration: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            issuer: 'vbrick'
+        };
+    }
+    async _extend() {
+        return {
+            expiration: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        }
+    }
+    async _logoff() {
+        return;
+    }
+    public toJSON(): Rev.IRevSessionState {
+        return {
+            token: this.token || '',
+            expiration: this.expires
+        };
+    }
 }
 
 export function createSession(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions) {
@@ -439,6 +503,7 @@ export function createSession(rev: RevClient, credentials: Rev.Credentials, keep
 
     const {
         session: sessionState = {} as Rev.IRevSessionState,
+        publicOnly,
         ...creds
     } = credentials;
 
@@ -458,6 +523,7 @@ export function createSession(rev: RevClient, credentials: Rev.Credentials, keep
     const isApiKeyLogin = credentials.apiKey && (credentials.secret || (hasSession && !userId));
     const isUsernameLogin = credentials.username && (credentials.password || (hasSession && userId));
     const isJWTLogin = credentials.jwtToken;
+    const isGuestRegistration = credentials.webcastId && credentials.guestRegistrationToken;
 
     // prefer oauth first, then apikey then username if multiple params specified
     if (isOAuth2Login) {
@@ -471,12 +537,14 @@ export function createSession(rev: RevClient, credentials: Rev.Credentials, keep
         session = new ApiKeySession(rev, creds, keepAliveOptions);
     } else if (isJWTLogin) {
         session = new JWTSession(rev, creds, keepAliveOptions);
+    } else if (isGuestRegistration) {
+        session = new GuestRegistrationSession(rev, creds, keepAliveOptions);
     } else if (isUsernameLogin) {
         session = new UserSession(rev, creds, keepAliveOptions);
         if (userId) {
             (session as UserSession).userId = userId;
         }
-    } else if (hasSession) {
+    } else if (hasSession || publicOnly) {
         session = new AccessTokenSession(rev, creds, keepAliveOptions);
     } else {
         throw new TypeError('Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)');

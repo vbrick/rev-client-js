@@ -1,6 +1,7 @@
 import type { RevClient } from '../rev-client';
 import { Auth, OAuth } from '../types/auth';
 import { Rev } from '../types/rev';
+import { mergeHeaders } from '../utils/merge-headers';
 import {buildLegacyOAuthQuery, getOAuth2AuthorizationUrl, getOAuth2PKCEVerifier, parseLegacyOAuthRedirectResponse} from './oauth';
 
 export default function authAPIFactory(rev: RevClient) {
@@ -32,6 +33,13 @@ export default function authAPIFactory(rev: RevClient) {
         },
         async loginJWT(jwtToken: string, options?: Rev.RequestOptions): Promise<Auth.JWTLoginResponse> {
             return rev.get('/api/v2/jwtauthenticate', { jwt_token: jwtToken }, options);
+        },
+        async loginGuestRegistration(webcastId: string, jwtToken: string, options?: Rev.RequestOptions): Promise<Auth.GuestRegistrationResposne> {
+            const opts = {
+                ...options,
+                headers: mergeHeaders(options?.headers, { 'x-requested-with': 'xmlhttprequest' })
+            };
+            return rev.post(`/external/auth/jwt/${webcastId}`, { token: `vbrick_rev ${jwtToken}`}, options);
         },
         async extendSession(): Promise<Auth.ExtendResponse> {
             return rev.post('/api/v2/user/extend-session');

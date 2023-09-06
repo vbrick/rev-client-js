@@ -1,7 +1,7 @@
 import { RevError, ScrollError } from '..';
 import { OAuth } from './auth';
 
-export type LiteralString<T> = T | (string & { _?: never; });
+export type LiteralString<T> = T | (string & Record<never, never>);
 
 type FetchResponse = Response;
 
@@ -50,8 +50,15 @@ export namespace Rev {
         codeVerifier?: string;
         /** JWT Token */
         jwtToken?: string;
+        /** Webcast Guest Registration */
+        guestRegistrationToken?: string;
+        /** Webcast ID for Guest Registration */
+        webcastId?: string;
+
         /** existing token/extend session details */
         session?: Rev.IRevSessionState;
+        /** use public APIs only - no authentication */
+        publicOnly?: boolean;
     }
     export type LogSeverity = LiteralString<'debug' | 'info' | 'warn' | 'error'>;
     export type LogFunction = (severity: LogSeverity, ...args: any[]) => void;

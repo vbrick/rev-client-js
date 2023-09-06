@@ -22,6 +22,11 @@ export namespace Auth {
         language?: string;
     }
 
+    export interface GuestRegistrationResposne {
+        accessToken: string;
+        csrfToken: string;
+    }
+
     export interface ExtendResponse {
         /** ISO Date format */
         expiration: string;
