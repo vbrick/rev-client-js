@@ -8,6 +8,7 @@ export interface User {
     firstname: string;
     lastname: string;
     language: string | null;
+    userType: User.UserType;
     title: string | null;
     phone: string | null;
     groups: { id: string, name: string; }[];
@@ -71,6 +72,7 @@ export namespace User {
         notificationTargetUri: string;
     }
 
+    export type UserType = LiteralString<'System' | 'LDAP' | 'Sso' | 'SCIM'>
 
     export type LoginReportSort = LiteralString<'LastLogin' | 'Username'>
     export interface LoginReportEntry {
