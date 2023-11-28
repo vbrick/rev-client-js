@@ -62,7 +62,6 @@ export class RevClient {
         // add all API endpoints
         Object.defineProperties(this, {
             admin: { value: api.admin(this), writable: false },
-            audit: { value: api.audit(this), writable: false },
             // NOTE rate limiting option passed into api factory since its
             audit: { value: api.audit(this, rateLimits), writable: false },
             auth: { value: api.auth(this), writable: false },
@@ -123,11 +122,11 @@ export class RevClient {
 
         // default to JSON request payload, but allow it to be overridden
         let shouldSetAsJSON = !headers.has('Content-Type');
+        const normalizedMethod = method.toUpperCase();
 
         // add provided data to request body or as query string parameters
-
         if (data) {
-            if (['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
+            if (['POST', 'PUT', 'PATCH'].includes(normalizedMethod)) {
                 if (typeof data === 'string') {
                     fetchOptions.body = data;
                 } else if (data instanceof polyfills.FormData) {
@@ -159,6 +158,20 @@ export class RevClient {
 
         // OPTIONAL log request and response
         this.log('debug', `Request ${method} ${endpoint}`);
+
+        if (this.session.hasRateLimits) {
+            switch (normalizedMethod) {
+                case 'GET':
+                    await this.session.queueRequest(RateLimitEnum.Get);
+                    break;
+                case 'POST':
+                case 'PATCH':
+                case 'PUT':
+                case 'DELETE':
+                    await this.session.queueRequest(RateLimitEnum.Post);
+                    break;
+            }
+        }
 
         // NOTE: will throw error on AbortError or client fetch errors
         const response = await polyfills.fetch(`${url}`, {
