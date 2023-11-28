@@ -43,6 +43,7 @@ const rev = new RevClient({
     // password: 'my.password',
 	logEnabled: true, // turn on debug logging
 	keepAlive: true // automatically extend session
+	rateLimits: true // automatically enforce rate limiting (avoid 429 error responses)
 });
 
 (async () => {
@@ -99,6 +100,8 @@ const rev = new RevClient({
 
 * `url`: **REQUIRED** - URL of Rev instance *(ex `https://company.rev.vbrick.com`)*
 * `keepAlive`: `true`/`false` *(Default: `true`)* - If true then automatically extend the Rev session at regular intervals *(until `rev.disconnect()` is called)*. If false then you must manually call `extendSession()` to maintain a valid token.
+* `rateLimits`: `true`/`false`/`RateLimitOptions` *(Default: `false`)* - Automatically throttle requests client-side to fit within Vbrick's [API Request Rate Limits](https://revdocs.vbrick.com/reference/rate-limiting). Note that the default values *(when value is `true`)* is set to the account maximum - see below `Rate Limits` section for how to customize.
+
 * `logEnabled`: `true`/`false` *(Default: `false`)* - Enable/disable debug logging
 * `log`: `(logLevel, ...args) => void` - Custom log function. Default is to log to console
 
@@ -244,6 +247,48 @@ Make HTTP requests with the specified verb (get/post/patch/etc). Unlike `request
 
 The Response payload, already decoded based on `options.responseType`
 
+## Rate Limits
+
+See the [Vbrick documentation](https://revdocs.vbrick.com/reference/rate-limiting) for information on Rate Limit behavior.
+
+If you have multiple users / agents using the Public API for a Vbrick account then you may need to set lower rate limits. These values are set Per Minute, so `30` means "30 calls per minute".
+
+```js
+// example using default options
+const rev = new RevClient({
+	url: 'https://my.rev.url',
+	apiKey: 'key', secret: 'secret',
+	rateLimits: {
+		get: 24000,
+		post: 3600,
+		searchVideos: 120,
+		videoDetails: 2000,
+		uploadVideo: 30,
+		auditEndpoint: 60,
+		updateVideo: 30,
+		loginReport: 10,
+		attendeesRealtime: 2
+	}
+	// rateLimits: true // equivalent option
+});
+```
+
+For background usage you may consider using lower values to ensure the service doesn't impact other
+agents using the API:
+```js
+
+// example of overriding the limits for a service account that makes background requests
+const rev = new RevClient({
+	url: 'https://my.rev.url',
+	apiKey: 'key', secret: 'secret',
+	rateLimits: {
+		searchVideos: 10, // only make 10 search calls per minute
+		videoDetails: 100, 
+		// other values use default
+	}
+})
+
+```
 
 ## API Endpoints
 
@@ -263,6 +308,9 @@ The Response payload, already decoded based on `options.responseType`
 #### `admin.listIQCreditsUsage(query, options)`
 #### `admin.verifySystemHealth()`
 #### `admin.maintenanceSchedule()`
+#### `admin.userLocationService()`
+#### `admin.expirationRules()`
+#### `admin.featureSettings(videoId?)`
 
 ### [Audit](https://revdocs.vbrick.com/reference/audit)
 
@@ -281,6 +329,8 @@ The Response payload, already decoded based on `options.responseType`
 #### `audit.principal(userId, accountId, options?)`
 
 ### [Authentication](https://revdocs.vbrick.com/reference/authentication)
+
+These calls are called automatically by the `RevClient` instance, but they're included here for completeness.
 
 #### `auth.extendSession()` - extend any kind of active session, regardless of login method
 #### `auth.verifySession()` - throws error if session is not currently valid
@@ -306,6 +356,7 @@ The Response payload, already decoded based on `options.responseType`
 #### `category.update(categoryId, category)`
 #### `category.delete(categoryId)`
 #### `category.list(parentCategoryId?, includeAllDescendants?)`
+#### `category.listAssignable()`
 
 ### [Channels](https://revdocs.vbrick.com/reference/getchannel)
 
@@ -324,6 +375,7 @@ The Response payload, already decoded based on `options.responseType`
 #### `device.add(dme)`
 #### `device.healthStatus(deviceId)`
 #### `device.delete(deviceId)`
+#### `device.rebootDME(deviceId)`
 
 ### [Environment]
 
@@ -337,6 +389,9 @@ Wrapper around the Use the [Get User Location Service](https://revdocs.vbrick.co
 #### `group.create(group)`
 #### `group.delete(groupId)`
 #### `group.search(searchText, options?)`
+
+**NOTE:** The response from this endpoint is remapped from the raw API results - it returns camelCase instead of PascalCase (`{id: string, name: string, entityType: string }` instead of `{Id: string, Name: string, EntityType: string}`
+
 #### `group.list(options?)`
 #### `group.listUsers(groupId, options?)`
 #### `group.listUserDetails(groupId, options?)`
@@ -418,13 +473,23 @@ The ID of the video
 #### `user.removeFromGroup(userId, groupId)` - Remove a user from the specified Group
 #### `user.search(searchText, options?)`
 
+**NOTE:** The response from this endpoint is remapped from the raw API results - it returns camelCase instead of PascalCase (`{userId: string, firstname: string, profileImageUri: string, entityType: string }` instead of `{Id: string, FirstName: string, ProfileImageUri: string, EntityType: string}`. See [the typescript interface](./src/types/user.ts#23) for details.
+
+#### `user.listSubscriptions()`
+#### `user.subscribe(id, type)`
+#### `user.unsubscribe(id, type)`
+#### `user.getNotifications(unread?)`
+#### `user.markNotificationRead(notificationId?)`
+#### `user.loginReport(sortField?, sortOrder?)`
+
 ### [Videos](https://revdocs.vbrick.com/reference/videos)
 
 #### `video.setTitle(videoId, title)` - Use PATCH API to change a video's title
 #### `video.status(videoId)`
 #### `video.details(videoId)`
 #### `video.upload(file, metadata, options?)` - alias to `upload.video()`
-#### `video.playbackInfo(videoId)`
+#### `video.playbackInfo(videoId)` - Get Playback Url *(basic info about video)*
+#### `video.playbackUrls(videoId, options?, requestOptions?)`
 #### `video.comments(videoId)`
 #### `video.chapters(videoId)`
 #### `video.supplementalFiles(videoId)`
@@ -436,6 +501,8 @@ The ID of the video
 #### `video.downloadChapter(chapter)`
 #### `video.downloadThumbnail(query)`
 #### `video.waitTranscode(videoId, options?)` - wait for a video to finish transcoding
+#### `video.trim(videoId, removedSegments)`
+#### `video.patch(videoId, operations)`
 #### `video.search(query?, options?)` - Search for videos
 
 ##### Options
@@ -488,7 +555,8 @@ for await (let video of request) {
 #### `webcast.pollResults(eventId, runNumber?)`
 #### `webcast.comments(eventId, runNumber?)`
 #### `webcast.status(eventId)`
-#### `webcast.playbackUrl(eventId, options?)`
+#### `webcast.playbackUrls(eventId, options?, requestOptions?)`
+#### `webcast.playbackUrl(eventId, options?)` **DEPRECATED** - use `webcast.playbackUrls`
 #### `webcast.startEvent(eventId, preProduction?)`
 #### `webcast.stopEvent(eventId, preProduction?)`
 #### `webcast.startBroadcast(eventId)`
@@ -498,6 +566,13 @@ for await (let video of request) {
 #### `webcast.linkVideo(eventId, videoId, autoRedirect?)`
 #### `webcast.unlinkVideo(eventId)`
 
+#### `webcast.guestRegistration(eventId, registrationId)`
+#### `webcast.createGuestRegistration(eventId, registration)`
+#### `webcast.updateGuestRegistration(eventId, registrationId, registration)`
+#### `webcast.patchGuestRegistration(eventId, registrationId, registration)`
+#### `webcast.deleteGuestRegistration(eventId, registrationId)`
+#### `webcast.listGuestRegistrations(eventId, query, options)`
+
 ### [Zones](https://revdocs.vbrick.com/reference/getzones)
 
 #### `zones.list()`
@@ -505,7 +580,7 @@ for await (let video of request) {
 #### `zones.create(zone)`
 #### `zones.edit(zoneId, zone)`
 #### `zones.delete(zoneId)`
-#### `zones.zoneDevices()`
+#### `zones.devices()`
 
 ### Utilities
 

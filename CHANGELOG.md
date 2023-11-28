@@ -2,11 +2,13 @@
 
 ### Features
 
-* Add rate limiting option
+* Add rate limiting option. This feature is disabled by default - add by including `rateLimits: true` when initializing `RevClient`.
 
-### BREAKING BUGFIX
+* Add Get Users by Login API endpoint
 
-* `rateLimit` now correctly handles limit options (`perSecond`, `perMinute`) that are less than 1. For example, `{ perSecond: 0.5 }` will be interpreted as "once every 2 seconds". Previously it was interpreted as "2 every second".
+### Breaking Changes
+
+* `rateLimit` now correctly handles limit options (`perSecond`, `perMinute`) that are less than 1. For example, `{ perSecond: 0.5 }` will be interpreted as "once every 2 seconds". Previously it was interpreted as "2 every second". This only impacts code if you used the `utils.rateLimit` function and specified a value less than 1.
 
 ## 0.15.1
 

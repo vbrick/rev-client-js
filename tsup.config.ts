@@ -62,6 +62,5 @@ export default defineConfig((options) => {
             dts: false
         }
     ];
-    console.log('CFG', cfg);
     return cfg;
 });
