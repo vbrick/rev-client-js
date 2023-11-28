@@ -89,7 +89,7 @@ function rateLimit<T extends (...args: any) => any> (fn: T | RateLimitOptionsWit
     }
 
     if (limit < 1) {
-        interval *= limit;
+        interval /= limit;
         limit = 1;
     } else {
         // just make sure it isn't a faction for some silly reason
