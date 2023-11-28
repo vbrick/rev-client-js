@@ -70,4 +70,13 @@ export namespace User {
         notificationText: string;
         notificationTargetUri: string;
     }
+
+
+    export type LoginReportSort = LiteralString<'LastLogin' | 'Username'>
+    export interface LoginReportEntry {
+        Username: string;
+        FullName: string;
+        UserId: string;
+        LastLogin: string;
+    }
 }

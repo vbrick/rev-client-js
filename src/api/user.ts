@@ -149,6 +149,14 @@ export default function userAPIFactory(rev: RevClient) {
          */
         async markNotificationRead(notificationId?: string): Promise<void> {
             await rev.put('/api/v2/users/notifications', notificationId ? {notificationId} : undefined);
+        },
+        async loginReport(sortField?: User.LoginReportSort, sortOrder?: Rev.SortDirection): Promise<User.LoginReportEntry[]> {
+            const query = {
+                ...sortField && { sortField },
+                ...sortOrder && { sortOrder }
+            };
+            const {Users} = await rev.get('/api/v2/users/login-report', query, { responseType: 'json' });
+            return Users;
         }
     };
     return userAPI;
