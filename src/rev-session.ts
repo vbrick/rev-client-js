@@ -2,6 +2,7 @@ import type { RevClient } from './rev-client';
 import type { Rev } from './types';
 import { isPlainObject, sleep } from './utils';
 import interop from './interop';
+import { RateLimitEnum, RateLimitQueues, clearQueues, makeQueues } from './utils/rate-limit-queues';
 
 const ONE_MINUTE = 1000 * 60;
 
@@ -120,13 +121,20 @@ abstract class SessionBase implements Rev.IRevSession {
     protected readonly rev!: RevClient;
     protected readonly [_credentials]!: Rev.Credentials;
     readonly keepAlive?: SessionKeepAlive;
-    constructor(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions) {
+    readonly rateLimits?: Partial<RateLimitQueues>;
+    constructor(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions, rateLimits?: boolean | Rev.RateLimits) {
         this.expires = new Date();
 
         if (keepAliveOptions === true) {
             this.keepAlive = new SessionKeepAlive(this);
         } else if (isPlainObject(keepAliveOptions)) {
             this.keepAlive = new SessionKeepAlive(this, keepAliveOptions);
+        }
+
+        if (rateLimits === true) {
+            this.rateLimits = makeQueues();
+        } else if (isPlainObject(rateLimits)) {
+            this.rateLimits = makeQueues(rateLimits);
         }
 
         // add as private member
@@ -227,6 +235,16 @@ abstract class SessionBase implements Rev.IRevSession {
         await this.login();
         return true;
     }
+    async queueRequest(queue: `${RateLimitEnum}`) {
+        await this.rateLimits?.[queue]?.();
+    }
+    /**
+     * Abort pending executions. All unresolved promises are rejected with a `AbortError` error.
+     * @param {string} [message] - message parameter for rejected AbortError
+     */
+    async clearQueues(message?: string) {
+        await clearQueues(this.rateLimits ?? {}, message);
+    }
     /**
      * check if expiration time of session has passed
      */
@@ -245,6 +263,9 @@ abstract class SessionBase implements Rev.IRevSession {
     }
     get username() {
         return this[_credentials].username;
+    }
+    get hasRateLimits() {
+        return !!this.rateLimits;
     }
     protected abstract _login(): Promise<LoginResponse>;
     protected abstract _extend(): Promise<{ expiration: string; }>;
@@ -498,7 +519,7 @@ export class PublicOnlySession extends SessionBase {
     }
 }
 
-export function createSession(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions) {
+export function createSession(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions, rateLimits?: boolean | Rev.RateLimits) {
     let session: Rev.IRevSession;
 
     const {
@@ -527,25 +548,25 @@ export function createSession(rev: RevClient, credentials: Rev.Credentials, keep
 
     // prefer oauth first, then apikey then username if multiple params specified
     if (isOAuth2Login) {
-        session = new OAuth2Session(rev, creds, keepAliveOptions);
+        session = new OAuth2Session(rev, creds, keepAliveOptions, rateLimits);
     } else if (isLegacyOauthLogin) {
-        session = new OAuthSession(rev, creds, keepAliveOptions);
+        session = new OAuthSession(rev, creds, keepAliveOptions, rateLimits);
         if (refreshToken) {
             (session as OAuthSession).refreshToken = refreshToken;
         }
     } else if (isApiKeyLogin) {
-        session = new ApiKeySession(rev, creds, keepAliveOptions);
+        session = new ApiKeySession(rev, creds, keepAliveOptions, rateLimits);
     } else if (isJWTLogin) {
-        session = new JWTSession(rev, creds, keepAliveOptions);
+        session = new JWTSession(rev, creds, keepAliveOptions, rateLimits);
     } else if (isGuestRegistration) {
-        session = new GuestRegistrationSession(rev, creds, keepAliveOptions);
+        session = new GuestRegistrationSession(rev, creds, keepAliveOptions, rateLimits);
     } else if (isUsernameLogin) {
-        session = new UserSession(rev, creds, keepAliveOptions);
+        session = new UserSession(rev, creds, keepAliveOptions, rateLimits);
         if (userId) {
             (session as UserSession).userId = userId;
         }
     } else if (hasSession || publicOnly) {
-        session = new AccessTokenSession(rev, creds, keepAliveOptions);
+        session = new AccessTokenSession(rev, creds, keepAliveOptions, rateLimits);
     } else {
         throw new TypeError('Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)');
     }

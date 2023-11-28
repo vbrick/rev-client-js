@@ -30,7 +30,7 @@ interface RateLimitOptions{
     signal?: AbortSignal
 }
 
-type ThrottledFunction<T extends (...args: any[]) => any> = (
+export type ThrottledFunction<T extends (...args: any[]) => any> = (
     (...args: Parameters<T>) => ReturnType<T> extends PromiseLike<infer Return> ? Promise<Return> : Promise<ReturnType<T>>
 ) & {
     /**

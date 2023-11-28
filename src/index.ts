@@ -26,6 +26,8 @@ export type {
 
 } from './types';
 
+export {RateLimitEnum} from './utils';
+
 import {rateLimit} from './utils';
 import {getExtensionForMime, getMimeForExtension} from './utils/file-utils'
 export const utils = {

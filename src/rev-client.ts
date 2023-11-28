@@ -1,5 +1,5 @@
 import { RevError } from './rev-error';
-import { isPlainObject, retry } from './utils';
+import { RateLimitEnum, isPlainObject, retry } from './utils';
 import * as api from './api';
 import polyfills from './interop';
 import { Rev } from './types';
@@ -36,6 +36,8 @@ export class RevClient {
             log,
             logEnabled = false,
             keepAlive = true,
+            // NOTE default to false rate limiting for now. In future this may change
+            rateLimits = false,
             ...credentials
         } = options;
 
@@ -44,7 +46,7 @@ export class RevClient {
         this.url = urlObj.origin;
 
         // will throw error if credentials are invalid
-        this.session = createSession(this, credentials, keepAlive);
+        this.session = createSession(this, credentials, keepAlive, rateLimits);
 
         // add logging functionality
         this.logEnabled = !!logEnabled;

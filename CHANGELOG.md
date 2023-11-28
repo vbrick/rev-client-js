@@ -1,3 +1,8 @@
+## 0.16
+
+### Features
+
+* Add rate limiting option
 
 ### BREAKING BUGFIX
 

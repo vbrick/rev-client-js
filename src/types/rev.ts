@@ -1,4 +1,5 @@
 import { RevError, ScrollError } from '..';
+import { RateLimitEnum } from '../utils/rate-limit-queues';
 import { OAuth } from './auth';
 
 export type LiteralString<T> = T | (string & Record<never, never>);
@@ -76,13 +77,18 @@ export namespace Rev {
          *     rev.disconnect() is called. Optionally, pass in keepAlive options instead of `true`
          */
         keepAlive?: boolean | KeepAliveOptions;
+
+        rateLimits?: boolean | Rev.RateLimits
     }
+
+    export type RateLimits = { [K in RateLimitEnum]?: number }
 
     export interface IRevSession {
         token?: string;
         expires: Date;
         readonly isExpired: boolean;
         readonly isConnected: boolean;
+        readonly hasRateLimits: boolean;
         readonly username: string | undefined;
         login(): Promise<void>;
         extend(): Promise<void>;
@@ -90,6 +96,7 @@ export namespace Rev {
         verify(): Promise<boolean>;
         lazyExtend(options?: Rev.KeepAliveOptions): Promise<boolean>;
         toJSON(): Rev.IRevSessionState;
+        queueRequest(queue: `${RateLimitEnum}`): Promise<void>;
     }
 
     export interface RequestOptions extends Partial<RequestInit> {
