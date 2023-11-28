@@ -105,15 +105,15 @@ var interop_default = {
 
 // src/utils/rate-limit.ts
 var ONE_MINUTE = 60 * 1e3;
-function rateLimit(fn, options = {}) {
-  if (fn && typeof fn === "object") {
-    options = Object.assign({}, fn, options);
-    fn = void 0;
+function rateLimit(fn2, options = {}) {
+  if (fn2 && typeof fn2 === "object") {
+    options = Object.assign({}, fn2, options);
+    fn2 = void 0;
   }
-  if (!fn) {
-    fn = options.fn;
+  if (!fn2) {
+    fn2 = options.fn;
   }
-  if (typeof fn !== "function") {
+  if (typeof fn2 !== "function") {
     throw new TypeError("Rate limit function is not a function");
   }
   const {
@@ -137,7 +137,7 @@ function rateLimit(fn, options = {}) {
     interval = ONE_MINUTE * 60;
   }
   if (limit < 1) {
-    interval *= limit;
+    interval /= limit;
     limit = 1;
   } else {
     limit = Math.floor(limit);
@@ -155,7 +155,7 @@ function rateLimit(fn, options = {}) {
     let timeout;
     return new Promise((resolve, reject) => {
       const execute = () => {
-        resolve(fn.apply(null, args));
+        resolve(fn2.apply(null, args));
         queue.delete(timeout);
       };
       const now = Date.now();
@@ -188,6 +188,45 @@ function rateLimit(fn, options = {}) {
 }
 var rate_limit_default = rateLimit;
 
+// src/utils/rate-limit-queues.ts
+var defaultRateLimits = {
+  ["get" /* Get */]: 24e3,
+  ["post" /* Post */]: 3600,
+  ["searchVideos" /* SearchVideos */]: 120,
+  ["uploadVideo" /* UploadVideo */]: 30,
+  ["updateVideo" /* UpdateVideoMetadata */]: 30,
+  ["videoDetails" /* GetVideoDetails */]: 2e3,
+  ["attendeesRealtime" /* GetWebcastAttendeesRealtime */]: 2,
+  ["auditEndpoint" /* AuditEndpoints */]: 60,
+  ["loginReport" /* GetUsersByLoginDate */]: 10
+};
+var fn = () => Promise.resolve();
+function normalizeRateLimitOptions(rateLimits) {
+  return {
+    // include defaults if true or object
+    ...rateLimits && defaultRateLimits,
+    ...typeof rateLimits === "object" && rateLimits
+  };
+}
+function makeQueue(key, value) {
+  const defaultValue = defaultRateLimits[key];
+  const perMinute = value ?? defaultValue;
+  if (!isFinite(perMinute) || perMinute <= 0) {
+    return fn;
+  }
+  const limit = perMinute / 12;
+  const interval = 5e3;
+  return rate_limit_default({ fn, limit, interval });
+}
+function makeQueues(rateLimits = {}) {
+  const entries = Object.keys(defaultRateLimits).map((key) => [key, makeQueue(key, rateLimits[key])]);
+  return Object.fromEntries(entries);
+}
+function clearQueues(rateLimits, message) {
+  const fns = Object.values(rateLimits);
+  fns.forEach((fn2) => fn2.abort?.(message));
+}
+
 // src/utils/index.ts
 function asValidDate(val, defaultValue) {
   if (!val) {
@@ -198,11 +237,11 @@ function asValidDate(val, defaultValue) {
   }
   return isNaN(val.getTime()) ? defaultValue : val;
 }
-async function retry(fn, shouldRetry = () => true, maxAttempts = 3, sleepMilliseconds = 1e3) {
+async function retry(fn2, shouldRetry = () => true, maxAttempts = 3, sleepMilliseconds = 1e3) {
   let attempt = 0;
   while (attempt < maxAttempts) {
     try {
-      const result = await fn();
+      const result = await fn2();
       return result;
     } catch (err) {
       attempt += 1;
@@ -237,7 +276,7 @@ function tryParseJson(val) {
 }
 
 // src/rev-error.ts
-var RevError = class extends Error {
+var RevError = class _RevError extends Error {
   constructor(response, body) {
     const {
       status = 500,
@@ -292,7 +331,7 @@ var RevError = class extends Error {
         detail: `Unable to parse error response body: ${err}`
       };
     }
-    return new RevError(response, body);
+    return new _RevError(response, body);
   }
 };
 var ScrollError = class extends Error {
@@ -720,7 +759,7 @@ function parseEntry(line) {
   };
 }
 var AuditRequest = class extends PagedRequest {
-  constructor(rev, endpoint, label = "audit records", { toDate, fromDate, ...options } = {}) {
+  constructor(rev, endpoint, label = "audit records", { toDate, fromDate, beforeRequest, ...options } = {}) {
     super({
       onProgress: (items, current, total) => {
         rev.log("debug", `loading ${label}, ${current} of ${total}...`);
@@ -732,13 +771,14 @@ var AuditRequest = class extends PagedRequest {
       toDate: to.toISOString(),
       fromDate: from.toISOString()
     };
-    this._req = this._buildReqFunction(rev, endpoint);
+    this._req = this._buildReqFunction(rev, endpoint, beforeRequest);
   }
   _requestPage() {
     return this._req();
   }
-  _buildReqFunction(rev, endpoint) {
+  _buildReqFunction(rev, endpoint, beforeRequest) {
     return async () => {
+      await beforeRequest?.(this);
       const response = await rev.request("GET", endpoint, { params: this.params }, { responseType: "text" });
       const {
         body,
@@ -770,67 +810,108 @@ var AuditRequest = class extends PagedRequest {
 };
 
 // src/api/audit.ts
-function auditAPIFactory(rev) {
+function auditAPIFactory(rev, optRateLimits) {
+  const requestsPerMinute = normalizeRateLimitOptions(optRateLimits)["auditEndpoint" /* AuditEndpoints */];
+  function makeOptTransform() {
+    if (!requestsPerMinute)
+      return (opts) => opts;
+    const lock = makeQueue("auditEndpoint" /* AuditEndpoints */, requestsPerMinute);
+    return (opts = {}) => ({
+      ...opts,
+      async beforeRequest(req) {
+        await lock();
+        return opts.beforeRequest?.(req);
+      }
+    });
+  }
+  const locks = {
+    accountAccess: makeOptTransform(),
+    userAccess: makeOptTransform(),
+    accountUsers: makeOptTransform(),
+    user: makeOptTransform(),
+    accountGroups: makeOptTransform(),
+    group: makeOptTransform(),
+    accountDevices: makeOptTransform(),
+    device: makeOptTransform(),
+    accountVideos: makeOptTransform(),
+    video: makeOptTransform(),
+    accountWebcasts: makeOptTransform(),
+    webcast: makeOptTransform(),
+    principal: makeOptTransform()
+  };
   const auditAPI = {
     /**
     * Logs of user login / logout / failed login activity
     */
     accountAccess(accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess`, "UserAccess", options);
+      const opts = locks.accountAccess(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess`, "UserAccess", opts);
     },
     userAccess(userId, accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess/${userId}`, `UserAccess_${userId}`, options);
+      const opts = locks.userAccess(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess/${userId}`, `UserAccess_${userId}`, opts);
     },
     /**
     * Operations on User Records (create, delete, etc)
     */
     accountUsers(accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/users`, "User", options);
+      const opts = locks.accountUsers(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/users`, "User", opts);
     },
     user(userId, accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/users/${userId}`, "User", options);
+      const opts = locks.user(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/users/${userId}`, "User", opts);
     },
     /**
     * Operations on Group Records (create, delete, etc)
     */
     accountGroups(accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/groups`, "Groups", options);
+      const opts = locks.accountGroups(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/groups`, "Groups", opts);
     },
     group(groupId, accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/groups/${groupId}`, "Group", options);
+      const opts = locks.group(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/groups/${groupId}`, "Group", opts);
     },
     /**
     * Operations on Device Records (create, delete, etc)
     */
     accountDevices(accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/devices`, "Devices", options);
+      const opts = locks.accountDevices(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/devices`, "Devices", opts);
     },
     device(deviceId, accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/devices/${deviceId}`, "Device", options);
+      const opts = locks.device(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/devices/${deviceId}`, "Device", opts);
     },
     /**
     * Operations on Video Records (create, delete, etc)
     */
     accountVideos(accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/videos`, "Videos", options);
+      const opts = locks.accountVideos(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/videos`, "Videos", opts);
     },
     video(videoId, accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/videos/${videoId}`, "Video", options);
+      const opts = locks.video(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/videos/${videoId}`, "Video", opts);
     },
     /**
     * Operations on Webcast Records (create, delete, etc)
     */
     accountWebcasts(accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/scheduledEvents`, "Webcasts", options);
+      const opts = locks.accountWebcasts(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/scheduledEvents`, "Webcasts", opts);
     },
     webcast(eventId, accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/scheduledEvents/${eventId}`, `Webcast`, options);
+      const opts = locks.webcast(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/scheduledEvents/${eventId}`, `Webcast`, opts);
     },
     /**
     * All operations a single user has made
     */
     principal(userId, accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/principals/${userId}`, "Principal", options);
+      const opts = locks.principal(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/principals/${userId}`, "Principal", opts);
     }
   };
   return auditAPI;
@@ -1543,6 +1624,7 @@ function uploadAPIFactory(rev) {
       appendJSONToForm(form, "video", metadata);
       const filePayload = await appendFileToForm(form, "VideoFile", file, uploadOptions);
       rev.log("info", `Uploading ${filePayload.filename} (${filePayload.contentType})`);
+      await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
       const { videoId } = await uploadMultipart(rev, "POST", "/api/v2/uploads/videos", form, filePayload, requestOptions);
       return videoId;
     },
@@ -1766,6 +1848,15 @@ function userAPIFactory(rev) {
      */
     async markNotificationRead(notificationId) {
       await rev.put("/api/v2/users/notifications", notificationId ? { notificationId } : void 0);
+    },
+    async loginReport(sortField, sortOrder) {
+      const query = {
+        ...sortField && { sortField },
+        ...sortOrder && { sortOrder }
+      };
+      await rev.session.queueRequest("loginReport" /* GetUsersByLoginDate */);
+      const { Users } = await rev.get("/api/v2/users/login-report", query, { responseType: "json" });
+      return Users;
     }
   };
   return userAPI;
@@ -1978,6 +2069,7 @@ function videoAPIFactory(rev) {
      */
     async setTitle(videoId, title) {
       const payload = [{ op: "add", path: "/Title", value: title }];
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
       await rev.patch(`/api/v2/videos/${videoId}`, payload);
     },
     /**
@@ -1991,6 +2083,7 @@ function videoAPIFactory(rev) {
         path: "/CustomFields",
         value: [customField]
       }];
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
       await rev.patch(`/api/v2/videos/${videoId}`, payload);
     },
     /**
@@ -2001,6 +2094,7 @@ function videoAPIFactory(rev) {
       return rev.get(`/api/v2/videos/${videoId}/status`);
     },
     async details(videoId) {
+      await rev.session.queueRequest("videoDetails" /* GetVideoDetails */);
       return rev.get(`/api/v2/videos/${videoId}/details`);
     },
     comments,
@@ -2042,7 +2136,11 @@ function videoAPIFactory(rev) {
       const searchDefinition = {
         endpoint: "/api/v2/videos/search",
         totalKey: "totalVideos",
-        hitsKey: "videos"
+        hitsKey: "videos",
+        async request(endpoint, query2, options2) {
+          await rev.session.queueRequest("searchVideos" /* SearchVideos */);
+          return rev.get(endpoint, query2, options2);
+        }
       };
       const request = new SearchRequest(rev, searchDefinition, query, options);
       return request;
@@ -2094,9 +2192,11 @@ function videoAPIFactory(rev) {
     ...videoDownloadAPI(rev),
     ...videoReportAPI(rev),
     async trim(videoId, removedSegments) {
+      await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
       return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);
     },
     async patch(videoId, operations) {
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
       await rev.patch(`/api/v2/videos/${videoId}`, operations);
     },
     /**
@@ -2167,6 +2267,7 @@ var RealtimeReportRequest = class extends SearchRequest {
       hitsKey: "attendees",
       // get summary from initial response
       request: async (endpoint, query2, options2) => {
+        await rev.session.queueRequest("attendeesRealtime" /* GetWebcastAttendeesRealtime */);
         const response = await rev.post(endpoint, query2, options2);
         const summary = getSummaryFromResponse(response, "attendees");
         Object.assign(this.summary, summary);
@@ -2562,12 +2663,17 @@ var SessionKeepAlive = class {
   }
 };
 var SessionBase = class {
-  constructor(rev, credentials, keepAliveOptions) {
+  constructor(rev, credentials, keepAliveOptions, rateLimits) {
     this.expires = /* @__PURE__ */ new Date();
     if (keepAliveOptions === true) {
       this.keepAlive = new SessionKeepAlive(this);
     } else if (isPlainObject(keepAliveOptions)) {
       this.keepAlive = new SessionKeepAlive(this, keepAliveOptions);
+    }
+    if (rateLimits === true) {
+      this.rateLimits = makeQueues();
+    } else if (isPlainObject(rateLimits)) {
+      this.rateLimits = makeQueues(rateLimits);
     }
     Object.defineProperties(this, {
       rev: {
@@ -2653,6 +2759,16 @@ var SessionBase = class {
     await this.login();
     return true;
   }
+  async queueRequest(queue) {
+    await this.rateLimits?.[queue]?.();
+  }
+  /**
+   * Abort pending executions. All unresolved promises are rejected with a `AbortError` error.
+   * @param {string} [message] - message parameter for rejected AbortError
+   */
+  async clearQueues(message) {
+    await clearQueues(this.rateLimits ?? {}, message);
+  }
   /**
    * check if expiration time of session has passed
    */
@@ -2671,6 +2787,9 @@ var SessionBase = class {
   }
   get username() {
     return this[_credentials].username;
+  }
+  get hasRateLimits() {
+    return !!this.rateLimits;
   }
 };
 _credentials;
@@ -2860,9 +2979,6 @@ var AccessTokenSession = class extends SessionBase {
       expiration: this.expires
     };
   }
-  async verify() {
-    return true;
-  }
   get isConnected() {
     return true;
   }
@@ -2870,7 +2986,7 @@ var AccessTokenSession = class extends SessionBase {
     return false;
   }
 };
-function createSession(rev, credentials, keepAliveOptions) {
+function createSession(rev, credentials, keepAliveOptions, rateLimits) {
   let session;
   const {
     session: sessionState = {},
@@ -2893,25 +3009,25 @@ function createSession(rev, credentials, keepAliveOptions) {
   const isJWTLogin = credentials.jwtToken;
   const isGuestRegistration = credentials.webcastId && credentials.guestRegistrationToken;
   if (isOAuth2Login) {
-    session = new OAuth2Session(rev, creds, keepAliveOptions);
+    session = new OAuth2Session(rev, creds, keepAliveOptions, rateLimits);
   } else if (isLegacyOauthLogin) {
-    session = new OAuthSession(rev, creds, keepAliveOptions);
+    session = new OAuthSession(rev, creds, keepAliveOptions, rateLimits);
     if (refreshToken) {
       session.refreshToken = refreshToken;
     }
   } else if (isApiKeyLogin) {
-    session = new ApiKeySession(rev, creds, keepAliveOptions);
+    session = new ApiKeySession(rev, creds, keepAliveOptions, rateLimits);
   } else if (isJWTLogin) {
-    session = new JWTSession(rev, creds, keepAliveOptions);
+    session = new JWTSession(rev, creds, keepAliveOptions, rateLimits);
   } else if (isGuestRegistration) {
-    session = new GuestRegistrationSession(rev, creds, keepAliveOptions);
+    session = new GuestRegistrationSession(rev, creds, keepAliveOptions, rateLimits);
   } else if (isUsernameLogin) {
-    session = new UserSession(rev, creds, keepAliveOptions);
+    session = new UserSession(rev, creds, keepAliveOptions, rateLimits);
     if (userId) {
       session.userId = userId;
     }
   } else if (hasSession || publicOnly) {
-    session = new AccessTokenSession(rev, creds, keepAliveOptions);
+    session = new AccessTokenSession(rev, creds, keepAliveOptions, rateLimits);
   } else {
     throw new TypeError("Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)");
   }
@@ -2933,11 +3049,13 @@ var RevClient = class {
       log,
       logEnabled = false,
       keepAlive = true,
+      // NOTE default to false rate limiting for now. In future this may change
+      rateLimits = false,
       ...credentials
     } = options;
     const urlObj = new URL(url);
     this.url = urlObj.origin;
-    this.session = createSession(this, credentials, keepAlive);
+    this.session = createSession(this, credentials, keepAlive, rateLimits);
     this.logEnabled = !!logEnabled;
     if (log) {
       this.log = (severity, ...args) => {
@@ -2949,7 +3067,8 @@ var RevClient = class {
     }
     Object.defineProperties(this, {
       admin: { value: adminAPIFactory(this), writable: false },
-      audit: { value: auditAPIFactory(this), writable: false },
+      // NOTE rate limiting option passed into api factory since its
+      audit: { value: auditAPIFactory(this, rateLimits), writable: false },
       auth: { value: authAPIFactory(this), writable: false },
       category: { value: categoryAPIFactory(this), writable: false },
       channel: { value: channelAPIFactory(this), writable: false },
@@ -2998,8 +3117,9 @@ var RevClient = class {
       headers
     };
     let shouldSetAsJSON = !headers.has("Content-Type");
+    const normalizedMethod = method.toUpperCase();
     if (data) {
-      if (["POST", "PUT", "PATCH"].includes(method.toUpperCase())) {
+      if (["POST", "PUT", "PATCH"].includes(normalizedMethod)) {
         if (typeof data === "string") {
           fetchOptions.body = data;
         } else if (data instanceof interop_default.FormData) {
@@ -3025,6 +3145,19 @@ var RevClient = class {
       headers.set("Content-Type", "application/json");
     }
     this.log("debug", `Request ${method} ${endpoint}`);
+    if (this.session.hasRateLimits) {
+      switch (normalizedMethod) {
+        case "GET":
+          await this.session.queueRequest("get" /* Get */);
+          break;
+        case "POST":
+        case "PATCH":
+        case "PUT":
+        case "DELETE":
+          await this.session.queueRequest("post" /* Post */);
+          break;
+      }
+    }
     const response = await interop_default.fetch(`${url}`, {
       ...fetchOptions,
       method,

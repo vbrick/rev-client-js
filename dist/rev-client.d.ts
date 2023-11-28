@@ -1,3 +1,15 @@
+declare enum RateLimitEnum {
+    Get = "get",
+    Post = "post",
+    SearchVideos = "searchVideos",
+    UploadVideo = "uploadVideo",
+    AuditEndpoints = "auditEndpoint",
+    UpdateVideoMetadata = "updateVideo",
+    GetUsersByLoginDate = "loginReport",
+    GetVideoDetails = "videoDetails",
+    GetWebcastAttendeesRealtime = "attendeesRealtime"
+}
+
 declare namespace Auth {
     interface LoginResponse {
         token: string;
@@ -170,12 +182,17 @@ declare namespace Rev {
          *     rev.disconnect() is called. Optionally, pass in keepAlive options instead of `true`
          */
         keepAlive?: boolean | KeepAliveOptions;
+        rateLimits?: boolean | Rev.RateLimits;
     }
+    type RateLimits = {
+        [K in RateLimitEnum]?: number;
+    };
     interface IRevSession {
         token?: string;
         expires: Date;
         readonly isExpired: boolean;
         readonly isConnected: boolean;
+        readonly hasRateLimits: boolean;
         readonly username: string | undefined;
         login(): Promise<void>;
         extend(): Promise<void>;
@@ -183,6 +200,7 @@ declare namespace Rev {
         verify(): Promise<boolean>;
         lazyExtend(options?: Rev.KeepAliveOptions): Promise<boolean>;
         toJSON(): Rev.IRevSessionState;
+        queueRequest(queue: `${RateLimitEnum}`): Promise<void>;
     }
     interface RequestOptions extends Partial<RequestInit> {
         /**
@@ -932,10 +950,57 @@ declare namespace Admin {
     }
 }
 
+interface IPageResponse<T> {
+    items: T[];
+    done: boolean;
+    total?: number;
+    pageCount?: number;
+    error?: Error;
+}
+/**
+ * Interface to iterate through results from API endpoints that return results in pages.
+ * Use in one of three ways:
+ * 1) Get all results as an array: await request.exec() == <array>
+ * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
+ * 3) Use for await to get all results one at a time: for await (let hit of request) { }
+ */
+declare abstract class PagedRequest<ItemType> implements Rev.ISearchRequest<ItemType> {
+    current: number;
+    total: number | undefined;
+    done: boolean;
+    options: Required<Rev.SearchOptions<ItemType>>;
+    constructor(options?: Rev.SearchOptions<ItemType>);
+    protected abstract _requestPage(): Promise<IPageResponse<ItemType>>;
+    /**
+     * Get the next page of results from API
+     */
+    nextPage(): Promise<Rev.SearchPage<ItemType>>;
+    /**
+     * update internal variables based on API response
+     * @param page
+     * @returns
+     */
+    protected _parsePage(page: IPageResponse<ItemType>): {
+        current: number;
+        total: number | undefined;
+        done: boolean;
+        error: Error | undefined;
+        items: ItemType[];
+    };
+    /**
+     * Go through all pages of results and return as an array.
+     * TIP: Use the {maxResults} option to limit the maximum number of results
+     *
+     */
+    exec(): Promise<ItemType[]>;
+    [Symbol.asyncIterator](): AsyncGenerator<Awaited<ItemType>, void, unknown>;
+}
+
 declare namespace Audit {
     export interface Options<T extends Entry> extends Rev.SearchOptions<T> {
         fromDate?: string | Date;
         toDate?: string | Date;
+        beforeRequest?: (request: PagedRequest<T>) => Promise<void>;
     }
     export interface Entry<EntityKey extends string = string> {
         messageKey: string;
@@ -953,7 +1018,7 @@ declare namespace Audit {
     export type DeviceEntry = Entry<DeviceKeys>;
     export type VideoEntry = Entry<'Media:Video'>;
     export type WebcastEntry = Entry<'ScheduledEvents:Webcast'>;
-    export {};
+    export {  };
 }
 
 interface Category {
@@ -1018,7 +1083,7 @@ declare namespace Category {
         name: string;
         fullPath: string;
     }
-    export {};
+    export {  };
 }
 
 declare namespace Channel {
@@ -1397,7 +1462,7 @@ declare namespace Device {
             enrichedStreams?: EnrichedStreamStatus[];
         };
     }
-    export {};
+    export {  };
 }
 
 declare namespace Group {
@@ -1430,6 +1495,7 @@ interface User {
     firstname: string;
     lastname: string;
     language: string | null;
+    userType: User.UserType;
     title: string | null;
     phone: string | null;
     groups: {
@@ -1490,6 +1556,14 @@ declare namespace User {
         isRead: boolean;
         notificationText: string;
         notificationTargetUri: string;
+    }
+    type UserType = LiteralString<'System' | 'LDAP' | 'Sso' | 'SCIM'>;
+    type LoginReportSort = LiteralString<'LastLogin' | 'Username'>;
+    interface LoginReportEntry {
+        Username: string;
+        FullName: string;
+        UserId: string;
+        LastLogin: string;
     }
 }
 
@@ -2103,52 +2177,6 @@ declare namespace RegistrationField {
     }
 }
 
-interface IPageResponse<T> {
-    items: T[];
-    done: boolean;
-    total?: number;
-    pageCount?: number;
-    error?: Error;
-}
-/**
- * Interface to iterate through results from API endpoints that return results in pages.
- * Use in one of three ways:
- * 1) Get all results as an array: await request.exec() == <array>
- * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
- * 3) Use for await to get all results one at a time: for await (let hit of request) { }
- */
-declare abstract class PagedRequest<ItemType> implements Rev.ISearchRequest<ItemType> {
-    current: number;
-    total: number | undefined;
-    done: boolean;
-    options: Required<Rev.SearchOptions<ItemType>>;
-    constructor(options?: Rev.SearchOptions<ItemType>);
-    protected abstract _requestPage(): Promise<IPageResponse<ItemType>>;
-    /**
-     * Get the next page of results from API
-     */
-    nextPage(): Promise<Rev.SearchPage<ItemType>>;
-    /**
-     * update internal variables based on API response
-     * @param page
-     * @returns
-     */
-    protected _parsePage(page: IPageResponse<ItemType>): {
-        current: number;
-        total: number | undefined;
-        done: boolean;
-        error: Error | undefined;
-        items: ItemType[];
-    };
-    /**
-     * Go through all pages of results and return as an array.
-     * TIP: Use the {maxResults} option to limit the maximum number of results
-     *
-     */
-    exec(): Promise<ItemType[]>;
-    [Symbol.asyncIterator](): AsyncGenerator<Awaited<ItemType>, void, unknown>;
-}
-
 /**
  * Interface to iterate through results from API endpoints that return results in pages.
  * Use in one of three ways:
@@ -2229,13 +2257,13 @@ declare class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
     options: Required<Omit<Audit.Options<T>, 'toDate' | 'fromDate'>>;
     private params;
     private _req;
-    constructor(rev: RevClient, endpoint: string, label?: string, { toDate, fromDate, ...options }?: Audit.Options<T>);
+    constructor(rev: RevClient, endpoint: string, label?: string, { toDate, fromDate, beforeRequest, ...options }?: Audit.Options<T>);
     protected _requestPage(): Promise<IPageResponse<T>>;
     private _buildReqFunction;
     private _parseDates;
 }
 
-declare function auditAPIFactory(rev: RevClient): {
+declare function auditAPIFactory(rev: RevClient, optRateLimits?: Rev.Options['rateLimits']): {
     /**
     * Logs of user login / logout / failed login activity
     */
@@ -2587,6 +2615,7 @@ declare function userAPIFactory(rev: RevClient): {
      * @param notificationId If notificationId not provided, then all notifications for the user are marked as read.
      */
     markNotificationRead(notificationId?: string): Promise<void>;
+    loginReport(sortField?: User.LoginReportSort, sortOrder?: Rev.SortDirection): Promise<User.LoginReportEntry[]>;
 };
 
 declare function parseOptions(options: Video.VideoReportOptions): {
@@ -2940,4 +2969,4 @@ declare const utils: {
     getMimeForExtension: typeof getMimeForExtension;
 };
 
-export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, Group, GuestRegistration, OAuth, Playlist, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, User, Video, Webcast, Zone, RevClient as default, utils };
+export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, Group, GuestRegistration, OAuth, Playlist, RateLimitEnum, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, User, Video, Webcast, Zone, RevClient as default, utils };
