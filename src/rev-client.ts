@@ -63,6 +63,8 @@ export class RevClient {
         Object.defineProperties(this, {
             admin: { value: api.admin(this), writable: false },
             audit: { value: api.audit(this), writable: false },
+            // NOTE rate limiting option passed into api factory since its
+            audit: { value: api.audit(this, rateLimits), writable: false },
             auth: { value: api.auth(this), writable: false },
             category: { value: api.category(this), writable: false },
             channel: { value: api.channel(this), writable: false },

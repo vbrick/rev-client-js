@@ -3,6 +3,7 @@ import { Audit } from '../types';
 import { asValidDate, tryParseJson } from '../utils';
 import { IPageResponse, PagedRequest } from '../utils/paged-request';
 import { parseCSV } from '../utils/parse-csv';
+import { RateLimitEnum, makeQueue } from '../utils/rate-limit-queues';
 
 function parseEntry<T extends Audit.Entry>(line: Record<string, any>): T {
     return {
@@ -28,7 +29,7 @@ export class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
         rev: RevClient,
         endpoint: string,
         label: string = 'audit records',
-        {toDate, fromDate, ...options}: Audit.Options<T> = {}
+        {toDate, fromDate, beforeRequest, ...options}: Audit.Options<T> = {}
     ) {
         super({
             onProgress: (items: T[], current: number, total?: number | undefined) => {
@@ -44,11 +45,12 @@ export class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
             fromDate: from.toISOString()
         };
 
-        this._req = this._buildReqFunction(rev, endpoint);
+        this._req = this._buildReqFunction(rev, endpoint, beforeRequest);
     }
     protected _requestPage() { return this._req(); }
-    private _buildReqFunction(rev: RevClient, endpoint: string) {
+    private _buildReqFunction(rev: RevClient, endpoint: string, beforeRequest?: (request: PagedRequest<T>) => Promise<void>) {
         return async () => {
+            await beforeRequest?.(this);
             const response = await rev.request('GET', endpoint, { params: this.params }, { responseType: 'text' });
 
             const {
