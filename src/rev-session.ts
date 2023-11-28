@@ -481,9 +481,6 @@ export class AccessTokenSession extends SessionBase {
             expiration: this.expires
         };
     }
-    async verify() {
-        return true;
-    }
     get isConnected() {
         return true;
     }

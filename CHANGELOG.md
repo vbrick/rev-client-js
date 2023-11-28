@@ -8,6 +8,10 @@
 
 * `rateLimit` now correctly handles limit options (`perSecond`, `perMinute`) that are less than 1. For example, `{ perSecond: 0.5 }` will be interpreted as "once every 2 seconds". Previously it was interpreted as "2 every second".
 
+## 0.15.1
+
+### Bugfixes
+* `accessToken`-based sessions now return correct response when calling `verifySession()`
 
 ## 0.15.0
 
