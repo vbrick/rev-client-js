@@ -4,7 +4,7 @@ import { Video, Rev, Admin } from '../types';
 import { SearchRequest } from '../utils/request-utils';
 import { videoReportAPI } from './video-report-request';
 import { videoDownloadAPI } from './video-download';
-import { sleep } from '../utils';
+import { RateLimitEnum, sleep } from '../utils';
 import { mergeHeaders } from '../utils/merge-headers';
 
 type VideoSearchDetailedItem = Video.SearchHit & (Video.Details | { error?: Error });
@@ -27,6 +27,7 @@ export default function videoAPIFactory(rev: RevClient) {
          */
         async setTitle(videoId: string, title: string) {
             const payload = [{ op: 'add', path: '/Title', value: title }];
+            await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
             await rev.patch(`/api/v2/videos/${videoId}`, payload);
         },
         /**
@@ -45,6 +46,7 @@ export default function videoAPIFactory(rev: RevClient) {
                 path: '/CustomFields',
                 value: [customField]
             }];
+            await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
             await rev.patch(`/api/v2/videos/${videoId}`, payload);
         },
         /**
@@ -55,6 +57,7 @@ export default function videoAPIFactory(rev: RevClient) {
             return rev.get(`/api/v2/videos/${videoId}/status`);
         },
         async details(videoId: string): Promise<Video.Details> {
+            await rev.session.queueRequest(RateLimitEnum.GetVideoDetails);
             return rev.get(`/api/v2/videos/${videoId}/details`);
         },
         comments,
@@ -94,10 +97,14 @@ export default function videoAPIFactory(rev: RevClient) {
          * search for videos, return as one big list. leave blank to get all videos in the account
          */
         search(query: Video.SearchOptions = { }, options: Rev.SearchOptions<Video.SearchHit> = { }): Rev.ISearchRequest<Video.SearchHit> {
-            const searchDefinition = {
+            const searchDefinition: Rev.SearchDefinition<Video.SearchHit> = {
                 endpoint: '/api/v2/videos/search',
                 totalKey: 'totalVideos',
-                hitsKey: 'videos'
+                hitsKey: 'videos',
+                async request(endpoint, query, options) {
+                    await rev.session.queueRequest(RateLimitEnum.SearchVideos);
+                    return rev.get(endpoint, query, options);
+                }
             };
             const request = new SearchRequest<Video.SearchHit>(rev, searchDefinition, query, options);
             return request;
@@ -154,9 +161,11 @@ export default function videoAPIFactory(rev: RevClient) {
         ...videoDownloadAPI(rev),
         ...videoReportAPI(rev),
         async trim(videoId: string, removedSegments: Array<{ start: string, end: string }>) {
+            await rev.session.queueRequest(RateLimitEnum.UploadVideo);
             return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);
         },
         async patch(videoId: string, operations: Rev.PatchOperation[]) {
+            await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
             await rev.patch(`/api/v2/videos/${videoId}`, operations);
         },
         /**

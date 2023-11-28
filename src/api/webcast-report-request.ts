@@ -1,6 +1,7 @@
 import type { RevClient } from '../rev-client';
 import type { Rev } from '../types';
 import { Webcast } from '../types/webcast';
+import { RateLimitEnum } from '../utils';
 import { SearchRequest } from '../utils/request-utils';
 
 function getSummaryFromResponse<T extends Record<string, any>>(response: T, hitsKey: string) {
@@ -23,6 +24,7 @@ export class RealtimeReportRequest<T extends Webcast.RealtimeSession = Webcast.R
             hitsKey: 'attendees',
             // get summary from initial response
             request: async (endpoint, query, options) => {
+                await rev.session.queueRequest(RateLimitEnum.GetWebcastAttendeesRealtime);
                 const response = await rev.post<Webcast.RealtimeSummary>(endpoint, query, options);
 
                 const summary = getSummaryFromResponse(response, 'attendees');

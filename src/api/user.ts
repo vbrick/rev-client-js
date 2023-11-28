@@ -1,7 +1,7 @@
 import type { RevClient } from '../rev-client';
 import type { Rev, User } from '../types';
 import { LiteralString } from '../types/rev';
-import { isPlainObject } from '../utils';
+import { RateLimitEnum, isPlainObject } from '../utils';
 import { SearchRequest } from '../utils/request-utils';
 
 export default function userAPIFactory(rev: RevClient) {
@@ -155,6 +155,7 @@ export default function userAPIFactory(rev: RevClient) {
                 ...sortField && { sortField },
                 ...sortOrder && { sortOrder }
             };
+            await rev.session.queueRequest(RateLimitEnum.GetUsersByLoginDate);
             const {Users} = await rev.get('/api/v2/users/login-report', query, { responseType: 'json' });
             return Users;
         }

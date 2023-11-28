@@ -2,6 +2,7 @@ import type { RevClient } from '../rev-client';
 import { Rev, Video } from '../types';
 import { appendFileToForm, appendJSONToForm, uploadMultipart } from '../utils/file-utils';
 import polyfills from '../interop';
+import { RateLimitEnum } from '../utils';
 
 function splitOptions(options: Rev.UploadFileOptions) {
     const {
@@ -81,6 +82,8 @@ export default function uploadAPIFactory(rev: RevClient) {
             const filePayload = await appendFileToForm(form, 'VideoFile', file, uploadOptions);
 
             rev.log('info', `Uploading ${filePayload.filename} (${filePayload.contentType})`);
+
+            await rev.session.queueRequest(RateLimitEnum.UploadVideo);
 
             const { videoId } = await uploadMultipart(rev, 'POST', '/api/v2/uploads/videos', form, filePayload, requestOptions);
             return videoId;
