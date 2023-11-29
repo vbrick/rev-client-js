@@ -12,6 +12,7 @@ export namespace Audit {
     export interface Entry<EntityKey extends string = string> {
         messageKey: string;
         entityKey: EntityKey;
+        entityId: string;
         when: string;
         principal: Record<string, string | null>,
         message: Record<string, any>,

@@ -1,5 +1,9 @@
 ## 0.16.1
 
+### Features
+
+* Add `entityId` into Audit response entries
+
 ### Bugfixes
 
 * fix how audit endpoints pass parameters

@@ -786,6 +786,7 @@ var revClientLib = (() => {
       messageKey: line["MessageKey"],
       entityKey: line["EntityKey"],
       when: line["When"],
+      entityId: line["EntityId"],
       principal: tryParseJson(line["Principal"]) || {},
       message: tryParseJson(line["Message"]) || {},
       currentState: tryParseJson(line["CurrentState"]) || {},
