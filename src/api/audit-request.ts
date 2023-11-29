@@ -51,7 +51,7 @@ export class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
     private _buildReqFunction(rev: RevClient, endpoint: string, beforeRequest?: (request: PagedRequest<T>) => Promise<void>) {
         return async () => {
             await beforeRequest?.(this);
-            const response = await rev.request('GET', endpoint, { params: this.params }, { responseType: 'text' });
+            const response = await rev.request('GET', endpoint, this.params, { responseType: 'text' });
 
             const {
                 body,

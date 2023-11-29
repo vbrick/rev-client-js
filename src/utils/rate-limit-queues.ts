@@ -51,7 +51,6 @@ export function makeQueue(key: RateLimitEnum, value?: number) {
     return rateLimit({ fn, limit, interval });
 }
 
-
 /**
  * create a dict of rate limited-locks based on input options
  * @param rateLimits

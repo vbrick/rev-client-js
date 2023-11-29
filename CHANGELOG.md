@@ -1,3 +1,9 @@
+## 0.16.1
+
+### Bugfixes
+
+* fix how audit endpoints pass parameters
+
 ## 0.16
 
 ### Features
