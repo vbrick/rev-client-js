@@ -997,7 +997,7 @@ declare abstract class PagedRequest<ItemType> implements Rev.ISearchRequest<Item
 }
 
 declare namespace Audit {
-    export interface Options<T extends Entry> extends Rev.SearchOptions<T> {
+    export interface Options<T extends Audit.Entry = Audit.Entry> extends Rev.SearchOptions<T> {
         fromDate?: string | Date;
         toDate?: string | Date;
         beforeRequest?: (request: PagedRequest<T>) => Promise<void>;

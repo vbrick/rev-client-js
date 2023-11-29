@@ -813,7 +813,7 @@ var revClientLib = (() => {
     _buildReqFunction(rev, endpoint, beforeRequest) {
       return async () => {
         await beforeRequest?.(this);
-        const response = await rev.request("GET", endpoint, { params: this.params }, { responseType: "text" });
+        const response = await rev.request("GET", endpoint, this.params, { responseType: "text" });
         const {
           body,
           headers
