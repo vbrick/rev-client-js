@@ -16,6 +16,7 @@ export interface User {
     channels: { id: string, name: string; }[];
     profileImageUri: string | null;
     permissions: User.Permissions;
+    status: User.UserStatus;
 }
 
 export namespace User {
@@ -73,6 +74,8 @@ export namespace User {
     }
 
     export type UserType = LiteralString<'System' | 'LDAP' | 'Sso' | 'SCIM'>
+
+    export type UserStatus = LiteralString<'Suspended' | 'Unlicensed' | 'AwaitingConfirmation' | 'AwaitingPasswordReset' | 'AwaitingSecurityQuestionReset' | 'LockedOut' | 'Active'>;
 
     export type LoginReportSort = LiteralString<'LastLogin' | 'Username'>
     export interface LoginReportEntry {
