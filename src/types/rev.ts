@@ -1,6 +1,6 @@
-import { RevError, ScrollError } from '..';
-import { RateLimitEnum } from '../utils/rate-limit-queues';
-import { OAuth } from './auth';
+import type { ScrollError } from '..';
+import type { RateLimitEnum } from '../utils/rate-limit-queues';
+import type { OAuth } from './auth';
 
 export type LiteralString<T> = T | (string & Record<never, never>);
 
