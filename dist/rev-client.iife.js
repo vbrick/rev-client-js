@@ -835,7 +835,8 @@ var revClientLib = (() => {
     }
     _parseDates(fromDate, toDate) {
       let to = asValidDate(toDate, /* @__PURE__ */ new Date());
-      const defaultFrom = new Date(to.setFullYear(to.getFullYear() - 1));
+      const defaultFrom = new Date(to);
+      defaultFrom.setFullYear(to.getFullYear() - 1);
       let from = asValidDate(fromDate, defaultFrom);
       if (to < from) {
         [to, from] = [from, to];
@@ -2090,6 +2091,41 @@ var revClientLib = (() => {
     };
   }
 
+  // src/api/video-external-access.ts
+  function videoExternalAccessAPI(rev) {
+    return {
+      /**
+       *
+       * @param videoId Id of video to submit emails for external access
+       * @param q       Search string
+       * @param options search options
+       * @returns
+       */
+      listExternalAccess(videoId, q, options) {
+        const searchDefinition = {
+          endpoint: `/api/v2/videos/${videoId}/external-access`,
+          /** NOTE: this API doesn't actually return a total, so this will always be undefined */
+          totalKey: "total",
+          hitsKey: "items"
+        };
+        const payload = q ? { q } : void 0;
+        return new SearchRequest(rev, searchDefinition, payload, options);
+      },
+      async createExternalAccess(videoId, request) {
+        await rev.post(`/api/v2/videos/${videoId}/external-access`, request);
+      },
+      async renewExternalAccess(videoId, request) {
+        return rev.put(`/api/v2/videos/${videoId}/external-access`, request);
+      },
+      async deleteExternalAccess(videoId, request) {
+        return rev.delete(`/api/v2/videos/${videoId}/external-access`, request);
+      },
+      async revokeExternalAccess(videoId, request) {
+        return rev.put(`/api/v2/videos/${videoId}/external-access/revoke`, request);
+      }
+    };
+  }
+
   // src/api/video.ts
   function videoAPIFactory(rev) {
     async function comments(videoId, showAll = false) {
@@ -2226,6 +2262,7 @@ var revClientLib = (() => {
       },
       ...videoDownloadAPI(rev),
       ...videoReportAPI(rev),
+      ...videoExternalAccessAPI(rev),
       async trim(videoId, removedSegments) {
         await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
         return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);

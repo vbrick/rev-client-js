@@ -1,3 +1,17 @@
+## 0.17.0
+
+### Deprecations
+* In an upcoming major release this library will remove the `node-fetch` dependency in favor of node's built-in fetch functionality. The native fetch functionality is available now by using the `@vbrick/rev-client/native-fetch` export.
+
+### Features
+
+* Added Video [External Access endpoints](https://revdocs.vbrick.com/reference/getvideoexternalaccess)
+* Added User Details `status` property to TS types
+* Updated Video types with latest changes in Rev 7.56
+
+### Bugfixes
+* Bugfix in audit parsing of date ranges
+
 ## 0.16.1
 
 ### Features

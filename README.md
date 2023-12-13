@@ -500,6 +500,11 @@ The ID of the video
 #### `video.downloadSupplemental(videoId, fileId)`
 #### `video.downloadChapter(chapter)`
 #### `video.downloadThumbnail(query)`
+#### `video.listExternalAccess(videoId, searchText?, searchOptions?)` - Get External Access
+#### `video.createExternalAccess(videoId, {emails, message?, noEmail?})` - Add External Access
+#### `video.renewExternalAccess(videoId, {emails, noEmail?})`
+#### `video.deleteExternalAccess(videoId, {emails})`
+#### `video.revokeExternalAccess(videoId, {emails})`
 #### `video.waitTranscode(videoId, options?)` - wait for a video to finish transcoding
 #### `video.trim(videoId, removedSegments)`
 #### `video.patch(videoId, operations)`

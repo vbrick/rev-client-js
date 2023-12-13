@@ -374,6 +374,8 @@ declare namespace Video {
         enableRatings?: boolean;
         enableDownloads?: boolean;
         enableComments?: boolean;
+        enableExternalApplicationAccess?: boolean;
+        enableExternalViewersAccess?: boolean;
         /**
          * This sets access control for the  This is an enum and can have the following values: Public/AllUsers/Private/Channels.
          */
@@ -533,6 +535,8 @@ declare namespace Video {
         enableRatings: boolean;
         enableDownloads: boolean;
         enableComments: boolean;
+        enableExternalApplicationAccess: boolean;
+        enableExternalViewersAccess: boolean;
         closeCaptionsEnabled: boolean;
         unlisted: boolean;
         is360: boolean;
@@ -586,6 +590,8 @@ declare namespace Video {
         enableRatings?: boolean;
         enableDownloads?: boolean;
         enableComments?: boolean;
+        enableExternalApplicationAccess?: boolean;
+        enableExternalViewersAccess?: boolean;
         videoAccessControl?: AccessControl;
         accessControlEntities: string | string[];
         customFields: Admin.CustomField.Request[];
@@ -842,6 +848,59 @@ declare namespace Video {
          * Signal to stop poll loop early
          */
         signal?: AbortSignal;
+    }
+}
+interface ExternalAccess {
+    /**
+     * email address this token is associated with
+     */
+    email: string;
+    /**
+     * When this token was added (JSON date)
+     */
+    whenAdded: string;
+    /**
+     * Current status of the token.
+     */
+    status: LiteralString<'Active' | 'Revoked' | 'Expired'>;
+    /**
+     * which Rev User generated this token
+     */
+    grantor: string;
+    /**
+     * the date until this token expires
+     */
+    validUntil: string;
+    /**
+     * link to access the resource this token is associated with
+     */
+    link: string;
+    /**
+     * optional message assigned when the token was created
+     */
+    message: string;
+}
+declare namespace ExternalAccess {
+    interface Request {
+        /** List of email adddresses to add/remove/renew/revoke external access for */
+        emails: string[];
+        /**
+         * Optional message - only when first adding external access
+         * @default ""
+         */
+        message?: string;
+        /**
+         * Send email to each address notifying them of external access.
+         * Set to `true` to disable sending emails
+         * @default false
+         */
+        noEmail?: boolean;
+    }
+    interface RenewResponse {
+        /**
+         * Email that external access could not be renewed for.
+         */
+        invalidEmails: string[];
     }
 }
 
@@ -1510,6 +1569,7 @@ interface User {
     }[];
     profileImageUri: string | null;
     permissions: User.Permissions;
+    status: User.UserStatus;
 }
 declare namespace User {
     interface SearchHit {
@@ -1559,6 +1619,7 @@ declare namespace User {
         notificationTargetUri: string;
     }
     type UserType = LiteralString<'System' | 'LDAP' | 'Sso' | 'SCIM'>;
+    type UserStatus = LiteralString<'Suspended' | 'Unlicensed' | 'AwaitingConfirmation' | 'AwaitingPasswordReset' | 'AwaitingSecurityQuestionReset' | 'LockedOut' | 'Active'>;
     type LoginReportSort = LiteralString<'LastLogin' | 'Username'>;
     interface LoginReportEntry {
         Username: string;
@@ -2660,6 +2721,11 @@ declare function videoAPIFactory(rev: RevClient): {
      * @param options
      */
     waitTranscode(videoId: string, options: Video.WaitTranscodeOptions): Promise<Video.StatusResponse>;
+    listExternalAccess(videoId: string, q?: string | undefined, options?: Rev.SearchOptions<ExternalAccess> | undefined): SearchRequest<ExternalAccess>;
+    createExternalAccess(videoId: string, request: ExternalAccess.Request): Promise<void>;
+    renewExternalAccess(videoId: string, request: Pick<ExternalAccess.Request, "emails" | "noEmail">): Promise<ExternalAccess.RenewResponse>;
+    deleteExternalAccess(videoId: string, request: Pick<ExternalAccess.Request, "emails">): Promise<void>;
+    revokeExternalAccess(videoId: string, request: Pick<ExternalAccess.Request, "emails">): Promise<void>;
     report: {
         (options?: Video.VideoReportOptions | undefined): VideoReportRequest;
         (videoId: string, options?: Video.VideoReportOptions | undefined): VideoReportRequest;
@@ -2970,4 +3036,4 @@ declare const utils: {
     getMimeForExtension: typeof getMimeForExtension;
 };
 
-export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, Group, GuestRegistration, OAuth, Playlist, RateLimitEnum, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, User, Video, Webcast, Zone, RevClient as default, utils };
+export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, ExternalAccess, Group, GuestRegistration, OAuth, Playlist, RateLimitEnum, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, User, Video, Webcast, Zone, RevClient as default, utils };
