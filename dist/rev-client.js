@@ -186,18 +186,6 @@ function rateLimit(fn2, options = {}) {
 var rate_limit_default = rateLimit;
 
 // src/utils/rate-limit-queues.ts
-var RateLimitEnum = /* @__PURE__ */ ((RateLimitEnum3) => {
-  RateLimitEnum3["Get"] = "get";
-  RateLimitEnum3["Post"] = "post";
-  RateLimitEnum3["SearchVideos"] = "searchVideos";
-  RateLimitEnum3["UploadVideo"] = "uploadVideo";
-  RateLimitEnum3["AuditEndpoints"] = "auditEndpoint";
-  RateLimitEnum3["UpdateVideoMetadata"] = "updateVideo";
-  RateLimitEnum3["GetUsersByLoginDate"] = "loginReport";
-  RateLimitEnum3["GetVideoDetails"] = "videoDetails";
-  RateLimitEnum3["GetWebcastAttendeesRealtime"] = "attendeesRealtime";
-  return RateLimitEnum3;
-})(RateLimitEnum || {});
 var defaultRateLimits = {
   ["get" /* Get */]: 24e3,
   ["post" /* Post */]: 3600,
@@ -325,10 +313,10 @@ var RevError = class _RevError extends Error {
     }
   }
   get name() {
-    return this.constructor.name;
+    return "RevError";
   }
   get [Symbol.toStringTag]() {
-    return this.constructor.name;
+    return "RevError";
   }
   static async create(response) {
     let body;
@@ -2711,10 +2699,9 @@ var SessionBase = class {
     } else if (isPlainObject(keepAliveOptions)) {
       this.keepAlive = new SessionKeepAlive(this, keepAliveOptions);
     }
-    if (rateLimits === true) {
-      this.rateLimits = makeQueues();
-    } else if (isPlainObject(rateLimits)) {
-      this.rateLimits = makeQueues(rateLimits);
+    let rateLimitQueues = void 0;
+    if (rateLimits) {
+      rateLimitQueues = makeQueues(isPlainObject(rateLimits) ? rateLimits : void 0);
     }
     Object.defineProperties(this, {
       rev: {
@@ -2726,6 +2713,12 @@ var SessionBase = class {
       [_credentials]: {
         get() {
           return credentials;
+        },
+        enumerable: false
+      },
+      _rateLimits: {
+        get() {
+          return rateLimitQueues;
         },
         enumerable: false
       }
@@ -2801,14 +2794,14 @@ var SessionBase = class {
     return true;
   }
   async queueRequest(queue) {
-    await this.rateLimits?.[queue]?.();
+    await this._rateLimits?.[queue]?.();
   }
   /**
    * Abort pending executions. All unresolved promises are rejected with a `AbortError` error.
    * @param {string} [message] - message parameter for rejected AbortError
    */
   async clearQueues(message) {
-    await clearQueues(this.rateLimits ?? {}, message);
+    await clearQueues(this._rateLimits ?? {}, message);
   }
   /**
    * check if expiration time of session has passed
@@ -2830,7 +2823,7 @@ var SessionBase = class {
     return this[_credentials].username;
   }
   get hasRateLimits() {
-    return !!this.rateLimits;
+    return !!this._rateLimits;
   }
 };
 _credentials;
@@ -3329,7 +3322,6 @@ var utils = {
 };
 var src_default = RevClient;
 export {
-  RateLimitEnum,
   RevClient,
   RevError,
   ScrollError,

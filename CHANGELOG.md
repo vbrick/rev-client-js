@@ -1,6 +1,17 @@
+## 0.17.1
+
+### Features
+* Minify IIFE version for ~50Kb size savings
+* Hardcode `RevError` classname to avoid mangling by build process
+
+### Bugfixes
+* Removed `RateLimitEnum` from main exports, which was only partially added in v0.16
+* Make session rate limit queues non-enumerable
+* Clean up top level exports
+
 ## 0.17.0
 
-### Deprecations
+### **Deprecations**
 * In an upcoming major release this library will remove the `node-fetch` dependency in favor of node's built-in fetch functionality. The native fetch functionality is available now by using the `@vbrick/rev-client/native-fetch` export.
 
 ### Features

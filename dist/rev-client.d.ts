@@ -256,6 +256,8 @@ declare namespace Rev {
     interface KeepAliveOptions {
         /**
          * How many milliseconds between automatic extend session calls
+         * Default 5 minutes
+         * @default 300000
          */
         keepAliveInterval?: number;
         /**
@@ -3036,4 +3038,4 @@ declare const utils: {
     getMimeForExtension: typeof getMimeForExtension;
 };
 
-export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, ExternalAccess, Group, GuestRegistration, OAuth, Playlist, RateLimitEnum, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, User, Video, Webcast, Zone, RevClient as default, utils };
+export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, ExternalAccess, Group, GuestRegistration, OAuth, Playlist, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, User, Video, Webcast, Zone, RevClient as default, utils };

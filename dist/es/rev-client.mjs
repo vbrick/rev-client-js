@@ -316,10 +316,10 @@ var RevError = class _RevError extends Error {
     }
   }
   get name() {
-    return this.constructor.name;
+    return "RevError";
   }
   get [Symbol.toStringTag]() {
-    return this.constructor.name;
+    return "RevError";
   }
   static async create(response) {
     let body;
@@ -349,12 +349,6 @@ var ScrollError = class extends Error {
     return this.constructor.name;
   }
 };
-
-// src/types/index.ts
-var Role;
-((Role2) => {
-  ;
-})(Role || (Role = {}));
 
 // src/utils/paged-request.ts
 var PagedRequest = class {
@@ -2708,10 +2702,9 @@ var SessionBase = class {
     } else if (isPlainObject(keepAliveOptions)) {
       this.keepAlive = new SessionKeepAlive(this, keepAliveOptions);
     }
-    if (rateLimits === true) {
-      this.rateLimits = makeQueues();
-    } else if (isPlainObject(rateLimits)) {
-      this.rateLimits = makeQueues(rateLimits);
+    let rateLimitQueues = void 0;
+    if (rateLimits) {
+      rateLimitQueues = makeQueues(isPlainObject(rateLimits) ? rateLimits : void 0);
     }
     Object.defineProperties(this, {
       rev: {
@@ -2723,6 +2716,12 @@ var SessionBase = class {
       [_credentials]: {
         get() {
           return credentials;
+        },
+        enumerable: false
+      },
+      _rateLimits: {
+        get() {
+          return rateLimitQueues;
         },
         enumerable: false
       }
@@ -2798,14 +2797,14 @@ var SessionBase = class {
     return true;
   }
   async queueRequest(queue) {
-    await this.rateLimits?.[queue]?.();
+    await this._rateLimits?.[queue]?.();
   }
   /**
    * Abort pending executions. All unresolved promises are rejected with a `AbortError` error.
    * @param {string} [message] - message parameter for rejected AbortError
    */
   async clearQueues(message) {
-    await clearQueues(this.rateLimits ?? {}, message);
+    await clearQueues(this._rateLimits ?? {}, message);
   }
   /**
    * check if expiration time of session has passed
@@ -2827,7 +2826,7 @@ var SessionBase = class {
     return this[_credentials].username;
   }
   get hasRateLimits() {
-    return !!this.rateLimits;
+    return !!this._rateLimits;
   }
 };
 _credentials;
@@ -3490,7 +3489,6 @@ var index_node_default = RevClient;
 export {
   RevClient,
   RevError,
-  Role,
   ScrollError,
   index_node_default as default,
   utils
