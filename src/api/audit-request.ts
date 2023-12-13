@@ -83,7 +83,8 @@ export class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
         let to = asValidDate(toDate, new Date());
 
         // default to one year older than toDate
-        const defaultFrom = new Date(to.setFullYear(to.getFullYear() - 1));
+        const defaultFrom = new Date(to);
+        defaultFrom.setFullYear(to.getFullYear() - 1);
 
         let from = asValidDate(fromDate, defaultFrom);
 
