@@ -121,7 +121,7 @@ abstract class SessionBase implements Rev.IRevSession {
     protected readonly rev!: RevClient;
     protected readonly [_credentials]!: Rev.Credentials;
     readonly keepAlive?: SessionKeepAlive;
-    readonly rateLimits?: Partial<RateLimitQueues>;
+    readonly _rateLimits?: Partial<RateLimitQueues>;
     constructor(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions, rateLimits?: boolean | Rev.RateLimits) {
         this.expires = new Date();
 
@@ -131,10 +131,9 @@ abstract class SessionBase implements Rev.IRevSession {
             this.keepAlive = new SessionKeepAlive(this, keepAliveOptions);
         }
 
-        if (rateLimits === true) {
-            this.rateLimits = makeQueues();
-        } else if (isPlainObject(rateLimits)) {
-            this.rateLimits = makeQueues(rateLimits);
+        let rateLimitQueues: undefined | Partial<RateLimitQueues> = undefined;
+        if (rateLimits) {
+            rateLimitQueues = makeQueues(isPlainObject(rateLimits) ? rateLimits : undefined);
         }
 
         // add as private member
@@ -145,6 +144,10 @@ abstract class SessionBase implements Rev.IRevSession {
             },
             [_credentials]: {
                 get() { return credentials; },
+                enumerable: false
+            },
+            _rateLimits: {
+                get() { return rateLimitQueues; },
                 enumerable: false
             }
         });
@@ -236,14 +239,14 @@ abstract class SessionBase implements Rev.IRevSession {
         return true;
     }
     async queueRequest(queue: `${RateLimitEnum}`) {
-        await this.rateLimits?.[queue]?.();
+        await this._rateLimits?.[queue]?.();
     }
     /**
      * Abort pending executions. All unresolved promises are rejected with a `AbortError` error.
      * @param {string} [message] - message parameter for rejected AbortError
      */
     async clearQueues(message?: string) {
-        await clearQueues(this.rateLimits ?? {}, message);
+        await clearQueues(this._rateLimits ?? {}, message);
     }
     /**
      * check if expiration time of session has passed
@@ -265,7 +268,7 @@ abstract class SessionBase implements Rev.IRevSession {
         return this[_credentials].username;
     }
     get hasRateLimits() {
-        return !!this.rateLimits;
+        return !!this._rateLimits;
     }
     protected abstract _login(): Promise<LoginResponse>;
     protected abstract _extend(): Promise<{ expiration: string; }>;
