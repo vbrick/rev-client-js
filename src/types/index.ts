@@ -10,7 +10,7 @@ export type { Device } from './device';
 export type { Group } from './group';
 export type { Rev } from './rev';
 export type { User } from './user';
-export type { Video } from './video';
+export type { Video, ExternalAccess } from './video';
 export type { Playlist } from './playlist';
 export type { Recording } from './recording';
 export type { Webcast, GuestRegistration } from './webcast';

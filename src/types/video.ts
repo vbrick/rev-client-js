@@ -68,6 +68,8 @@ export namespace Video {
         enableRatings?: boolean;
         enableDownloads?: boolean;
         enableComments?: boolean;
+        enableExternalApplicationAccess?: boolean;
+        enableExternalViewersAccess?: boolean;
 
         /**
          * This sets access control for the  This is an enum and can have the following values: Public/AllUsers/Private/Channels.
@@ -237,6 +239,8 @@ export namespace Video {
         enableRatings: boolean;
         enableDownloads: boolean;
         enableComments: boolean;
+        enableExternalApplicationAccess: boolean;
+        enableExternalViewersAccess: boolean;
         closeCaptionsEnabled: boolean;
         unlisted: boolean;
         is360: boolean;
@@ -291,6 +295,8 @@ export namespace Video {
         enableRatings?: boolean;
         enableDownloads?: boolean;
         enableComments?: boolean;
+        enableExternalApplicationAccess?: boolean;
+        enableExternalViewersAccess?: boolean;
         videoAccessControl?: AccessControl;
         accessControlEntities: string | string[];
         customFields: Admin.CustomField.Request[];
@@ -579,4 +585,63 @@ export namespace Video {
          */
         signal?: AbortSignal;
     }
+}
+
+export interface ExternalAccess {
+    /**
+     * email address this token is associated with
+     */
+  email: string
+
+  /**
+   * When this token was added (JSON date)
+   */
+  whenAdded: string
+
+  /**
+   * Current status of the token.
+   */
+  status: LiteralString<'Active' | 'Revoked' | 'Expired'>
+
+  /**
+   * which Rev User generated this token
+   */
+  grantor: string
+
+  /**
+   * the date until this token expires
+   */
+  validUntil: string
+
+  /**
+   * link to access the resource this token is associated with
+   */
+  link: string
+  /**
+   * optional message assigned when the token was created
+   */
+  message: string
+}
+export namespace ExternalAccess {
+    export interface Request {
+        /** List of email adddresses to add/remove/renew/revoke external access for */
+        emails: string[];
+        /**
+         * Optional message - only when first adding external access
+         * @default ""
+         */
+        message?: string;
+        /**
+         * Send email to each address notifying them of external access.
+         * Set to `true` to disable sending emails
+         * @default false
+         */
+        noEmail?: boolean;
+    }
+    export interface RenewResponse {
+        /**
+         * Email that external access could not be renewed for.
+         */
+        invalidEmails: string[]
+      }
 }

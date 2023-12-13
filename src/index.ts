@@ -11,6 +11,7 @@ export type {
     Category,
     Channel,
     Device,
+    ExternalAccess,
     Group,
     GuestRegistration,
     OAuth,

@@ -6,6 +6,7 @@ import { videoReportAPI } from './video-report-request';
 import { videoDownloadAPI } from './video-download';
 import { RateLimitEnum, sleep } from '../utils';
 import { mergeHeaders } from '../utils/merge-headers';
+import { videoExternalAccessAPI } from './video-external-access';
 
 type VideoSearchDetailedItem = Video.SearchHit & (Video.Details | { error?: Error });
 
@@ -160,6 +161,7 @@ export default function videoAPIFactory(rev: RevClient) {
         },
         ...videoDownloadAPI(rev),
         ...videoReportAPI(rev),
+        ...videoExternalAccessAPI(rev),
         async trim(videoId: string, removedSegments: Array<{ start: string, end: string }>) {
             await rev.session.queueRequest(RateLimitEnum.UploadVideo);
             return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);
