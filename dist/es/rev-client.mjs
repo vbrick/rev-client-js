@@ -1194,6 +1194,23 @@ function channelAPIFactory(rev) {
         return { op: "remove", path: "/Members", value: entityId };
       });
       await rev.patch(`/api/v2/channels/${channelId}`, operations);
+    },
+    /**
+     *
+     * @param {string} [searchText]
+     * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
+     */
+    search(searchText, options = {}) {
+      const searchDefinition = {
+        endpoint: `/api/v2/search/access-entity${options?.assignable ? "/assignable" : ""}`,
+        totalKey: "totalEntities",
+        hitsKey: "accessEntities"
+      };
+      const query = {
+        type: options.type || "Channel",
+        ...searchText && { q: searchText }
+      };
+      return new SearchRequest(rev, searchDefinition, query, options);
     }
   };
   return channelAPI;
@@ -1326,7 +1343,7 @@ function groupAPIFactory(rev) {
      */
     search(searchText, options = {}) {
       const searchDefinition = {
-        endpoint: "/api/v2/search/access-entity",
+        endpoint: `/api/v2/search/access-entity${options?.assignable ? "/assignable" : ""}`,
         totalKey: "totalEntities",
         hitsKey: "accessEntities",
         transform: (hits) => hits.map(formatGroupSearchHit)
@@ -1387,21 +1404,67 @@ function formatGroupSearchHit(hit) {
   };
 }
 
+// src/api/playlist-details-request.ts
+function getSummaryFromResponse(response, hitsKey) {
+  const ignoreKeys = ["scrollId", "statusCode", "statusDescription"];
+  const summary = Object.fromEntries(Object.entries(response).filter(([key, value]) => {
+    return !(key === hitsKey || ignoreKeys.includes(key) || Array.isArray(value));
+  }));
+  return summary;
+}
+var PlaylistDetailsRequest = class extends SearchRequest {
+  constructor(rev, playlistId, query = {}, options = {}) {
+    const searchDefinition = {
+      endpoint: `/api/v2/playlists/${playlistId}`,
+      totalKey: "totalVideos",
+      hitsKey: "videos",
+      // get summary from initial response
+      request: async (endpoint, query2, options2) => {
+        await rev.session.queueRequest("searchVideos" /* SearchVideos */);
+        const response = await rev.get(endpoint, query2, options2);
+        Object.assign(this.playlist, getSummaryFromResponse(response, "videos"));
+        return response;
+      }
+    };
+    super(rev, searchDefinition, query, options);
+    this.playlist = {};
+  }
+  get playlistName() {
+    return this.playlist.name || this.playlist.playlistDetails?.name;
+  }
+  get dynamicSearchCriteria() {
+    return this.playlist?.playlistType === "Dynamic" ? this.playlist.playlistDetails?.playlistDetails || this.playlist.playlistDetails : void 0;
+  }
+  async getPlaylistInfo() {
+    this.options.maxResults = 0;
+    const { items: videos } = await this.nextPage();
+    return {
+      ...this.playlist,
+      videos,
+      playlistName: this.playlistName,
+      dynamicSearchCriteria: this.dynamicSearchCriteria
+    };
+  }
+};
+
 // src/api/playlist.ts
 function playlistAPIFactory(rev) {
   const playlistAPI = {
-    async create(name, videoIds) {
-      const payload = {
-        name,
-        videoIds
-      };
+    async create(name, videos) {
+      const isStatic = Array.isArray(videos);
+      const payload = isStatic ? { name, playlistType: "Static", videoIds: videos } : { name, playlistType: "Dynamic", playlistDetails: videos };
       const { playlistId } = await rev.post("/api/v2/playlists", payload, { responseType: "json" });
       return playlistId;
     },
+    async details(playlistId, query) {
+      return rev.get(`/api/v2/playlists/${playlistId}`, query);
+    },
+    listVideos(playlistId, query, options) {
+      return new PlaylistDetailsRequest(rev, playlistId, query, options);
+    },
     async update(playlistId, actions) {
-      const payload = {
-        playlistVideoDetails: actions
-      };
+      const isStatic = Array.isArray(actions);
+      const payload = isStatic ? { playlistVideoDetails: actions } : { playlistDetails: actions };
       return rev.put(`/api/v2/playlists/${playlistId}`, payload);
     },
     async updateFeatured(actions) {
@@ -1626,15 +1689,8 @@ function uploadAPIFactory(rev) {
     },
     async transcription(videoId, file, language = "en", options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options);
-      const supportedLanguages = ["de", "en", "en-gb", "es-es", "es-419", "es", "fr", "fr-ca", "id", "it", "ko", "ja", "nl", "no", "pl", "pt", "pt-br", "th", "tr", "fi", "sv", "ru", "el", "zh", "zh-tw", "zh-cmn-hans"];
-      let lang = language.toLowerCase();
-      if (!supportedLanguages.includes(lang)) {
-        lang = lang.slice(2);
-        if (!supportedLanguages.includes(lang)) {
-          throw new TypeError(`Invalid language ${language} - supported values are ${supportedLanguages.join(", ")}`);
-        }
-      }
       const form = new FormData2();
+      const lang = language.toLowerCase();
       const filePayload = await appendFileToForm(form, "File", file, uploadOptions);
       const metadata = {
         files: [
@@ -1798,6 +1854,14 @@ function userAPIFactory(rev) {
       ];
       await rev.patch(`/api/v2/users/${userId}`, operations);
     },
+    async suspend(userId) {
+      const operations = [{ op: "replace", path: "/ItemStatus", value: "Suspended" }];
+      await rev.patch(`/api/v2/users/${userId}`, operations);
+    },
+    async unsuspend(userId) {
+      const operations = [{ op: "replace", path: "/ItemStatus", value: "Active" }];
+      await rev.patch(`/api/v2/users/${userId}`, operations);
+    },
     /**
      * search for users based on text query. Leave blank to return all users.
      *
@@ -1805,8 +1869,11 @@ function userAPIFactory(rev) {
      * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
      */
     search(searchText, options = {}) {
+      const {
+        assignable = false
+      } = options;
       const searchDefinition = {
-        endpoint: "/api/v2/search/access-entity",
+        endpoint: `/api/v2/search/access-entity${assignable ? "/assignable" : ""}`,
         totalKey: "totalEntities",
         hitsKey: "accessEntities",
         /**
@@ -1927,8 +1994,9 @@ function parseDates(startArg, endArg) {
   return { startDate, endDate };
 }
 var VideoReportRequest = class extends PagedRequest {
-  constructor(rev, options = {}) {
+  constructor(rev, options = {}, endpoint = "/api/v2/videos/report") {
     super(parseOptions(options));
+    this._endpoint = endpoint;
     this._rev = rev;
   }
   async _requestPage() {
@@ -1958,7 +2026,7 @@ var VideoReportRequest = class extends PagedRequest {
     if (videoIds) {
       query.videoIds = videoIds;
     }
-    const items = await this._rev.get("/api/v2/videos/report", query, { responseType: "json" });
+    const items = await this._rev.get(this._endpoint, query, { responseType: "json" });
     if (!done) {
       if (isAscending) {
         this.startDate = rangeEnd;
@@ -1994,10 +2062,13 @@ function videoReportAPI(rev) {
         videoIds: videoId
       };
     }
-    return new VideoReportRequest(rev, options);
+    return new VideoReportRequest(rev, options, "/api/v2/videos/report");
   }
   return {
-    report
+    report,
+    uniqueSessionsReport(videoId, options = {}) {
+      return new VideoReportRequest(rev, options, `/api/v2/videos/${videoId}/report`);
+    }
   };
 }
 
@@ -2117,6 +2188,10 @@ function videoAPIFactory(rev) {
       await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
       await rev.patch(`/api/v2/videos/${videoId}`, payload);
     },
+    async delete(videoId) {
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
+      await rev.delete(`/api/v2/videos/${videoId}`);
+    },
     /**
      * get processing status of a video
      * @param videoId
@@ -2179,6 +2254,10 @@ function videoAPIFactory(rev) {
     /**
      * Example of using the video search API to search for videos, then getting
      * the details of each video
+     * @deprecated This method can cause timeouts if iterating through a very
+     *             large number of results, as the search scroll cursor has a
+     *             timeout of ~5 minutes. Consider getting all search results
+     *             first, then getting details
      * @param query
      * @param options
      */
@@ -2226,6 +2305,10 @@ function videoAPIFactory(rev) {
     async trim(videoId, removedSegments) {
       await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
       return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);
+    },
+    async convertDualStreamToSwitched(videoId) {
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
+      return rev.put(`/api/v2/videos/${videoId}/convert-dual-streams-to-switched-stream`);
     },
     async patch(videoId, operations) {
       await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
@@ -2284,7 +2367,7 @@ function videoAPIFactory(rev) {
 }
 
 // src/api/webcast-report-request.ts
-function getSummaryFromResponse(response, hitsKey) {
+function getSummaryFromResponse2(response, hitsKey) {
   const ignoreKeys = ["scrollId", "statusCode", "statusDescription"];
   const summary = Object.fromEntries(Object.entries(response).filter(([key, value]) => {
     return !(key === hitsKey || ignoreKeys.includes(key) || Array.isArray(value));
@@ -2301,7 +2384,7 @@ var RealtimeReportRequest = class extends SearchRequest {
       request: async (endpoint, query2, options2) => {
         await rev.session.queueRequest("attendeesRealtime" /* GetWebcastAttendeesRealtime */);
         const response = await rev.post(endpoint, query2, options2);
-        const summary = getSummaryFromResponse(response, "attendees");
+        const summary = getSummaryFromResponse2(response, "attendees");
         Object.assign(this.summary, summary);
         return response;
       }
@@ -2329,7 +2412,7 @@ var PostEventReportRequest = class extends SearchRequest {
       hitsKey: "sessions",
       request: async (endpoint, query2, options2) => {
         const response = await rev.get(endpoint, query2, options2);
-        const summary = getSummaryFromResponse(response, "sessions");
+        const summary = getSummaryFromResponse2(response, "sessions");
         Object.assign(this.summary, summary);
         return response;
       }
@@ -2393,7 +2476,8 @@ function webcastAPIFactory(rev) {
     },
     async pollResults(eventId, runNumber) {
       const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
-      return rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: "json" });
+      const { polls } = await rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: "json" });
+      return polls;
     },
     async comments(eventId, runNumber) {
       const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
@@ -2401,6 +2485,10 @@ function webcastAPIFactory(rev) {
     },
     async status(eventId) {
       return rev.get(`/api/v2/scheduled-events/${eventId}/status`);
+    },
+    async isPublic(eventId) {
+      const response = await rev.request("GET", `/api/v2/scheduled-events/${eventId}/is-public`, void 0, { throwHttpErrors: false, responseType: "json" });
+      return response.statusCode !== 401 && response.body?.isPublic;
     },
     async playbackUrls(eventId, { ip, userAgent } = {}, options) {
       const query = ip ? { ip } : void 0;
@@ -3318,13 +3406,9 @@ var RevClient = class {
 };
 
 // src/interop/node-polyfills.ts
-import fs from "fs";
-import path from "path";
-import { createHmac, randomBytes, createHash } from "crypto";
-import { promisify } from "util";
-import fetch, { Headers, Request, Response } from "node-fetch";
-import FormData from "form-data";
-import { AbortSignal, AbortController as AbortController2 } from "node-abort-controller";
+import fs from "node:fs";
+import path from "node:path";
+import { createHmac, randomBytes, createHash } from "node:crypto";
 async function getLengthFromStream(source) {
   const {
     length,
@@ -3426,10 +3510,7 @@ async function appendFileToForm2(form, fieldName, payload) {
   form.append(fieldName, file, appendOptions);
 }
 async function prepareUploadHeaders(form, headers, useChunkedTransfer = false) {
-  const totalBytes = useChunkedTransfer ? 0 : await promisify(form.getLength).call(form).catch(() => 0);
-  if (totalBytes > 0) {
-    headers.set("content-length", `${totalBytes}`);
-  } else {
+  if (useChunkedTransfer) {
     headers.set("transfer-encoding", "chunked");
     headers.delete("content-length");
   }
@@ -3461,7 +3542,7 @@ var AbortError = class extends Error {
   }
 };
 Object.assign(interop_default, {
-  AbortController: AbortController2,
+  AbortController,
   AbortSignal,
   createAbortError(message) {
     return new AbortError(message);

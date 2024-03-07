@@ -245,6 +245,9 @@ declare namespace Rev {
          */
         onScrollError?: (err: ScrollError) => void;
     }
+    interface AccessEntitySearchOptions<T> extends SearchOptions<T> {
+        assignable?: boolean;
+    }
     interface SearchDefinition<T = any, RawType = any> {
         endpoint: string;
         totalKey: string;
@@ -308,6 +311,17 @@ declare namespace AccessControl {
         type: EntityType;
         canEdit: boolean;
     }
+    type EntitySearchType = Exclude<AccessControl.EntityType, 'Role'>;
+    interface SearchHit {
+        EntityType: EntitySearchType;
+        Id: string;
+        Name?: string;
+        UserName?: string;
+        FirstName?: string;
+        LastName?: string;
+        Email?: string;
+        ProfileImageUri?: string;
+    }
 }
 
 declare namespace Video {
@@ -316,9 +330,10 @@ declare namespace Video {
     type EncodingType = LiteralString<"H264" | "HLS" | "HDS" | "H264TS" | "Mpeg4" | "Mpeg2" | "WM" | "Flash" | "RTP">;
     type ExpirationAction = LiteralString<'Delete' | 'Inactivate'>;
     type ExpiryRule = LiteralString<'None' | 'DaysAfterUpload' | 'DaysWithoutViews'>;
-    type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
     type SourceType = LiteralString<'REV' | 'WEBEX' | 'API' | 'VIDEO CONFERENCE' | 'WebexLiveStream' | 'LiveEnrichment'>;
     type VideoType = LiteralString<"Live" | "Vod">;
+    type SortFieldEnum = LiteralString<"duration" | "lastViewed" | "ownerName" | "title" | "uploaderName" | "viewCount" | "whenUploaded" | "_score">;
+    type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
     interface LinkedUrl {
         Url: string;
         EncodingType: EncodingType;
@@ -613,6 +628,8 @@ declare namespace Video {
     interface SearchOptions {
         /** text to search for */
         q?: string;
+        /** specific videoIds to search for */
+        videoIds?: string | string[];
         /**
          * live or vod videos
          */
@@ -647,7 +664,7 @@ declare namespace Video {
          * must be _score. User must exist.
          */
         recommendedFor?: string;
-        sortField?: LiteralString<'title' | 'whenUploaded' | 'uploaderName' | 'duration' | '_score'>;
+        sortField?: SortFieldEnum;
         sortDirection?: Rev.SortDirection;
         /**
          * If channelId provided, videos in that particular channel are returned. User should have rights to the channel
@@ -724,9 +741,17 @@ declare namespace Video {
         eCDNTime?: string;
         viewingStartTime: string;
         viewingEndTime: string;
+        userId: string;
     }
     interface VideoReportOptions extends Rev.SearchOptions<VideoReportEntry> {
         videoIds?: string | string[] | undefined;
+        startDate?: string;
+        endDate?: string;
+        incrementDays?: number;
+        sortDirection?: Rev.SortDirection;
+    }
+    interface UniqueSessionReportOptions extends Rev.SearchOptions<VideoReportEntry> {
+        userId?: string;
         startDate?: string;
         endDate?: string;
         incrementDays?: number;
@@ -804,7 +829,7 @@ declare namespace Video {
         locale: string;
     }
     namespace Transcription {
-        type SupportedLanguages = LiteralString<'de' | 'en' | 'en-gb' | 'es-es' | 'es-419' | 'es' | 'fr' | 'fr-ca' | 'id' | 'it' | 'ko' | 'ja' | 'nl' | 'no' | 'pl' | 'pt' | 'pt-br' | 'th' | 'tr' | 'fi' | 'sv' | 'ru' | 'el' | 'zh' | 'zh-tw' | 'zh-cmn-hans'>;
+        type SupportedLanguages = LiteralString<"da" | "de" | "el" | "en" | "en-gb" | "es" | "es-419" | "es-es" | "fi" | "fr" | "fr-ca" | "id" | "it" | "ja" | "ko" | "nl" | "no" | "pl" | "pt" | "pt-br" | "ru" | "sv" | "th" | "tr" | "zh" | "zh-tw" | "zh-cmn-hans" | "cs" | "en-au" | "hi" | "lt" | "so" | "hmn" | "my" | "cnh" | "kar" | "ku-kmr" | "ne" | "sw" | "af" | "sq" | "am" | "az" | "bn" | "bs" | "bg" | "hr" | "et" | "ka" | "ht" | "ha" | "hu" | "lv" | "ms" | "ro" | "sr" | "sk" | "sl" | "tl" | "ta" | "uk" | "vi">;
     }
     namespace Search {
         interface SuggestionOptions {
@@ -1635,9 +1660,12 @@ interface Playlist {
     id: string;
     name: string;
     playbackUrl: string;
-    videos: Playlist.Video[];
+    playlistType?: Playlist.PlaylistTypeEnum;
+    videos?: Playlist.Video[];
+    playlistDetails?: Video.SearchOptions;
 }
 declare namespace Playlist {
+    type PlaylistTypeEnum = LiteralString<'Static' | 'Dynamic'>;
     interface List {
         featuredPlaylist?: Playlist;
         playlists: Playlist[];
@@ -1660,6 +1688,14 @@ declare namespace Playlist {
          * Action to be taken - Add or Remove.
          */
         action: "Add" | "Remove";
+    }
+    interface DetailsResponse {
+        playlistId: string;
+        playlistType: PlaylistTypeEnum;
+        playlistDetails: Playlist;
+        videos: Video.Details[];
+        scrollId?: string;
+        totalVideos?: string;
     }
 }
 
@@ -2133,6 +2169,11 @@ declare namespace Zone {
         ipAddressRanges?: Array<{
             start: string;
             end: string;
+            cidr?: string;
+        } | {
+            start?: string;
+            end?: string;
+            cidr: string;
         }>;
         targetDevices?: TargetDeviceRequest[];
         supportsMulticast?: boolean;
@@ -2476,6 +2517,14 @@ declare function channelAPIFactory(rev: RevClient): {
     list(start?: number, options?: Channel.SearchOptions): ChannelListRequest;
     addMembers(channelId: string, members: Channel.Member[]): Promise<void>;
     removeMembers(channelId: string, members: Array<string | Channel.Member>): Promise<void>;
+    /**
+     *
+     * @param {string} [searchText]
+     * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
+     */
+    search(searchText?: string, options?: Rev.AccessEntitySearchOptions<AccessControl.SearchHit> & {
+        type?: AccessControl.EntitySearchType;
+    }): SearchRequest<AccessControl.SearchHit>;
 };
 declare class ChannelListRequest implements Rev.ISearchRequest<Channel.SearchHit> {
     currentPage: number;
@@ -2524,7 +2573,7 @@ declare function groupAPIFactory(rev: RevClient): {
      * @param {string} [searchText]
      * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
      */
-    search(searchText?: string, options?: Rev.SearchOptions<Group.SearchHit>): SearchRequest<Group.SearchHit>;
+    search(searchText?: string, options?: Rev.AccessEntitySearchOptions<Group.SearchHit>): SearchRequest<Group.SearchHit>;
     list(options?: Rev.SearchOptions<Group.SearchHit>): SearchRequest<Group.SearchHit>;
     listUsers(groupId: string, options?: Rev.SearchOptions<string>): SearchRequest<string>;
     /**
@@ -2541,9 +2590,34 @@ declare function groupAPIFactory(rev: RevClient): {
     }>;
 };
 
+declare class PlaylistDetailsRequest extends SearchRequest<Video.Details> {
+    playlist: Playlist;
+    get playlistName(): any;
+    get dynamicSearchCriteria(): any;
+    constructor(rev: RevClient, playlistId: string, query?: {
+        count?: number;
+    }, options?: Rev.SearchOptions<Video.Details>);
+    getPlaylistInfo(): Promise<{
+        videos: Video.Details[];
+        playlistName: any;
+        dynamicSearchCriteria: any;
+        id: string;
+        name: string;
+        playbackUrl: string;
+        playlistType?: Playlist.PlaylistTypeEnum | undefined;
+        playlistDetails?: Video.SearchOptions | undefined;
+    }>;
+}
+
 declare function playlistAPIFactory(rev: RevClient): {
-    create(name: string, videoIds: string[]): Promise<string>;
-    update(playlistId: string, actions: Playlist.UpdateAction[]): Promise<void>;
+    create(name: string, videos: string[] | Video.SearchOptions): Promise<string>;
+    details(playlistId: string, query: {
+        count?: number;
+    }): Promise<Playlist.DetailsResponse>;
+    listVideos(playlistId: string, query: {
+        count?: number;
+    }, options?: Rev.SearchOptions<Video.Details>): PlaylistDetailsRequest;
+    update(playlistId: string, actions: Playlist.UpdateAction[] | Video.SearchOptions): Promise<void>;
     updateFeatured(actions: Playlist.UpdateAction[]): Promise<void>;
     delete(playlistId: string): Promise<void>;
     /**
@@ -2651,13 +2725,15 @@ declare function userAPIFactory(rev: RevClient): {
      * @returns {Promise<void>}
      */
     removeFromGroup(userId: string, groupId: string): Promise<void>;
+    suspend(userId: string): Promise<void>;
+    unsuspend(userId: string): Promise<void>;
     /**
      * search for users based on text query. Leave blank to return all users.
      *
      * @param {string} [searchText]
      * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
      */
-    search(searchText?: string, options?: Rev.SearchOptions<User.SearchHit>): SearchRequest<User.SearchHit>;
+    search(searchText?: string, options?: Rev.AccessEntitySearchOptions<User.SearchHit>): SearchRequest<User.SearchHit>;
     /**
      * Returns the channel and category subscriptions for the user making the API call.
      */
@@ -2696,7 +2772,8 @@ declare function parseOptions(options: Video.VideoReportOptions): {
 declare class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
     options: Required<ReturnType<typeof parseOptions>>;
     private _rev;
-    constructor(rev: RevClient, options?: Video.VideoReportOptions);
+    private _endpoint;
+    constructor(rev: RevClient, options?: Video.VideoReportOptions, endpoint?: string);
     protected _requestPage(): Promise<{
         items: Video.VideoReportEntry[];
         done: boolean;
@@ -2715,6 +2792,7 @@ declare function videoAPIFactory(rev: RevClient): {
         start: string;
         end: string;
     }>): Promise<any>;
+    convertDualStreamToSwitched(videoId: string): Promise<void>;
     patch(videoId: string, operations: Rev.PatchOperation[]): Promise<void>;
     /**
      * Helper - wait for video transcode to complete.
@@ -2732,6 +2810,7 @@ declare function videoAPIFactory(rev: RevClient): {
         (options?: Video.VideoReportOptions | undefined): VideoReportRequest;
         (videoId: string, options?: Video.VideoReportOptions | undefined): VideoReportRequest;
     };
+    uniqueSessionsReport(videoId: string, options?: Video.UniqueSessionReportOptions): VideoReportRequest;
     download: (videoId: string, options?: Rev.RequestOptions) => Promise<Rev.Response<ReadableStream<any>>>;
     downloadChapter: (chapter: Video.Chapter) => Promise<Blob>;
     downloadSupplemental: {
@@ -2763,6 +2842,7 @@ declare function videoAPIFactory(rev: RevClient): {
      * @param customField - the custom field object (with id and value)
      */
     setCustomField(videoId: string, customField: Pick<Admin.CustomField, 'id' | 'value'>): Promise<void>;
+    delete(videoId: string): Promise<void>;
     /**
      * get processing status of a video
      * @param videoId
@@ -2785,6 +2865,10 @@ declare function videoAPIFactory(rev: RevClient): {
     /**
      * Example of using the video search API to search for videos, then getting
      * the details of each video
+     * @deprecated This method can cause timeouts if iterating through a very
+     *             large number of results, as the search scroll cursor has a
+     *             timeout of ~5 minutes. Consider getting all search results
+     *             first, then getting details
      * @param query
      * @param options
      */
@@ -2829,11 +2913,12 @@ declare function webcastAPIFactory(rev: RevClient): {
     delete(eventId: string): Promise<void>;
     editAccess(eventId: string, entities: Webcast.EditAttendeesRequest): Promise<void>;
     attendees(eventId: string, runNumber?: number, options?: Rev.SearchOptions<Webcast.PostEventSession>): PostEventReportRequest;
-    realtimeAttendees<T extends Webcast.RealtimeRequest | undefined>(eventId: string, query?: T | undefined, options?: Rev.SearchOptions<RealtimeSession<T>> | undefined): RealtimeReportRequest<RealtimeSession<T>>;
+    realtimeAttendees<T extends Webcast.RealtimeRequest | undefined>(eventId: string, query?: T, options?: Rev.SearchOptions<RealtimeSession<T>>): RealtimeReportRequest<RealtimeSession<T>>;
     questions(eventId: string, runNumber?: number): Promise<Webcast.Question[]>;
     pollResults(eventId: string, runNumber?: number): Promise<Webcast.PollResults[]>;
     comments(eventId: string, runNumber?: number): Promise<Webcast.Comment[]>;
     status(eventId: string): Promise<Webcast.Status>;
+    isPublic(eventId: string): Promise<boolean>;
     playbackUrls(eventId: string, { ip, userAgent }?: Webcast.PlaybackUrlRequest, options?: Rev.RequestOptions): Promise<Webcast.PlaybackUrlsResponse>;
     /**
      * @deprecated
