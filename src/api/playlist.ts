@@ -17,7 +17,7 @@ export default function playlistAPIFactory(rev: RevClient) {
             return playlistId;
         },
         async details(playlistId: string, query: { count?: number }): Promise<Playlist.DetailsResponse> {
-            return rev.get(`/api/v2/playlists/${playlistId}`, query);
+            return rev.get(`/api/v2/playlists/${playlistId}`, query, { responseType: 'json' });
         },
         listVideos(playlistId: string, query: { count?: number }, options?: Rev.SearchOptions<Video.Details>)  {
             return new PlaylistDetailsRequest(rev, playlistId, query, options);
@@ -47,15 +47,24 @@ export default function playlistAPIFactory(rev: RevClient) {
         async list(): Promise<Playlist.List> {
             // ensure raw response is in consistent format
             function parsePlaylist(entry: Record<string, string> & { videos: any; }): Playlist {
+                const {
+                    id,
+                    playlistId,
+                    featurePlaylistId,
+                    featuredPlaylist,
+                    name,
+                    playlistName,
+                    ...extra
+                } = entry;
                 return {
-                    id: entry.id ?? entry.playlistId ?? entry.featurePlaylistId ?? entry.featuredPlaylist,
-                    name: entry.name ?? entry.playlistName,
-                    playbackUrl: entry.playbackUrl,
-                    videos: entry.videos ?? entry.Videos as any
+                    ...(extra as any),
+                    id: id ?? playlistId ?? featurePlaylistId ?? featuredPlaylist,
+                    name: name ?? playlistName,
+                    videos: entry.videos ?? entry.Videos as any,
                 };
             }
 
-            const rawResult = await rev.get('/api/v2/playlists', { responseType: 'json' });
+            const rawResult = await rev.get('/api/v2/playlists', undefined, { responseType: 'json' });
             // rawResult may return in strange format, so cleanup and return consistent output
 
             const hasFeatured = !Array.isArray(rawResult);

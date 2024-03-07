@@ -1497,7 +1497,7 @@ function playlistAPIFactory(rev) {
       return playlistId;
     },
     async details(playlistId, query) {
-      return rev.get(`/api/v2/playlists/${playlistId}`, query);
+      return rev.get(`/api/v2/playlists/${playlistId}`, query, { responseType: "json" });
     },
     listVideos(playlistId, query, options) {
       return new PlaylistDetailsRequest(rev, playlistId, query, options);
@@ -1523,14 +1523,23 @@ function playlistAPIFactory(rev) {
      */
     async list() {
       function parsePlaylist(entry) {
+        const {
+          id,
+          playlistId,
+          featurePlaylistId,
+          featuredPlaylist,
+          name,
+          playlistName,
+          ...extra
+        } = entry;
         return {
-          id: entry.id ?? entry.playlistId ?? entry.featurePlaylistId ?? entry.featuredPlaylist,
-          name: entry.name ?? entry.playlistName,
-          playbackUrl: entry.playbackUrl,
+          ...extra,
+          id: id ?? playlistId ?? featurePlaylistId ?? featuredPlaylist,
+          name: name ?? playlistName,
           videos: entry.videos ?? entry.Videos
         };
       }
-      const rawResult = await rev.get("/api/v2/playlists", { responseType: "json" });
+      const rawResult = await rev.get("/api/v2/playlists", void 0, { responseType: "json" });
       const hasFeatured = !Array.isArray(rawResult);
       const rawPlaylists = hasFeatured ? rawResult.playlists : rawResult;
       const output = {
