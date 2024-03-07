@@ -533,7 +533,7 @@ export namespace Video {
     }
 
     export namespace Transcription {
-        export type SupportedLanguages = LiteralString<'de' | 'en' | 'en-gb' | 'es-es' | 'es-419' | 'es' | 'fr' | 'fr-ca' | 'id' | 'it' | 'ko' | 'ja' | 'nl' | 'no' | 'pl' | 'pt' | 'pt-br' | 'th' | 'tr' | 'fi' | 'sv' | 'ru' | 'el' | 'zh' | 'zh-tw' | 'zh-cmn-hans'>
+        export type SupportedLanguages = LiteralString<"da" | "de" | "el" | "en" | "en-gb" | "es" | "es-419" | "es-es" | "fi" | "fr" | "fr-ca" | "id" | "it" | "ja" | "ko" | "nl" | "no" | "pl" | "pt" | "pt-br" | "ru" | "sv" | "th" | "tr" | "zh" | "zh-tw" | "zh-cmn-hans" | "cs" | "en-au" | "hi" | "lt" | "so" | "hmn" | "my" | "cnh" | "kar" | "ku-kmr" | "ne" | "sw" | "af" | "sq" | "am" | "az" | "bn" | "bs" | "bg" | "hr" | "et" | "ka" | "ht" | "ha" | "hu" | "lv" | "ms" | "ro" | "sr" | "sk" | "sl" | "tl" | "ta" | "uk" | "vi">
     }
 
     export namespace Search {
