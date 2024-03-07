@@ -64,7 +64,8 @@ export default function webcastAPIFactory(rev: RevClient) {
         },
         async pollResults(eventId: string, runNumber?: number): Promise<Webcast.PollResults[]> {
             const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
-            return rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: 'json' });
+            const {polls} = await rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: 'json' });
+            return polls;
         },
         async comments(eventId: string, runNumber?: number): Promise<Webcast.Comment[]> {
             const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
