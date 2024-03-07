@@ -1,21 +1,33 @@
 import type { RevClient } from '../rev-client';
+import { Rev, Video } from '../types';
 import type { Playlist } from '../types/playlist';
 import { isPlainObject } from '../utils';
+import { SearchRequest } from '../utils/request-utils';
+import { PlaylistDetailsRequest } from './playlist-details-request';
 
 export default function playlistAPIFactory(rev: RevClient) {
     const playlistAPI = {
-        async create(name: string, videoIds: string[]): Promise<string> {
-            const payload = {
-                name,
-                videoIds
-            };
+        async create(name: string, videos: string[] | Video.SearchOptions): Promise<string> {
+            const isStatic = Array.isArray(videos);
+            const payload = isStatic
+                ? { name, playlistType: 'Static', videoIds: videos }
+                : { name, playlistType: 'Dynamic', playlistDetails: videos };
+
             const { playlistId } = await rev.post('/api/v2/playlists', payload, { responseType: 'json' });
             return playlistId;
         },
-        async update(playlistId: string, actions: Playlist.UpdateAction[]): Promise<void> {
-            const payload = {
-                playlistVideoDetails: actions
-            };
+        async details(playlistId: string, query: { count?: number }): Promise<Playlist.DetailsResponse> {
+            return rev.get(`/api/v2/playlists/${playlistId}`, query);
+        },
+        listVideos(playlistId: string, query: { count?: number }, options?: Rev.SearchOptions<Video.Details>)  {
+            return new PlaylistDetailsRequest(rev, playlistId, query, options);
+        },
+        async update(playlistId: string, actions: Playlist.UpdateAction[] | Video.SearchOptions): Promise<void> {
+            const isStatic = Array.isArray(actions);
+            const payload = isStatic
+                ? { playlistVideoDetails: actions }
+                : { playlistDetails: actions };
+
             return rev.put(`/api/v2/playlists/${playlistId}`, payload);
         },
         async updateFeatured(actions: Playlist.UpdateAction[]): Promise<void> {

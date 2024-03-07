@@ -1,11 +1,18 @@
+import { LiteralString } from './rev';
+import {Video} from './video';
+
 export interface Playlist {
     id: string;
     name: string;
     playbackUrl: string;
-    videos: Playlist.Video[];
+    playlistType?: Playlist.PlaylistTypeEnum;
+    videos?: Playlist.Video[];
+    playlistDetails?: Video.SearchOptions;
 }
 
 export namespace Playlist {
+    export type PlaylistTypeEnum = LiteralString<'Static' | 'Dynamic'>
+
     export interface List {
         featuredPlaylist?: Playlist;
         playlists: Playlist[];
@@ -29,5 +36,13 @@ export namespace Playlist {
          * Action to be taken - Add or Remove.
          */
         action: "Add" | "Remove";
+    }
+    export interface DetailsResponse {
+        playlistId: string;
+        playlistType: PlaylistTypeEnum;
+        playlistDetails: Playlist;
+        videos: Video.Details[];
+        scrollId?: string;
+        totalVideos?: string;
     }
 }
