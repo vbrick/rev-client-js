@@ -474,6 +474,8 @@ The ID of the video
 #### `user.getByEmail(email)`
 #### `user.addToGroup(userId, groupId)` - Add a user to the specified Group
 #### `user.removeFromGroup(userId, groupId)` - Remove a user from the specified Group
+#### `user.suspend(userId)` - Use Patch API to suspend user
+#### `user.unsuspend(userId)` - Use Patch API to unsuspend user
 #### `user.search(searchText, options?)`
 
 **NOTE:** The response from this endpoint is remapped from the raw API results - it returns camelCase instead of PascalCase (`{userId: string, firstname: string, profileImageUri: string, entityType: string }` instead of `{Id: string, FirstName: string, ProfileImageUri: string, EntityType: string}`. See [the typescript interface](./src/types/user.ts#23) for details.
@@ -512,7 +514,14 @@ The ID of the video
 #### `video.revokeExternalAccess(videoId, {emails})`
 #### `video.waitTranscode(videoId, options?)` - wait for a video to finish transcoding
 #### `video.trim(videoId, removedSegments)`
+#### `video.convertDualStreamToSwitched(videoId)`
 #### `video.patch(videoId, operations)`
+#### `video.report({ videoIds?, startDate?, endDate?, sortDirection? })` - Get Video Report
+
+**NOTE:** The API only allows searching for 12 months of data at a time. This wrapper function will split up the requests to allow for a larger range of days.
+
+#### `video.uniqueSessionsReport(videoId, { userId?, startDate?, endDate?, sortDirection? })`
+
 #### `video.search(query?, options?)` - Search for videos
 
 ##### Options
@@ -565,6 +574,7 @@ for await (let video of request) {
 #### `webcast.pollResults(eventId, runNumber?)`
 #### `webcast.comments(eventId, runNumber?)`
 #### `webcast.status(eventId)`
+#### `webcast.isPublic(eventId)` - returns `true`/`false`
 #### `webcast.playbackUrls(eventId, options?, requestOptions?)`
 #### `webcast.playbackUrl(eventId, options?)` **DEPRECATED** - use `webcast.playbackUrls`
 #### `webcast.startEvent(eventId, preProduction?)`

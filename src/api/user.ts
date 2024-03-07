@@ -103,6 +103,14 @@ export default function userAPIFactory(rev: RevClient) {
             ];
             await rev.patch(`/api/v2/users/${userId}`, operations);
         },
+        async suspend(userId: string) {
+            const operations = [{ op: 'replace', path: '/ItemStatus', value: 'Suspended' }];
+            await rev.patch(`/api/v2/users/${userId}`, operations);
+        },
+        async unsuspend(userId: string) {
+            const operations = [{ op: 'replace', path: '/ItemStatus', value: 'Active' }];
+            await rev.patch(`/api/v2/users/${userId}`, operations);
+        },
         /**
          * search for users based on text query. Leave blank to return all users.
          *

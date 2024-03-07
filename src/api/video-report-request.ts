@@ -79,8 +79,10 @@ function parseDates(startArg: string | Date | undefined, endArg: string | Date |
 export class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
     declare options: Required<ReturnType<typeof parseOptions>>;
     private _rev: RevClient;
-    constructor(rev: RevClient, options: Video.VideoReportOptions = {}) {
+    private _endpoint: string;
+    constructor(rev: RevClient, options: Video.VideoReportOptions = {}, endpoint = "/api/v2/videos/report") {
         super(parseOptions(options));
+        this._endpoint = endpoint;
 
         this._rev = rev;
     }
@@ -116,7 +118,7 @@ export class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
         if (videoIds) {
             query.videoIds = videoIds;
         }
-        const items: Video.VideoReportEntry[] = await this._rev.get("/api/v2/videos/report", query, { responseType: "json" });
+        const items: Video.VideoReportEntry[] = await this._rev.get(this._endpoint, query, { responseType: "json" });
 
         // go to next date range
         if (!done) {
@@ -150,9 +152,12 @@ export function videoReportAPI(rev: RevClient) {
                 videoIds: videoId
             };
         }
-        return new VideoReportRequest(rev, options);
+        return new VideoReportRequest(rev, options, '/api/v2/videos/report');
     }
     return {
-        report
+        report,
+        uniqueSessionsReport(videoId: string, options: Video.UniqueSessionReportOptions = {}) {
+            return new VideoReportRequest(rev, options, `/api/v2/videos/${videoId}/report`);
+        }
     };
 }

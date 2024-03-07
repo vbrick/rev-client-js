@@ -22,7 +22,6 @@ export namespace Video {
         IsMulticast: boolean;
     }
 
-
     export interface SearchHit {
         id: string;
         title: string;
@@ -454,6 +453,14 @@ export namespace Video {
     }
     export interface VideoReportOptions extends Rev.SearchOptions<VideoReportEntry> {
         videoIds?: string | string[] | undefined;
+        startDate?: string;
+        endDate?: string;
+        incrementDays?: number;
+        sortDirection?: Rev.SortDirection;
+    }
+
+    export interface UniqueSessionReportOptions extends Rev.SearchOptions<VideoReportEntry> {
+        userId?: string;
         startDate?: string;
         endDate?: string;
         incrementDays?: number;

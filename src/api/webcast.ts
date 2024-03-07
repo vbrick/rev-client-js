@@ -74,6 +74,10 @@ export default function webcastAPIFactory(rev: RevClient) {
         async status(eventId: string): Promise<Webcast.Status> {
             return rev.get(`/api/v2/scheduled-events/${eventId}/status`);
         },
+        async isPublic(eventId: string): Promise<boolean> {
+            const response = await rev.request('GET', `/api/v2/scheduled-events/${eventId}/is-public`, undefined, { throwHttpErrors: false, responseType: 'json' });
+            return response.statusCode !== 401 && response.body?.isPublic;
+        },
         async playbackUrls(eventId: string, {ip, userAgent}: Webcast.PlaybackUrlRequest = { }, options?: Rev.RequestOptions): Promise<Webcast.PlaybackUrlsResponse> {
             const query = ip ? { ip } : undefined;
 

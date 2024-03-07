@@ -113,6 +113,10 @@ export default function videoAPIFactory(rev: RevClient) {
         /**
          * Example of using the video search API to search for videos, then getting
          * the details of each video
+         * @deprecated This method can cause timeouts if iterating through a very
+         *             large number of results, as the search scroll cursor has a
+         *             timeout of ~5 minutes. Consider getting all search results
+         *             first, then getting details
          * @param query
          * @param options
          */
@@ -165,6 +169,10 @@ export default function videoAPIFactory(rev: RevClient) {
         async trim(videoId: string, removedSegments: Array<{ start: string, end: string }>) {
             await rev.session.queueRequest(RateLimitEnum.UploadVideo);
             return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);
+        },
+        async convertDualStreamToSwitched(videoId: string) {
+            await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
+            return rev.put<void>(`/api/v2/videos/${videoId}/convert-dual-streams-to-switched-stream`);
         },
         async patch(videoId: string, operations: Rev.PatchOperation[]) {
             await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
