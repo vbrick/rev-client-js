@@ -91,20 +91,8 @@ export default function uploadAPIFactory(rev: RevClient) {
         async transcription(videoId: string, file: Rev.FileUploadType, language: Video.Transcription.SupportedLanguages = 'en', options: TranscriptionOptions = { }): Promise<void> {
             const { uploadOptions, requestOptions } = splitOptions(options);
 
-            // validate language
-            // TODO put this in a constants file somewhere
-            const supportedLanguages = ['de', 'en', 'en-gb', 'es-es', 'es-419', 'es', 'fr', 'fr-ca', 'id', 'it', 'ko', 'ja', 'nl', 'no', 'pl', 'pt', 'pt-br', 'th', 'tr', 'fi', 'sv', 'ru', 'el', 'zh', 'zh-tw', 'zh-cmn-hans'];
-
-            let lang = language.toLowerCase();
-            if (!supportedLanguages.includes(lang)) {
-                // try removing trailing language specifier
-                lang = lang.slice(2);
-                if (!supportedLanguages.includes(lang)) {
-                    throw new TypeError(`Invalid language ${language} - supported values are ${supportedLanguages.join(', ')}`);
-                }
-            }
-
             const form = new FormData();
+            const lang = language.toLowerCase();
 
             const filePayload = await appendFileToForm(form, 'File', file, uploadOptions);
             const metadata = {
