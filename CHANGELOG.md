@@ -1,3 +1,16 @@
+## 0.20.0
+
+### **Breaking Changes**
+* Require node v18 or higher. Removes `node-fetch` dependency.
+
+### Features
+* Add Rev 7.56 + 7.57 APIs
+* Add dynamic playlist API support
+
+### Bugfixes
+* Don't block transcription uploads if language isn't recognized
+* webcast.pollResults: return array instead of {polls: array}
+
 ## 0.17.1
 
 ### Features
