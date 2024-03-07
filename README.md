@@ -366,6 +366,9 @@ These calls are called automatically by the `RevClient` instance, but they're in
 #### `channel.list(start?, options?)`
 #### `channel.addMembers(channelId, members)`
 #### `channel.removeMembers(channelId, members)`
+#### `channel.search(searchText?, {type?, assignable?})`
+
+Wrapper around the [Search Users,Groups and Channels](https://revdocs.vbrick.com/reference/searchaccessentity) API. If `options.assignable: true` then restrict to only assignable entities. `options.type` defaults to `Channel` to just return channels
 
 ### [Devices](https://revdocs.vbrick.com/reference/devices)
 
@@ -474,6 +477,8 @@ The ID of the video
 #### `user.search(searchText, options?)`
 
 **NOTE:** The response from this endpoint is remapped from the raw API results - it returns camelCase instead of PascalCase (`{userId: string, firstname: string, profileImageUri: string, entityType: string }` instead of `{Id: string, FirstName: string, ProfileImageUri: string, EntityType: string}`. See [the typescript interface](./src/types/user.ts#23) for details.
+
+**NOTE:** set `options.assignable` to `true` to use the "Search assignable Users/Groups/Channels" instead of searching for all users
 
 #### `user.listSubscriptions()`
 #### `user.subscribe(id, type)`

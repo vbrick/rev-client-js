@@ -8,4 +8,16 @@ export namespace AccessControl {
         canEdit: boolean;
     }
 
+    export type EntitySearchType = Exclude<AccessControl.EntityType, 'Role'>
+
+    export interface SearchHit {
+        EntityType: EntitySearchType;
+        Id: string;
+        Name?: string;
+        UserName?: string;
+        FirstName?: string;
+        LastName?: string;
+        Email?: string;
+        ProfileImageUri?: string;
+    }
 }

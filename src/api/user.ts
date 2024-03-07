@@ -109,9 +109,12 @@ export default function userAPIFactory(rev: RevClient) {
          * @param {string} [searchText]
          * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
          */
-        search(searchText?: string, options: Rev.SearchOptions<User.SearchHit> = { }): SearchRequest<User.SearchHit> {
+        search(searchText?: string, options: Rev.AccessEntitySearchOptions<User.SearchHit> = { }): SearchRequest<User.SearchHit> {
+            const {
+                assignable = false
+            } = options;
             const searchDefinition = {
-                endpoint: '/api/v2/search/access-entity',
+                endpoint: `/api/v2/search/access-entity${assignable ? '/assignable' : ''}`,
                 totalKey: 'totalEntities',
                 hitsKey: 'accessEntities',
                 /**

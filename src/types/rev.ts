@@ -145,6 +145,13 @@ export namespace Rev {
         onScrollError?: (err: ScrollError) => void;
     }
 
+    export interface AccessEntitySearchOptions<T> extends SearchOptions<T> {
+        // type?: LiteralString<'User' | 'Group' | 'Channel'>;
+        assignable?: boolean;
+        // count?: number;
+        // transformResult?: boolean;
+    }
+
     export interface SearchDefinition<T = any, RawType = any> {
         endpoint: string,
         totalKey: string,
