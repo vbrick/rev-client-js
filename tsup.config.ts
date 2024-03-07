@@ -42,18 +42,6 @@ export default defineConfig((options) => {
             ...commonConfig
         },
         {
-            ...fileEntry('src/index-node18.ts', pkg.exports['./native-fetch'].node.import),
-            format: 'esm',
-            platform: 'node',
-            ...commonConfig
-        },
-        {
-            ...fileEntry('src/index-node18.ts', pkg.exports['./native-fetch'].node.require),
-            format: 'cjs',
-            platform: 'node',
-            ...commonConfig
-        },
-        {
             ...fileEntry('src/index.ts', pkg.exports['./iife']),
             format: 'iife',
             platform: 'browser',
