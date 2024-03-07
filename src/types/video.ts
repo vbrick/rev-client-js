@@ -7,9 +7,13 @@ export namespace Video {
     export type EncodingType = LiteralString<"H264" | "HLS" | "HDS" | "H264TS" | "Mpeg4" | "Mpeg2" | "WM" | "Flash" | "RTP">;
     export type ExpirationAction = LiteralString<'Delete' | 'Inactivate'>;
     export type ExpiryRule = LiteralString<'None' | 'DaysAfterUpload' | 'DaysWithoutViews'>;
-    export type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
+
     export type SourceType = LiteralString<'REV' | 'WEBEX' | 'API' | 'VIDEO CONFERENCE' | 'WebexLiveStream' | 'LiveEnrichment'>
     export type VideoType = LiteralString<"Live" | "Vod">;
+
+    export type SortFieldEnum = LiteralString<"duration" | "lastViewed" | "ownerName" | "title" | "uploaderName" | "viewCount" | "whenUploaded" | "_score">
+
+    export type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
 
     export interface LinkedUrl {
         Url: string;
@@ -318,6 +322,8 @@ export namespace Video {
     export interface SearchOptions {
         /** text to search for */
         q?: string;
+        /** specific videoIds to search for */
+        videoIds?: string | string[];
         /**
          * live or vod videos
          */
@@ -357,7 +363,7 @@ export namespace Video {
          */
         recommendedFor?: string;
 
-        sortField?: LiteralString<'title' | 'whenUploaded' | 'uploaderName' | 'duration' | '_score'>;
+        sortField?: SortFieldEnum;
         sortDirection?: Rev.SortDirection;
 
         /**
@@ -444,6 +450,7 @@ export namespace Video {
         eCDNTime?: string;
         viewingStartTime: string;
         viewingEndTime: string;
+        userId: string;
     }
     export interface VideoReportOptions extends Rev.SearchOptions<VideoReportEntry> {
         videoIds?: string | string[] | undefined;

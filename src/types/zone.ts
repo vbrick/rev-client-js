@@ -37,7 +37,7 @@ export namespace Zone {
         id?: string;
         parentZoneId?: string;
         ipAddresses?: string[];
-        ipAddressRanges?: Array<{ start: string, end: string; }>;
+        ipAddressRanges?: Array<{ start: string, end: string; cidr?: string } | { start?: string, end?: string; cidr: string }>;
         targetDevices?: TargetDeviceRequest[];
         supportsMulticast?: boolean;
         overrideAccountSlideDelay?: boolean;
