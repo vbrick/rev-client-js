@@ -495,6 +495,7 @@ The ID of the video
 #### `video.status(videoId)`
 #### `video.details(videoId)`
 #### `video.upload(file, metadata, options?)` - alias to `upload.video()`
+#### `video.delete(videoId)`
 #### `video.playbackInfo(videoId)` - Get Playback Url *(basic info about video)*
 #### `video.playbackUrls(videoId, options?, requestOptions?)`
 #### `video.comments(videoId)`
