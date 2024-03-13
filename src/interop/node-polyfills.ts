@@ -1,9 +1,13 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { createHmac, randomBytes, createHash } from 'node:crypto';
+import fs from 'fs';
+import path from 'path';
+import { createHmac, randomBytes, createHash } from 'crypto';
+import { promisify } from 'util';
+import fetch, { Headers, Request, Response } from 'node-fetch';
+import FormData, { AppendOptions } from 'form-data';
 import { isBlobLike, isReadable } from '../utils';
-import type { FileUploadPayloadInternal } from '../utils/file-utils';
 import type { Rev } from '../types/rev';
+import type { FileUploadPayloadInternal } from '../utils/file-utils';
+import { AbortSignal, AbortController } from 'node-abort-controller';
 import polyfills from '.';
 
 async function getLengthFromStream(source: Record<string, any>) {
@@ -117,18 +121,26 @@ async function appendFileToForm(form: FormData, fieldName: string, payload: File
             contentLength
         }
     } = payload;
-    const appendOptions: any = { filename, contentType };
+    const appendOptions: AppendOptions = { filename, contentType };
     if (contentLength) {
         appendOptions.knownLength = contentLength;
     }
 
-    form.append(fieldName, file as any, appendOptions);
+    form.append(fieldName, file, appendOptions);
 }
 
 async function prepareUploadHeaders(form: FormData, headers: Headers, useChunkedTransfer: boolean = false) {
-    if (useChunkedTransfer) {
+    const totalBytes: number = useChunkedTransfer
+        ? 0
+        : await promisify(form.getLength).call(form).catch(() => 0) as number;
+
+    if (totalBytes > 0) {
+        headers.set('content-length', `${totalBytes}`);
+    } else {
         headers.set('transfer-encoding', 'chunked');
         headers.delete('content-length');
+        // HACK - node-fetch force attempts to get length from form-data. This is to keep it from setting the content-length header
+        // form.getLengthSync = () => null;
     }
 }
 

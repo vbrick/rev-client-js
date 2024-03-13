@@ -17,8 +17,8 @@
     },
     "./native-fetch": {
       "node": {
-        "import": "./dist/es/rev-client.mjs",
-        "require": "./dist/node/rev-client.cjs"
+        "import": "./dist/es18/rev-client.mjs",
+        "require": "./dist/node18/rev-client.cjs"
       },
       "default": "./dist/rev-client.js"
     },
@@ -41,7 +41,13 @@
   "license": "MIT",
   "repository": "github:vbrick/rev-client-js",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=16.0.0"
+  },
+  "dependencies": {
+    "fetch-blob": "^3.1.2",
+    "form-data": "^3.0.1",
+    "node-abort-controller": "^3.0.0",
+    "node-fetch": "^2.6.1"
   },
   "devDependencies": {
     "@types/node": "^18.16.0",
