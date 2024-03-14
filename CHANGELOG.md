@@ -1,11 +1,12 @@
-## 0.20.0
+## 0.20.1
 
-### **Breaking Changes**
-* Require node v18 or higher. Removes `node-fetch` dependency.
+### **Possible Breaking Changes**
+* Require node v18 or higher.
 
 ### Features
 * Add Rev 7.56 + 7.57 APIs
 * Add dynamic playlist API support
+* **Node.js** - Add ability to set preference for a Web Stream `ReadableStream` or the NodeJS `Readable` stream when using `responseType: 'stream'` -- usually only used for video downloads. This is for future compatibility changes when shifting from `node-fetch` to native nodejs `fetch` as the default.
 
 ### Bugfixes
 * Don't block transcription uploads if language isn't recognized
