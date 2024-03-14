@@ -97,6 +97,12 @@ var interop_default = {
     form.append(fieldName, file, filename);
   },
   async prepareUploadHeaders(form, headers, useChunkedTransfer) {
+  },
+  asPlatformStream(stream) {
+    return stream;
+  },
+  asWebStream(stream) {
+    return stream;
   }
 };
 
@@ -2082,27 +2088,29 @@ function videoReportAPI(rev) {
 function videoDownloadAPI(rev) {
   async function download(videoId, options = {}) {
     const response = await rev.request("GET", `/api/v2/videos/${videoId}/download`, void 0, {
-      ...options,
-      responseType: "stream"
+      responseType: "stream",
+      ...options
     });
     return response;
   }
-  async function downloadChapter(chapter) {
+  async function downloadChapter(chapter, options = {}) {
     const { imageUrl } = chapter;
-    const { body } = await rev.request("GET", imageUrl, void 0, { responseType: "blob" });
+    const { body } = await rev.request("GET", imageUrl, void 0, { responseType: "blob", ...options });
     return body;
   }
-  async function downloadSupplemental(videoId, fileId) {
+  async function downloadSupplemental(videoId, fileId, options) {
     const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/supplemental-files/${fileId}`;
-    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob" });
+    const opts = isPlainObject(fileId) ? fileId : options;
+    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob", ...opts });
     return body;
   }
-  async function downloadTranscription(videoId, language) {
+  async function downloadTranscription(videoId, language, options) {
     const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/transcription-files/${language}`;
-    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob" });
+    const opts = isPlainObject(language) ? language : options;
+    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob", ...opts });
     return body;
   }
-  async function downloadThumbnail(query) {
+  async function downloadThumbnail(query, options = {}) {
     let {
       videoId = "",
       imageId = ""
@@ -2116,7 +2124,7 @@ function videoDownloadAPI(rev) {
       imageId = `${imageId}.jpg`;
     }
     let thumbnailUrl = imageId.startsWith("http") ? imageId : `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
-    const { body } = await rev.request("GET", thumbnailUrl, void 0, { responseType: "blob" });
+    const { body } = await rev.request("GET", thumbnailUrl, void 0, { responseType: "blob", ...options });
     return body;
   }
   return {
@@ -3182,6 +3190,7 @@ var RevClient = class {
       keepAlive = true,
       // NOTE default to false rate limiting for now. In future this may change
       rateLimits = false,
+      defaultStreamPreference = "stream",
       ...credentials
     } = options;
     const urlObj = new URL(url);
@@ -3196,6 +3205,7 @@ var RevClient = class {
         log(severity, ...args);
       };
     }
+    this._streamPreference = defaultStreamPreference;
     Object.defineProperties(this, {
       admin: { value: adminAPIFactory(this), writable: false },
       // NOTE rate limiting option passed into api factory since its
@@ -3320,7 +3330,23 @@ var RevClient = class {
         body = await response.blob();
         break;
       case "stream":
+        switch (this._streamPreference) {
+          case "webstream":
+            body = interop_default.asWebStream(response.body);
+            break;
+          case "nativestream":
+            body = interop_default.asPlatformStream(response.body);
+            break;
+          default:
+            body = response.body;
+        }
         body = response.body;
+        break;
+      case "webstream":
+        body = interop_default.asWebStream(response.body);
+        break;
+      case "nativestream":
+        body = interop_default.asPlatformStream(response.body);
         break;
       default:
         body = await decodeBody(response, headers.get("Accept"));

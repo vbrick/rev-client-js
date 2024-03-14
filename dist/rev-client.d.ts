@@ -1,3 +1,63 @@
+type CacheOption = boolean | 'Force';
+declare function adminAPIFactory(rev: RevClient): {
+    /**
+    * get mapping of role names to role IDs
+    * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
+    */
+    roles(cache?: CacheOption): Promise<Role.Details[]>;
+    /**
+    * Get a Role (with the role id) based on its name
+    * @param name Name of the Role OR RoleType. You can specify the specific enum value (preferred, only Rev 7.53+), or the localized string value in the current user's language, i.e. "Media Viewer" for english
+    * @param fromCache - if true then use previously cached Role listing (more efficient)
+    */
+    getRoleByName(name: Role.RoleType | Role.RoleName, fromCache?: CacheOption): Promise<Role>;
+    /**
+    * get list of custom fields
+    * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
+    */
+    customFields(cache?: CacheOption): Promise<Admin.CustomField[]>;
+    /**
+    * Get a Custom Field based on its name
+    * @param name name of the Custom Field
+    * @param fromCache if true then use previously cached Role listing (more efficient)
+    */
+    getCustomFieldByName(name: string, fromCache?: CacheOption): Promise<Admin.CustomField>;
+    brandingSettings(): Promise<Admin.BrandingSettings>;
+    webcastRegistrationFields(): Promise<RegistrationField & {
+        id: string;
+    }>;
+    createWebcastRegistrationField(registrationField: RegistrationField.Request): Promise<string>;
+    updateWebcastRegistrationField(fieldId: string, registrationField: Partial<RegistrationField.Request>): Promise<void>;
+    deleteWebcastRegistrationField(fieldId: string): Promise<void>;
+    listIQCreditsUsage(query: {
+        startDate?: string | Date;
+        endDate?: string | Date;
+    }, options?: Rev.SearchOptions<Admin.IQCreditsSession>): Rev.ISearchRequest<Admin.IQCreditsSession>;
+    /**
+    * get system health - returns 200 if system is active and responding, otherwise throws error
+    */
+    verifySystemHealth(): Promise<boolean>;
+    /**
+    * gets list of scheduled maintenance windows
+    */
+    maintenanceSchedule(): Promise<{
+        start: string;
+        end: string;
+    }[]>;
+    /**
+     * gets the user location service URL
+     */
+    userLocationService(): Promise<{
+        enabled: boolean;
+        locationUrls: string[];
+    }>;
+    /**
+     * returns an array of all expiration rules
+     */
+    expirationRules(): Promise<Admin.ExpirationRule[]>;
+    featureSettings(videoId?: string): Promise<Admin.FeatureSettings>;
+};
+
 declare enum RateLimitEnum {
     Get = "get",
     Post = "post",
@@ -120,6 +180,7 @@ type LiteralString<T> = T | (string & Record<never, never>);
 type FetchResponse = Response;
 declare namespace Rev {
     type HTTPMethod = LiteralString<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD'>;
+    type ResponseType = LiteralString<'json' | 'text' | 'blob' | 'stream' | 'webstream' | 'nativestream'>;
     type PatchOperation = {
         op: 'add' | 'remove' | 'replace';
         path: string;
@@ -183,6 +244,13 @@ declare namespace Rev {
          */
         keepAlive?: boolean | KeepAliveOptions;
         rateLimits?: boolean | Rev.RateLimits;
+        /**
+         * Specify the default response type for streaming responses
+         * 'stream': whatever underlying library returns (NodeJS Readable for node-fetch, ReadableStream otherwise)
+         * 'webstream': always return a ReadableStream
+         * 'nativestream': always return native stream type (NodeJS Readable on NodeJS, ReadableStream otherwise)
+         */
+        defaultStreamPreference?: 'stream' | 'webstream' | 'nativestream';
     }
     type RateLimits = {
         [K in RateLimitEnum]?: number;
@@ -206,7 +274,7 @@ declare namespace Rev {
         /**
          * specify body type when decoding. Use 'stream' to skip parsing body completely
          */
-        responseType?: 'json' | 'text' | 'blob' | 'stream';
+        responseType?: ResponseType;
         /**
          * whether to throw errors or not for HTTP error response codes.
          * @default true
@@ -2282,82 +2350,6 @@ declare namespace RegistrationField {
     }
 }
 
-/**
- * Interface to iterate through results from API endpoints that return results in pages.
- * Use in one of three ways:
- * 1) Get all results as an array: await request.exec() == <array>
- * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
- * 3) Use for await to get all results one at a time: for await (let hit of request) { }
- */
-declare class SearchRequest<T> extends PagedRequest<T> {
-    options: Required<Rev.SearchOptions<T>>;
-    private query;
-    private _reqImpl;
-    constructor(rev: RevClient, searchDefinition: Rev.SearchDefinition<T>, query?: Record<string, any>, options?: Rev.SearchOptions<T>);
-    protected _requestPage(): Promise<IPageResponse<T>>;
-    private _buildReqFunction;
-}
-
-type CacheOption = boolean | 'Force';
-declare function adminAPIFactory(rev: RevClient): {
-    /**
-    * get mapping of role names to role IDs
-    * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
-    */
-    roles(cache?: CacheOption): Promise<Role.Details[]>;
-    /**
-    * Get a Role (with the role id) based on its name
-    * @param name Name of the Role OR RoleType. You can specify the specific enum value (preferred, only Rev 7.53+), or the localized string value in the current user's language, i.e. "Media Viewer" for english
-    * @param fromCache - if true then use previously cached Role listing (more efficient)
-    */
-    getRoleByName(name: Role.RoleType | Role.RoleName, fromCache?: CacheOption): Promise<Role>;
-    /**
-    * get list of custom fields
-    * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
-    */
-    customFields(cache?: CacheOption): Promise<Admin.CustomField[]>;
-    /**
-    * Get a Custom Field based on its name
-    * @param name name of the Custom Field
-    * @param fromCache if true then use previously cached Role listing (more efficient)
-    */
-    getCustomFieldByName(name: string, fromCache?: CacheOption): Promise<Admin.CustomField>;
-    brandingSettings(): Promise<Admin.BrandingSettings>;
-    webcastRegistrationFields(): Promise<RegistrationField & {
-        id: string;
-    }>;
-    createWebcastRegistrationField(registrationField: RegistrationField.Request): Promise<string>;
-    updateWebcastRegistrationField(fieldId: string, registrationField: Partial<RegistrationField.Request>): Promise<void>;
-    deleteWebcastRegistrationField(fieldId: string): Promise<void>;
-    listIQCreditsUsage(query: {
-        startDate?: string | Date;
-        endDate?: string | Date;
-    }, options?: Rev.SearchOptions<Admin.IQCreditsSession>): SearchRequest<Admin.IQCreditsSession>;
-    /**
-    * get system health - returns 200 if system is active and responding, otherwise throws error
-    */
-    verifySystemHealth(): Promise<boolean>;
-    /**
-    * gets list of scheduled maintenance windows
-    */
-    maintenanceSchedule(): Promise<{
-        start: string;
-        end: string;
-    }[]>;
-    /**
-     * gets the user location service URL
-     */
-    userLocationService(): Promise<{
-        enabled: boolean;
-        locationUrls: string[];
-    }>;
-    /**
-     * returns an array of all expiration rules
-     */
-    expirationRules(): Promise<Admin.ExpirationRule[]>;
-    featureSettings(videoId?: string): Promise<Admin.FeatureSettings>;
-};
-
 declare class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
     options: Required<Omit<Audit.Options<T>, 'toDate' | 'fromDate'>>;
     private params;
@@ -2505,6 +2497,22 @@ declare function categoryAPIFactory(rev: RevClient): {
      */
     listAssignable(): Promise<Category.Assignable[]>;
 };
+
+/**
+ * Interface to iterate through results from API endpoints that return results in pages.
+ * Use in one of three ways:
+ * 1) Get all results as an array: await request.exec() == <array>
+ * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
+ * 3) Use for await to get all results one at a time: for await (let hit of request) { }
+ */
+declare class SearchRequest<T> extends PagedRequest<T> {
+    options: Required<Rev.SearchOptions<T>>;
+    private query;
+    private _reqImpl;
+    constructor(rev: RevClient, searchDefinition: Rev.SearchDefinition<T>, query?: Record<string, any>, options?: Rev.SearchOptions<T>);
+    protected _requestPage(): Promise<IPageResponse<T>>;
+    private _buildReqFunction;
+}
 
 declare function channelAPIFactory(rev: RevClient): {
     create(channel: Channel.CreateRequest): Promise<string>;
@@ -2733,7 +2741,7 @@ declare function userAPIFactory(rev: RevClient): {
      * @param {string} [searchText]
      * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
      */
-    search(searchText?: string, options?: Rev.AccessEntitySearchOptions<User.SearchHit>): SearchRequest<User.SearchHit>;
+    search(searchText?: string, options?: Rev.AccessEntitySearchOptions<User.SearchHit>): Rev.ISearchRequest<User.SearchHit>;
     /**
      * Returns the channel and category subscriptions for the user making the API call.
      */
@@ -2801,7 +2809,7 @@ declare function videoAPIFactory(rev: RevClient): {
      * @param options
      */
     waitTranscode(videoId: string, options: Video.WaitTranscodeOptions): Promise<Video.StatusResponse>;
-    listExternalAccess(videoId: string, q?: string | undefined, options?: Rev.SearchOptions<ExternalAccess> | undefined): SearchRequest<ExternalAccess>;
+    listExternalAccess(videoId: string, q?: string | undefined, options?: Rev.SearchOptions<ExternalAccess> | undefined): Rev.ISearchRequest<ExternalAccess>;
     createExternalAccess(videoId: string, request: ExternalAccess.Request): Promise<void>;
     renewExternalAccess(videoId: string, request: Pick<ExternalAccess.Request, "emails" | "noEmail">): Promise<ExternalAccess.RenewResponse>;
     deleteExternalAccess(videoId: string, request: Pick<ExternalAccess.Request, "emails">): Promise<void>;
@@ -2812,23 +2820,23 @@ declare function videoAPIFactory(rev: RevClient): {
     };
     uniqueSessionsReport(videoId: string, options?: Video.UniqueSessionReportOptions): VideoReportRequest;
     download: (videoId: string, options?: Rev.RequestOptions) => Promise<Rev.Response<ReadableStream<any>>>;
-    downloadChapter: (chapter: Video.Chapter) => Promise<Blob>;
+    downloadChapter: (chapter: Video.Chapter, options?: Rev.RequestOptions) => Promise<Blob>;
     downloadSupplemental: {
-        (file: Video.SupplementalFile): Promise<Blob>;
-        (videoId: string, fileId: string): Promise<Blob>;
+        <T = Blob>(file: Video.SupplementalFile, options?: Rev.RequestOptions | undefined): Promise<T>;
+        <T_1 = Blob>(videoId: string, fileId: string, options?: Rev.RequestOptions | undefined): Promise<T_1>;
     };
     downloadThumbnail: {
-        (thumbnailUrl: string): Promise<Blob>;
-        (query: {
+        <T_2 = Blob>(thumbnailUrl: string, options?: Rev.RequestOptions | undefined): Promise<T_2>;
+        <T_3 = Blob>(query: {
             imageId: string;
-        }): Promise<Blob>;
-        (query: {
+        }, options?: Rev.RequestOptions | undefined): Promise<T_3>;
+        <T_4 = Blob>(query: {
             videoId: string;
-        }): Promise<Blob>;
+        }, options?: Rev.RequestOptions | undefined): Promise<T_4>;
     };
     downloadTranscription: {
-        (transcription: Video.Transcription): Promise<Blob>;
-        (videoId: string, language: string): Promise<Blob>;
+        <T_5 = Blob>(transcription: Video.Transcription, options?: Rev.RequestOptions | undefined): Promise<T_5>;
+        <T_6 = Blob>(videoId: string, language: string, options?: Rev.RequestOptions | undefined): Promise<T_6>;
     };
     /**
      * This is an example of using the video Patch API to only update a single field
@@ -2906,7 +2914,7 @@ type RealtimeSession<T extends Webcast.RealtimeRequest | undefined> = T extends 
 } ? never : Webcast.RealtimeSession;
 declare function webcastAPIFactory(rev: RevClient): {
     list(options?: Webcast.ListRequest): Promise<Webcast[]>;
-    search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): SearchRequest<Webcast>;
+    search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): Rev.ISearchRequest<Webcast>;
     create(event: Webcast.CreateRequest): Promise<string>;
     details(eventId: string): Promise<Webcast.Details>;
     edit(eventId: string, event: Webcast.CreateRequest): Promise<void>;
@@ -2949,7 +2957,7 @@ declare function webcastAPIFactory(rev: RevClient): {
      * @returns
      */
     createGuestRegistration(eventId: string, registration: GuestRegistration.Request): Promise<GuestRegistration.Details>;
-    listGuestRegistrations(eventId: string, query?: GuestRegistration.SearchRequest, options?: Rev.SearchOptions<GuestRegistration>): SearchRequest<GuestRegistration>;
+    listGuestRegistrations(eventId: string, query?: GuestRegistration.SearchRequest, options?: Rev.SearchOptions<GuestRegistration>): Rev.ISearchRequest<GuestRegistration>;
     updateGuestRegistration(eventId: string, registrationId: string, registration: GuestRegistration.Request): Promise<void>;
     patchGuestRegistration(eventId: string, registrationId: string, registration: Partial<GuestRegistration.Request>): Promise<void>;
     deleteGuestRegistration(eventId: string, registrationId: string): Promise<void>;
@@ -3016,6 +3024,7 @@ declare class RevClient {
     readonly video: ReturnType<typeof videoAPIFactory>;
     readonly webcast: ReturnType<typeof webcastAPIFactory>;
     readonly zones: ReturnType<typeof zonesAPIFactory>;
+    private _streamPreference;
     constructor(options: Rev.Options);
     /**
      * make a REST request

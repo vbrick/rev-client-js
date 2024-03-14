@@ -3440,16 +3440,12 @@ var RevClient = class {
   }
 };
 
-// src/interop/node-polyfills.ts
+// src/interop/node18-polyfills.ts
 import fs from "node:fs";
 import path from "node:path";
-import { ReadableStream } from "node:stream/web";
 import { Readable } from "node:stream";
-import { createHmac, randomBytes, createHash } from "node:crypto";
-import { promisify } from "node:util";
-import fetch, { Headers, Request, Response } from "node-fetch";
-import FormData from "form-data";
-import { AbortSignal, AbortController as AbortController2 } from "node-abort-controller";
+import { ReadableStream } from "node:stream/web";
+import { createHmac, randomBytes, createHash } from "crypto";
 async function getLengthFromStream(source) {
   const {
     length,
@@ -3551,10 +3547,7 @@ async function appendFileToForm2(form, fieldName, payload) {
   form.append(fieldName, file, appendOptions);
 }
 async function prepareUploadHeaders(form, headers, useChunkedTransfer = false) {
-  const totalBytes = useChunkedTransfer ? 0 : await promisify(form.getLength).call(form).catch(() => 0);
-  if (totalBytes > 0) {
-    headers.set("content-length", `${totalBytes}`);
-  } else {
+  if (useChunkedTransfer) {
     headers.set("transfer-encoding", "chunked");
     headers.delete("content-length");
   }
@@ -3586,7 +3579,7 @@ var AbortError = class extends Error {
   }
 };
 Object.assign(interop_default, {
-  AbortController: AbortController2,
+  AbortController,
   AbortSignal,
   createAbortError(message) {
     return new AbortError(message);
@@ -3612,18 +3605,18 @@ Object.assign(interop_default, {
   }
 });
 
-// src/index-node.ts
+// src/index-node18.ts
 var utils = {
   rateLimit: rate_limit_default,
   getExtensionForMime,
   getMimeForExtension
 };
-var index_node_default = RevClient;
+var index_node18_default = RevClient;
 export {
   RevClient,
   RevError,
   ScrollError,
-  index_node_default as default,
+  index_node18_default as default,
   utils
 };
 //# sourceMappingURL=rev-client.mjs.map

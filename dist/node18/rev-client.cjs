@@ -1,3 +1,43 @@
+"use strict";
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// src/index-node18.ts
+var index_node18_exports = {};
+__export(index_node18_exports, {
+  RevClient: () => RevClient,
+  RevError: () => RevError,
+  ScrollError: () => ScrollError,
+  default: () => index_node18_default,
+  utils: () => utils
+});
+module.exports = __toCommonJS(index_node18_exports);
+
 // src/utils/is-utils.ts
 var { toString: _toString } = Object.prototype;
 function isPlainObject(val) {
@@ -3440,16 +3480,12 @@ var RevClient = class {
   }
 };
 
-// src/interop/node-polyfills.ts
-import fs from "node:fs";
-import path from "node:path";
-import { ReadableStream } from "node:stream/web";
-import { Readable } from "node:stream";
-import { createHmac, randomBytes, createHash } from "node:crypto";
-import { promisify } from "node:util";
-import fetch, { Headers, Request, Response } from "node-fetch";
-import FormData from "form-data";
-import { AbortSignal, AbortController as AbortController2 } from "node-abort-controller";
+// src/interop/node18-polyfills.ts
+var import_node_fs = __toESM(require("fs"), 1);
+var import_node_path = __toESM(require("path"), 1);
+var import_node_stream = require("stream");
+var import_web = require("stream/web");
+var import_crypto = require("crypto");
 async function getLengthFromStream(source) {
   const {
     length,
@@ -3476,7 +3512,7 @@ async function getLengthFromStream(source) {
       timer = setTimeout(done, TIMEOUT_MS, {});
     });
     try {
-      const stat = await Promise.race([fs.promises.stat(filepath), timeout]);
+      const stat = await Promise.race([import_node_fs.default.promises.stat(filepath), timeout]);
       if (stat?.size) {
         return stat.size;
       }
@@ -3496,9 +3532,9 @@ async function parseFileUpload(file, options) {
   const shouldUpdateLength = !(contentLength || useChunkedTransfer);
   if (typeof file === "string") {
     if (!filename) {
-      filename = path.basename(file);
+      filename = import_node_path.default.basename(file);
     }
-    file = fs.createReadStream(file);
+    file = import_node_fs.default.createReadStream(file);
     if (shouldUpdateLength) {
       contentLength = await getLengthFromStream(file);
     }
@@ -3518,7 +3554,7 @@ async function parseFileUpload(file, options) {
       const { path: _path, filename: _filename, name: _name } = file;
       const streamPath = _path || _filename || _name;
       if (streamPath && typeof streamPath === "string") {
-        filename = path.basename(streamPath);
+        filename = import_node_path.default.basename(streamPath);
       }
     }
     if (shouldUpdateLength) {
@@ -3551,22 +3587,19 @@ async function appendFileToForm2(form, fieldName, payload) {
   form.append(fieldName, file, appendOptions);
 }
 async function prepareUploadHeaders(form, headers, useChunkedTransfer = false) {
-  const totalBytes = useChunkedTransfer ? 0 : await promisify(form.getLength).call(form).catch(() => 0);
-  if (totalBytes > 0) {
-    headers.set("content-length", `${totalBytes}`);
-  } else {
+  if (useChunkedTransfer) {
     headers.set("transfer-encoding", "chunked");
     headers.delete("content-length");
   }
 }
 function randomValues2(byteLength) {
-  return randomBytes(byteLength).toString("base64url");
+  return (0, import_crypto.randomBytes)(byteLength).toString("base64url");
 }
 async function sha256Hash2(value) {
-  return createHash("sha256").update(value).digest().toString("base64url");
+  return (0, import_crypto.createHash)("sha256").update(value).digest().toString("base64url");
 }
 async function hmacSign2(message, secret) {
-  const hmac = createHmac("sha256", secret);
+  const hmac = (0, import_crypto.createHmac)("sha256", secret);
   const signature = hmac.update(message).digest("base64");
   return signature;
 }
@@ -3586,7 +3619,7 @@ var AbortError = class extends Error {
   }
 };
 Object.assign(interop_default, {
-  AbortController: AbortController2,
+  AbortController,
   AbortSignal,
   createAbortError(message) {
     return new AbortError(message);
@@ -3605,25 +3638,25 @@ Object.assign(interop_default, {
   asPlatformStream(stream) {
     if (!stream)
       return stream;
-    return stream instanceof ReadableStream ? Readable.fromWeb(stream) : stream;
+    return stream instanceof import_web.ReadableStream ? import_node_stream.Readable.fromWeb(stream) : stream;
   },
   asWebStream(stream) {
-    return !stream || stream instanceof ReadableStream ? stream : Readable.toWeb(Readable.from(stream));
+    return !stream || stream instanceof import_web.ReadableStream ? stream : import_node_stream.Readable.toWeb(import_node_stream.Readable.from(stream));
   }
 });
 
-// src/index-node.ts
+// src/index-node18.ts
 var utils = {
   rateLimit: rate_limit_default,
   getExtensionForMime,
   getMimeForExtension
 };
-var index_node_default = RevClient;
-export {
+var index_node18_default = RevClient;
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
   RevClient,
   RevError,
   ScrollError,
-  index_node_default as default,
   utils
-};
-//# sourceMappingURL=rev-client.mjs.map
+});
+//# sourceMappingURL=rev-client.cjs.map

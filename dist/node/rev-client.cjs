@@ -140,6 +140,12 @@ var interop_default = {
     form.append(fieldName, file, filename);
   },
   async prepareUploadHeaders(form, headers, useChunkedTransfer) {
+  },
+  asPlatformStream(stream) {
+    return stream;
+  },
+  asWebStream(stream) {
+    return stream;
   }
 };
 
@@ -2125,27 +2131,29 @@ function videoReportAPI(rev) {
 function videoDownloadAPI(rev) {
   async function download(videoId, options = {}) {
     const response = await rev.request("GET", `/api/v2/videos/${videoId}/download`, void 0, {
-      ...options,
-      responseType: "stream"
+      responseType: "stream",
+      ...options
     });
     return response;
   }
-  async function downloadChapter(chapter) {
+  async function downloadChapter(chapter, options = {}) {
     const { imageUrl } = chapter;
-    const { body } = await rev.request("GET", imageUrl, void 0, { responseType: "blob" });
+    const { body } = await rev.request("GET", imageUrl, void 0, { responseType: "blob", ...options });
     return body;
   }
-  async function downloadSupplemental(videoId, fileId) {
+  async function downloadSupplemental(videoId, fileId, options) {
     const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/supplemental-files/${fileId}`;
-    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob" });
+    const opts = isPlainObject(fileId) ? fileId : options;
+    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob", ...opts });
     return body;
   }
-  async function downloadTranscription(videoId, language) {
+  async function downloadTranscription(videoId, language, options) {
     const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/transcription-files/${language}`;
-    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob" });
+    const opts = isPlainObject(language) ? language : options;
+    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob", ...opts });
     return body;
   }
-  async function downloadThumbnail(query) {
+  async function downloadThumbnail(query, options = {}) {
     let {
       videoId = "",
       imageId = ""
@@ -2159,7 +2167,7 @@ function videoDownloadAPI(rev) {
       imageId = `${imageId}.jpg`;
     }
     let thumbnailUrl = imageId.startsWith("http") ? imageId : `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
-    const { body } = await rev.request("GET", thumbnailUrl, void 0, { responseType: "blob" });
+    const { body } = await rev.request("GET", thumbnailUrl, void 0, { responseType: "blob", ...options });
     return body;
   }
   return {
@@ -3225,6 +3233,7 @@ var RevClient = class {
       keepAlive = true,
       // NOTE default to false rate limiting for now. In future this may change
       rateLimits = false,
+      defaultStreamPreference = "stream",
       ...credentials
     } = options;
     const urlObj = new URL(url);
@@ -3239,6 +3248,7 @@ var RevClient = class {
         log(severity, ...args);
       };
     }
+    this._streamPreference = defaultStreamPreference;
     Object.defineProperties(this, {
       admin: { value: adminAPIFactory(this), writable: false },
       // NOTE rate limiting option passed into api factory since its
@@ -3363,7 +3373,23 @@ var RevClient = class {
         body = await response.blob();
         break;
       case "stream":
+        switch (this._streamPreference) {
+          case "webstream":
+            body = interop_default.asWebStream(response.body);
+            break;
+          case "nativestream":
+            body = interop_default.asPlatformStream(response.body);
+            break;
+          default:
+            body = response.body;
+        }
         body = response.body;
+        break;
+      case "webstream":
+        body = interop_default.asWebStream(response.body);
+        break;
+      case "nativestream":
+        body = interop_default.asPlatformStream(response.body);
         break;
       default:
         body = await decodeBody(response, headers.get("Accept"));
@@ -3457,7 +3483,13 @@ var RevClient = class {
 // src/interop/node-polyfills.ts
 var import_node_fs = __toESM(require("fs"), 1);
 var import_node_path = __toESM(require("path"), 1);
+var import_web = require("stream/web");
+var import_node_stream = require("stream");
 var import_node_crypto = require("crypto");
+var import_node_util = require("util");
+var import_node_fetch = __toESM(require("node-fetch"), 1);
+var import_form_data = __toESM(require("form-data"), 1);
+var import_node_abort_controller = require("node-abort-controller");
 async function getLengthFromStream(source) {
   const {
     length,
@@ -3559,7 +3591,10 @@ async function appendFileToForm2(form, fieldName, payload) {
   form.append(fieldName, file, appendOptions);
 }
 async function prepareUploadHeaders(form, headers, useChunkedTransfer = false) {
-  if (useChunkedTransfer) {
+  const totalBytes = useChunkedTransfer ? 0 : await (0, import_node_util.promisify)(form.getLength).call(form).catch(() => 0);
+  if (totalBytes > 0) {
+    headers.set("content-length", `${totalBytes}`);
+  } else {
     headers.set("transfer-encoding", "chunked");
     headers.delete("content-length");
   }
@@ -3591,22 +3626,30 @@ var AbortError = class extends Error {
   }
 };
 Object.assign(interop_default, {
-  AbortController,
-  AbortSignal,
+  AbortController: import_node_abort_controller.AbortController,
+  AbortSignal: import_node_abort_controller.AbortSignal,
   createAbortError(message) {
     return new AbortError(message);
   },
-  fetch: (...args) => fetch(...args),
-  FormData,
-  Headers,
-  Request,
-  Response,
+  fetch: (...args) => (0, import_node_fetch.default)(...args),
+  FormData: import_form_data.default,
+  Headers: import_node_fetch.Headers,
+  Request: import_node_fetch.Request,
+  Response: import_node_fetch.Response,
   randomValues: randomValues2,
   sha256Hash: sha256Hash2,
   hmacSign: hmacSign2,
   appendFileToForm: appendFileToForm2,
   parseFileUpload,
-  prepareUploadHeaders
+  prepareUploadHeaders,
+  asPlatformStream(stream) {
+    if (!stream)
+      return stream;
+    return stream instanceof import_web.ReadableStream ? import_node_stream.Readable.fromWeb(stream) : stream;
+  },
+  asWebStream(stream) {
+    return !stream || stream instanceof import_web.ReadableStream ? stream : import_node_stream.Readable.toWeb(import_node_stream.Readable.from(stream));
+  }
 });
 
 // src/index-node.ts
