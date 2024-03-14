@@ -11,8 +11,8 @@ export function videoDownloadAPI(rev: RevClient) {
      */
     async function download(videoId: string, options: Rev.RequestOptions = {}) {
         const response = await rev.request<ReadableStream>('GET', `/api/v2/videos/${videoId}/download`, undefined, {
-            ...options,
-            responseType: 'stream'
+            responseType: 'stream',
+            ...options
         });
         return response;
     }
@@ -23,38 +23,42 @@ export function videoDownloadAPI(rev: RevClient) {
      * @param chapter chapter object returned from the video.chapters(videoId) API call
      * @returns
      */
-    async function downloadChapter(chapter: Video.Chapter) {
+    async function downloadChapter(chapter: Video.Chapter, options: Rev.RequestOptions = {}) {
         const {imageUrl} = chapter;
-        const { body } = await rev.request<Blob>('GET', imageUrl, undefined, { responseType: 'blob' });
+        const { body } = await rev.request<Blob>('GET', imageUrl, undefined, { responseType: 'blob', ...options });
         return body;
     }
 
-    async function downloadSupplemental(file: Video.SupplementalFile): Promise<Blob>;
-    async function downloadSupplemental(videoId: string, fileId: string): Promise<Blob>;
-    async function downloadSupplemental(videoId: Video.SupplementalFile | string, fileId?: string) {
+    async function downloadSupplemental<T = Blob>(file: Video.SupplementalFile, options?: Rev.RequestOptions): Promise<T>;
+    async function downloadSupplemental<T = Blob>(videoId: string, fileId: string, options?: Rev.RequestOptions): Promise<T>;
+    async function downloadSupplemental<T = Blob>(videoId: Video.SupplementalFile | string, fileId?: string | Rev.RequestOptions, options?: Rev.RequestOptions): Promise<T> {
         const endpoint = isPlainObject(videoId)
             ? videoId.downloadUrl
             : `/api/v2/videos/${videoId}/supplemental-files/${fileId}`;
 
-        const { body } = await rev.request<Blob>('GET', endpoint, undefined, { responseType: 'blob' });
+        const opts = isPlainObject(fileId) ? fileId : options;
+
+        const { body } = await rev.request<T>('GET', endpoint, undefined, { responseType: 'blob', ...opts });
         return body;
     }
 
-    async function downloadTranscription(transcription: Video.Transcription): Promise<Blob>;
-    async function downloadTranscription(videoId: string, language: string): Promise<Blob>;
-    async function downloadTranscription(videoId: Video.Transcription | string, language?: string) {
+    async function downloadTranscription<T = Blob>(transcription: Video.Transcription, options?: Rev.RequestOptions): Promise<T>;
+    async function downloadTranscription<T = Blob>(videoId: string, language: string, options?: Rev.RequestOptions): Promise<T>;
+    async function downloadTranscription<T = Blob>(videoId: Video.Transcription | string, language?: string | Rev.RequestOptions, options?: Rev.RequestOptions): Promise<T> {
         const endpoint = isPlainObject(videoId)
             ? videoId.downloadUrl
             : `/api/v2/videos/${videoId}/transcription-files/${language}`;
 
-        const { body } = await rev.request<Blob>('GET', endpoint, undefined, { responseType: 'blob' });
+        const opts = isPlainObject(language) ? language : options;
+
+        const { body } = await rev.request<T>('GET', endpoint, undefined, { responseType: 'blob', ...opts });
         return body;
     }
 
-    async function downloadThumbnail(thumbnailUrl: string): Promise<Blob>;
-    async function downloadThumbnail(query: { imageId: string }): Promise<Blob>;
-    async function downloadThumbnail(query: { videoId: string }): Promise<Blob>;
-    async function downloadThumbnail(query: string | { videoId?: string, imageId?: string; }) {
+    async function downloadThumbnail<T = Blob>(thumbnailUrl: string, options?: Rev.RequestOptions): Promise<T>;
+    async function downloadThumbnail<T = Blob>(query: { imageId: string }, options?: Rev.RequestOptions): Promise<T>;
+    async function downloadThumbnail<T = Blob>(query: { videoId: string }, options?: Rev.RequestOptions): Promise<T>;
+    async function downloadThumbnail<T = Blob>(query: string | { videoId?: string, imageId?: string; }, options: Rev.RequestOptions = {}): Promise<T> {
         let {
             videoId = '',
             imageId = ''
@@ -78,7 +82,7 @@ export function videoDownloadAPI(rev: RevClient) {
             ? imageId
             : `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
 
-        const { body } = await rev.request<Blob>('GET', thumbnailUrl, undefined, { responseType: 'blob' });
+        const { body } = await rev.request<T>('GET', thumbnailUrl, undefined, { responseType: 'blob', ...options });
         return body;
     }
 

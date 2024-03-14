@@ -27,6 +27,7 @@ export class RevClient {
     readonly video!: ReturnType<typeof api.video>;
     readonly webcast!: ReturnType<typeof api.webcast>;
     readonly zones!: ReturnType<typeof api.zones>;
+    private _streamPreference: Rev.RequestOptions['responseType'];
     constructor(options: Rev.Options) {
         if (!isPlainObject(options) || !options.url) {
             throw new TypeError('Missing configuration options for client - url and username/password or apiKey/secret');
@@ -38,6 +39,7 @@ export class RevClient {
             keepAlive = true,
             // NOTE default to false rate limiting for now. In future this may change
             rateLimits = false,
+            defaultStreamPreference = 'stream',
             ...credentials
         } = options;
 
@@ -58,6 +60,7 @@ export class RevClient {
                 log(severity, ...args);
             };
         }
+        this._streamPreference = defaultStreamPreference;
 
         // add all API endpoints
         Object.defineProperties(this, {
@@ -212,7 +215,18 @@ export class RevClient {
                 body = await response.blob();
                 break;
             case 'stream':
+                switch (this._streamPreference) {
+                    case 'webstream': body = polyfills.asWebStream(response.body); break;
+                    case 'nativestream': body = polyfills.asPlatformStream(response.body); break;
+                    default: body = response.body;
+                }
                 body = response.body;
+                break;
+            case 'webstream':
+                body = polyfills.asWebStream(response.body);
+                break;
+            case 'nativestream':
+                body = polyfills.asPlatformStream(response.body);
                 break;
             default:
                 // if no mimetype in response then assume JSON unless otherwise specified

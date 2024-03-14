@@ -9,6 +9,7 @@ type FetchResponse = Response;
 export namespace Rev {
     // HTTP Method for requests
     export type HTTPMethod = LiteralString<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD'>;
+    export type ResponseType = LiteralString<'json' | 'text' | 'blob' | 'stream' | 'webstream' | 'nativestream'>;
     export type PatchOperation = {
         op: 'add' | 'remove' | 'replace';
         path: string;
@@ -79,6 +80,14 @@ export namespace Rev {
         keepAlive?: boolean | KeepAliveOptions;
 
         rateLimits?: boolean | Rev.RateLimits
+
+        /**
+         * Specify the default response type for streaming responses
+         * 'stream': whatever underlying library returns (NodeJS Readable for node-fetch, ReadableStream otherwise)
+         * 'webstream': always return a ReadableStream
+         * 'nativestream': always return native stream type (NodeJS Readable on NodeJS, ReadableStream otherwise)
+         */
+        defaultStreamPreference?: 'stream' | 'webstream' | 'nativestream';
     }
 
     export type RateLimits = { [K in RateLimitEnum]?: number }
@@ -103,7 +112,7 @@ export namespace Rev {
         /**
          * specify body type when decoding. Use 'stream' to skip parsing body completely
          */
-        responseType?: 'json' | 'text' | 'blob' | 'stream';
+        responseType?: ResponseType;
         /**
          * whether to throw errors or not for HTTP error response codes.
          * @default true
