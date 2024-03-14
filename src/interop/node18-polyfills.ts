@@ -1,5 +1,7 @@
-import fs from 'fs';
-import path from 'path';
+import fs from 'node:fs';
+import path from 'node:path';
+import { Readable } from 'node:stream';
+import { ReadableStream } from 'node:stream/web';
 import { createHmac, randomBytes, createHash } from 'crypto';
 import { isBlobLike, isReadable } from '../utils';
 import type { FileUploadPayloadInternal } from '../utils/file-utils';
@@ -185,6 +187,17 @@ Object.assign(polyfills, {
     hmacSign,
     appendFileToForm,
     parseFileUpload,
-    prepareUploadHeaders
+    prepareUploadHeaders,
+    asPlatformStream(stream: NodeJS.ReadableStream | Readable | ReadableStream<any>): NodeJS.ReadableStream {
+        if (!stream) return stream;
+        return (stream instanceof ReadableStream)
+            ? Readable.fromWeb(stream)
+            : stream;
+    },
+    asWebStream(stream: NodeJS.ReadableStream | Readable | ReadableStream<any>): ReadableStream {
+        return (!stream || (stream instanceof ReadableStream))
+            ? stream
+            : Readable.toWeb(Readable.from(stream));
+    }
 });
 

@@ -116,5 +116,13 @@ export default {
     },
     async prepareUploadHeaders(form: FormData, headers: Headers, useChunkedTransfer?: boolean) {
         // nothing - this is used for fixing node's form-data behavior
+    },
+    asPlatformStream<TIn = any, TOut = TIn>(stream: TIn): TOut {
+        // nothing - this is used for fixing node's stream response
+        return stream as any;
+    },
+    asWebStream<TIn = any>(stream: TIn): ReadableStream {
+        // nothing - this is used for fixing node's stream response
+        return stream as any;
     }
 };
