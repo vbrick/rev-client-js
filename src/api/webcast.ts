@@ -17,7 +17,7 @@ export default function webcastAPIFactory(rev: RevClient) {
         async list(options: Webcast.ListRequest = { }): Promise<Webcast[]> {
             return rev.get('/api/v2/scheduled-events', options, { responseType: 'json' });
         },
-        search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): SearchRequest<Webcast> {
+        search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): Rev.ISearchRequest<Webcast> {
             const searchDefinition: Rev.SearchDefinition<Webcast> = {
                 endpoint: `/api/v2/search/scheduled-events`,
                 totalKey: 'total',
@@ -152,7 +152,7 @@ export default function webcastAPIFactory(rev: RevClient) {
             eventId: string,
             query: GuestRegistration.SearchRequest = {},
             options?: Rev.SearchOptions<GuestRegistration>
-        ): SearchRequest<GuestRegistration> {
+        ): Rev.ISearchRequest<GuestRegistration> {
             const searchDefinition: Rev.SearchDefinition<GuestRegistration> = {
                 endpoint: `/api/v2/scheduled-events/${eventId}/registrations`,
                 /** NOTE: this API doesn't actually return a total, so this will always be undefined */

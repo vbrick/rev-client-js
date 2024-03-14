@@ -13,7 +13,7 @@ export function videoExternalAccessAPI(rev: RevClient) {
          * @param options search options
          * @returns
          */
-        listExternalAccess(videoId: string, q?: string, options?: Rev.SearchOptions<ExternalAccess>): SearchRequest<ExternalAccess> {
+        listExternalAccess(videoId: string, q?: string, options?: Rev.SearchOptions<ExternalAccess>): Rev.ISearchRequest<ExternalAccess> {
             const searchDefinition: Rev.SearchDefinition<ExternalAccess> = {
                 endpoint: `/api/v2/videos/${videoId}/external-access`,
                 /** NOTE: this API doesn't actually return a total, so this will always be undefined */

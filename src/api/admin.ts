@@ -88,7 +88,7 @@ export default function adminAPIFactory(rev: RevClient) {
         async deleteWebcastRegistrationField(fieldId: string): Promise<void> {
             return rev.delete(`/api/v2/accounts/webcast-registration-fields/${fieldId}`);
         },
-        listIQCreditsUsage(query: { startDate?: string | Date, endDate?: string | Date }, options?: Rev.SearchOptions<Admin.IQCreditsSession>): SearchRequest<Admin.IQCreditsSession> {
+        listIQCreditsUsage(query: { startDate?: string | Date, endDate?: string | Date }, options?: Rev.SearchOptions<Admin.IQCreditsSession>): Rev.ISearchRequest<Admin.IQCreditsSession> {
             const searchDefinition: Rev.SearchDefinition<Admin.IQCreditsSession> = {
                 endpoint: `/api/v2/analytics/accounts/iq-credits-usage`,
                 totalKey: 'total',
