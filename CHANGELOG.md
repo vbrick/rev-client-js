@@ -1,4 +1,4 @@
-## 0.20.1
+## 0.20.2
 
 ### **Possible Breaking Changes**
 * Require node v18 or higher.

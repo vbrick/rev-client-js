@@ -134,7 +134,7 @@ export default function videoAPIFactory(rev: RevClient) {
                 totalKey: 'totalVideos',
                 hitsKey: 'videos',
                 transform: async (videos: Video.SearchHit[]) => {
-                    const result = [];
+                    const result: Array<Video.SearchHit & (Video.Details & { error?: Error; })> = [];
                     for (let rawVideo of videos) {
                         const out: Video.SearchHit & (Video.Details & { error?: Error; }) = rawVideo as any;
                         try {
