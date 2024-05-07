@@ -114,17 +114,11 @@ async function appendFileToForm(form: FormData, fieldName: string, payload: File
     const {
         file,
         options: {
-            filename,
-            contentType,
-            contentLength
+            filename
         }
     } = payload;
-    const appendOptions: any = { filename, contentType };
-    if (contentLength) {
-        appendOptions.knownLength = contentLength;
-    }
 
-    form.append(fieldName, file as any, appendOptions);
+    form.append(fieldName, file as any, filename);
 }
 
 async function prepareUploadHeaders(form: FormData, headers: Headers, useChunkedTransfer: boolean = false) {
