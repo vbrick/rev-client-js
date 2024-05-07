@@ -462,6 +462,8 @@ All upload functions take in a `file` argument and an `options` argument.
 
 The ID of the video
 
+#### `upload.replaceVideo(videoId, file, options?) - Replace a video
+
 #### `upload.transcription(videoId, file, language?, options?)` - Upload a transcription / close captions file
 
 ### [Users](https://revdocs.vbrick.com/reference/users-groups)

@@ -1,3 +1,20 @@
+## 0.21.0
+* Add Rev 7.58 APIs
+* added Video Replace method `upload.replaceVideo`
+* added Video Translate/Transcribe APIs
+* added `video.setAudioLanguage` helper to set the language for the default audio track
+
+### **Bugfixes**
+
+* Fix bug when uploading files when using node.js and native fetch
+
+### **Deprecations**
+* `user.details(usernameOrEmail, type)` has changed to pass in an object as second parameter (old method is still supported). Use `user.details(username, {lookupType: 'username'})` or `user.details(email, {lookupType: 'email'})` instead.
+
+### **Possibly Breaking Change**
+* **Types only** - `Video.Transcription` namespace moved to own namespace `Transcription`
+
+
 ## 0.20.2
 
 ### **Possible Breaking Changes**
