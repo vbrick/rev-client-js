@@ -410,6 +410,7 @@ var PagedRequest = class {
         console.warn("DEPRECATED: use onError instead of onScrollError with rev search requests");
         this.options.onError(err);
       },
+      signal: void 0,
       ...options
     };
     this.current = 0;
@@ -422,8 +423,11 @@ var PagedRequest = class {
   async nextPage() {
     const {
       onProgress,
-      onError
+      onError,
+      signal
     } = this.options;
+    if (signal?.aborted)
+      this.done = true;
     if (this.done) {
       return {
         current: this.current,
@@ -512,11 +516,14 @@ var PagedRequest = class {
     return results;
   }
   async *[Symbol.asyncIterator]() {
+    const { signal } = this.options;
     do {
       const {
         items
       } = await this.nextPage();
       for await (let hit of items) {
+        if (signal?.aborted)
+          break;
         yield hit;
       }
     } while (!this.done);
@@ -1476,19 +1483,20 @@ var PlaylistDetailsRequest = class extends SearchRequest {
     this.playlist = {};
   }
   get playlistName() {
-    return this.playlist.name || this.playlist.playlistDetails?.name;
+    return this.playlist.playlistDetails?.name || this.playlist.name;
   }
-  get dynamicSearchCriteria() {
-    return this.playlist?.playlistType === "Dynamic" ? this.playlist.playlistDetails?.playlistDetails || this.playlist.playlistDetails : void 0;
+  get searchFilter() {
+    return this.playlist?.playlistType === "Dynamic" ? this.playlist.playlistDetails?.searchFilter || this.playlist.searchFilter : void 0;
   }
   async getPlaylistInfo() {
     this.options.maxResults = 0;
     const { items: videos } = await this.nextPage();
     return {
       ...this.playlist,
+      ...this.playlist?.playlistDetails,
       videos,
       playlistName: this.playlistName,
-      dynamicSearchCriteria: this.dynamicSearchCriteria
+      searchFilter: this.searchFilter
     };
   }
 };
@@ -1742,6 +1750,14 @@ function uploadAPIFactory(rev) {
       const { videoId } = await uploadMultipart(rev, "POST", "/api/v2/uploads/videos", form, filePayload, requestOptions);
       return videoId;
     },
+    async replaceVideo(videoId, file, options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options);
+      const form = new FormData2();
+      const filePayload = await appendFileToForm(form, "VideoFile", file, uploadOptions);
+      rev.log("info", `Replacing ${videoId} with ${filePayload.filename} (${filePayload.contentType})`);
+      await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
+      await uploadMultipart(rev, "PUT", `/api/v2/uploads/videos/${videoId}`, form, filePayload, requestOptions);
+    },
     async transcription(videoId, file, language = "en", options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options);
       const form = new FormData2();
@@ -1825,9 +1841,10 @@ function uploadAPIFactory(rev) {
 
 // src/api/user.ts
 function userAPIFactory(rev) {
-  async function details(userLookupValue, type) {
-    const query = type === "username" || type === "email" ? { type } : void 0;
-    return rev.get(`/api/v2/users/${userLookupValue}`, query);
+  async function details(userLookupValue, options = {}) {
+    const { lookupType, ...requestOptions } = typeof options === "string" ? { lookupType: options } : options;
+    const query = lookupType === "username" || lookupType === "email" ? { type: lookupType } : void 0;
+    return rev.get(`/api/v2/users/${userLookupValue}`, query, { ...requestOptions, responseType: "json" });
   }
   const userAPI = {
     /**
@@ -1848,27 +1865,27 @@ function userAPIFactory(rev) {
     async delete(userId) {
       await rev.delete(`/api/v2/users/${userId}`);
     },
-    /**
-     * Get details about a specific user
-     * @param userLookupValue default is search by userId
-     * @param type            specify that userLookupValue is email or
-     *                        username instead of userId
-     * @returns {User}        User details
-     */
     details,
     /**
+     * Use the Details API to get information about currently logged in user
+     * @param requestOptions
+     */
+    async profile(requestOptions) {
+      return details("me", requestOptions);
+    },
+    /**
      * get user details by username
-     * @deprecated - use details(username, 'username')
+     * @deprecated - use details(username, {lookupType: 'username'})
      */
     async getByUsername(username) {
-      return userAPI.details(username, "username");
+      return userAPI.details(username, { lookupType: "username" });
     },
     /**
      * get user details by email address
      * @deprecated - use details(email, 'email')
      */
     async getByEmail(email) {
-      return userAPI.details(email, "email");
+      return userAPI.details(email, { lookupType: "email" });
     },
     /**
      * Check if user exists in the system. Instead of throwing on a 401/403 error if
@@ -2119,11 +2136,16 @@ function videoReportAPI(rev) {
     }
     return new VideoReportRequest(rev, options, "/api/v2/videos/report");
   }
+  function summaryStatistics(videoId, startDate, endDate = /* @__PURE__ */ new Date(), options) {
+    const payload = startDate ? { after: new Date(startDate).toISOString(), before: new Date(endDate ?? Date.now()) } : void 0;
+    return rev.get(`/api/v2/videos/${videoId}/summary-statistics`, payload, options);
+  }
   return {
     report,
     uniqueSessionsReport(videoId, options = {}) {
       return new VideoReportRequest(rev, options, `/api/v2/videos/${videoId}/report`);
-    }
+    },
+    summaryStatistics
   };
 }
 
@@ -2245,25 +2267,29 @@ function videoAPIFactory(rev) {
       await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
       await rev.patch(`/api/v2/videos/${videoId}`, payload);
     },
-    async delete(videoId) {
+    async delete(videoId, options) {
       await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
-      await rev.delete(`/api/v2/videos/${videoId}`);
+      await rev.delete(`/api/v2/videos/${videoId}`, void 0, options);
     },
     /**
      * get processing status of a video
      * @param videoId
      */
-    async status(videoId) {
-      return rev.get(`/api/v2/videos/${videoId}/status`);
+    async status(videoId, options) {
+      return rev.get(`/api/v2/videos/${videoId}/status`, void 0, options);
     },
-    async details(videoId) {
+    async details(videoId, options) {
       await rev.session.queueRequest("videoDetails" /* GetVideoDetails */);
-      return rev.get(`/api/v2/videos/${videoId}/details`);
+      return rev.get(`/api/v2/videos/${videoId}/details`, void 0, options);
+    },
+    async update(videoId, metadata, options) {
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
+      await rev.put(`/api/v2/videos/${videoId}`, metadata, options);
     },
     comments,
-    async chapters(videoId) {
+    async chapters(videoId, options) {
       try {
-        const { chapters } = await rev.get(`/api/v2/videos/${videoId}/chapters`);
+        const { chapters } = await rev.get(`/api/v2/videos/${videoId}/chapters`, void 0, options);
         return chapters;
       } catch (err) {
         if (err instanceof RevError && err.code === "NoVideoChapters") {
@@ -2272,8 +2298,8 @@ function videoAPIFactory(rev) {
         throw err;
       }
     },
-    async supplementalFiles(videoId) {
-      const { supplementalFiles } = await rev.get(`/api/v2/videos/${videoId}/supplemental-files`);
+    async supplementalFiles(videoId, options) {
+      const { supplementalFiles } = await rev.get(`/api/v2/videos/${videoId}/supplemental-files`, void 0, options);
       return supplementalFiles;
     },
     // async deleteSupplementalFiles(videoId: string, fileId: string | string[]): Promise<void> {
@@ -2282,15 +2308,19 @@ function videoAPIFactory(rev) {
     //         : fileId
     //     await rev.delete(`/api/v2/videos/${videoId}/supplemental-files`, { fileIds });
     // },
-    async transcriptions(videoId) {
-      const { transcriptionFiles } = await rev.get(`/api/v2/videos/${videoId}/transcription-files`);
+    async transcriptions(videoId, options) {
+      const { transcriptionFiles } = await rev.get(`/api/v2/videos/${videoId}/transcription-files`, void 0, options);
       return transcriptionFiles;
     },
     get upload() {
       return rev.upload.video;
     },
-    async migrate(videoId, options) {
-      await rev.put(`/api/v2/videos/${videoId}/migration`, options);
+    get replace() {
+      return rev.upload.replaceVideo;
+    },
+    async migrate(videoId, options, requestOptions) {
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
+      await rev.put(`/api/v2/videos/${videoId}/migration`, options, requestOptions);
     },
     /**
      * search for videos, return as one big list. leave blank to get all videos in the account
@@ -2367,9 +2397,56 @@ function videoAPIFactory(rev) {
       await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
       return rev.put(`/api/v2/videos/${videoId}/convert-dual-streams-to-switched-stream`);
     },
-    async patch(videoId, operations) {
+    async patch(videoId, operations, options) {
       await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
-      await rev.patch(`/api/v2/videos/${videoId}`, operations);
+      await rev.patch(`/api/v2/videos/${videoId}`, operations, options);
+    },
+    async generateMetadata(videoId, fields = ["all"], options) {
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
+      await rev.put(`/api/v2/videos/${videoId}/generate-metadata`, { metadataGenerationFields: fields }, options);
+    },
+    async generateMetadataStatus(videoId, options) {
+      const { description } = await rev.get(`/api/v2/videos/${videoId}/metadata-generation-status`, void 0, { ...options, responseType: "json" });
+      return description.status;
+    },
+    async transcribe(videoId, language, options) {
+      const payload = typeof language === "string" ? { language } : language;
+      return rev.post(`/api/v2/videos/${videoId}/transcription`, payload, { ...options, responseType: "json" });
+    },
+    async transcriptionStatus(videoId, transcriptionId, options) {
+      return rev.get(`/api/v2/videos/${videoId}/transcriptions/${transcriptionId}/status`, void 0, { ...options, responseType: "json" });
+    },
+    async translate(videoId, source, target, options) {
+      const payload = {
+        sourceLanguage: source,
+        targetLanguages: typeof target === "string" ? [target] : target
+      };
+      return rev.post(`/api/v2/videos/${videoId}/translations`, payload, { ...options, responseType: "json" });
+    },
+    async getTranslationStatus(videoId, language, options) {
+      const { status } = await rev.get(`/api/v2/videos/${videoId}/translations/${language}/status`, void 0, { ...options, responseType: "json" });
+      return status;
+    },
+    async deleteTranscription(videoId, language, options) {
+      const locale = Array.isArray(language) ? language.map((s) => s.trim()).join(",") : language;
+      await rev.delete(`/api/v2/videos/${videoId}`, locale ? { locale } : void 0, options);
+    },
+    /**
+     * Helper - update the audio language for a video. If index isn't specified then update the default language
+     * @param video - videoId or video details (from video.details api call)
+     * @param language - language to use, for example 'en'
+     * @param trackIndex - index of audio track - if not supplied then update default or first index
+     * @param options
+     */
+    async setAudioLanguage(video, language, trackIndex, options) {
+      const { id, audioTracks = [] } = typeof video === "string" ? { id: video } : video;
+      let index = trackIndex ?? audioTracks.findIndex((t) => t.isDefault === true) ?? 0;
+      const op = {
+        op: "replace",
+        path: `/audioTracks/${index}`,
+        value: { track: index, languageId: language }
+      };
+      await videoAPI.patch(id, [op], options);
     },
     /**
      * Helper - wait for video transcode to complete.
@@ -2377,7 +2454,7 @@ function videoAPIFactory(rev) {
      * @param videoId
      * @param options
      */
-    async waitTranscode(videoId, options) {
+    async waitTranscode(videoId, options, requestOptions) {
       const {
         pollIntervalSeconds = 30,
         timeoutMinutes = 240,
@@ -2394,7 +2471,7 @@ function videoAPIFactory(rev) {
       let statusResponse = { status: "UploadFailed" };
       while (Date.now() < timeoutDate && !signal?.aborted) {
         try {
-          statusResponse = await videoAPI.status(videoId);
+          statusResponse = await videoAPI.status(videoId, options);
           let {
             isProcessing,
             overallProgress = 0,
@@ -3353,14 +3430,15 @@ var RevClient = class {
       statusText,
       headers: responseHeaders
     } = response;
-    this.log("debug", `Response ${method} ${endpoint} ${statusCode} ${statusText}`);
     if (!ok) {
       if (throwHttpErrors) {
         const err = await RevError.create(response);
+        this.log("debug", `Response ${method} ${endpoint} ${statusCode} ${err.code || statusText}`);
         throw err;
       }
       responseType = void 0;
     }
+    this.log("debug", `Response ${method} ${endpoint} ${statusCode} ${statusText}`);
     let body = response.body;
     switch (responseType) {
       case "json":

@@ -312,6 +312,7 @@ declare namespace Rev {
          * @deprecated use onError instead
          */
         onScrollError?: (err: ScrollError) => void;
+        signal?: AbortSignal | undefined;
     }
     interface AccessEntitySearchOptions<T> extends SearchOptions<T> {
         assignable?: boolean;
@@ -402,6 +403,9 @@ declare namespace Video {
     type VideoType = LiteralString<"Live" | "Vod">;
     type SortFieldEnum = LiteralString<"duration" | "lastViewed" | "ownerName" | "title" | "uploaderName" | "viewCount" | "whenUploaded" | "_score">;
     type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
+    type SearchFilterEnum = LiteralString<"myRecommendations" | "mySubscriptions">;
+    type MetadataGenerationField = LiteralString<"description" | "title" | "tags" | "all">;
+    type MetadataGenerationStatus = LiteralString<"NotStarted" | "InProgress" | "Success" | "Failed">;
     interface LinkedUrl {
         Url: string;
         EncodingType: EncodingType;
@@ -498,6 +502,15 @@ declare namespace Video {
          */
         legacyViewCount?: number;
     }
+    type UpdateRequest = Pick<Video.UploadMetadata, 'title' | 'description' | 'categories' | 'tags' | 'isActive' | 'publishDate' | 'enableRatings' | 'enableDownloads' | 'enableComments' | 'enableExternalApplicationAccess' | 'enableExternalViewersAccess' | 'videoAccessControl' | 'accessControlEntities' | 'password' | 'customFields' | 'unlisted' | 'userTags' | 'owner' | 'viewerIdEnabled'> & {
+        audioTracks?: Array<{
+            track: number;
+            languageId: string;
+        }>;
+        expirationDate?: string;
+        expirationAction?: Video.ExpirationAction;
+        linkedUrl?: Video.LinkedUrl;
+    };
     interface MigrateRequest {
         /** change "uploader" value to this user */
         userName?: string;
@@ -608,8 +621,9 @@ declare namespace Video {
         } | null;
         /**
          * date video will be published
+         * NOTE: Must be in YYYY-MM-DD format
          */
-        publishDate: string | null;
+        publishDate: `${number}${number}${number}${number}-${number}${number}-${number}${number}` | null;
         lastViewed: string;
         totalViews: number;
         avgRating: number;
@@ -630,6 +644,13 @@ declare namespace Video {
             displayName: string;
         }>;
         duration: string;
+        audioTracks: Array<{
+            track: number;
+            isDefault: boolean;
+            languageId: string;
+            languageName: string;
+            status: Transcription.Status;
+        }>;
         overallProgress: number;
         isProcessing: boolean;
         transcodeFailed: boolean;
@@ -739,6 +760,10 @@ declare namespace Video {
          */
         channelId?: string;
         /**
+         * Filter the results based on the channels and categories the Principal is subscribed OR apply the recommendation logic which boosts search results based on recent viewing history using up to the last 10 videos viewed by a user.
+         */
+        filter?: SearchFilterEnum;
+        /**
          * search for videos matching specific custom field values.
          * Object in the format {My_Custom_Field_Name: "MyCustomFieldValue"}
          */
@@ -825,6 +850,26 @@ declare namespace Video {
         incrementDays?: number;
         sortDirection?: Rev.SortDirection;
     }
+    interface SummaryStatistics {
+        totalViews: number;
+        totalSessions: number;
+        totalTime: string;
+        averageTime: string;
+        completionRate: number;
+        totalUniqueViews: number;
+        deviceCounts: Array<{
+            key: string;
+            value: number;
+        }>;
+        totalViewsByDay: Array<{
+            key: string;
+            value: number;
+        }>;
+        browserCounts: Array<{
+            key: string;
+            value: number;
+        }>;
+    }
     interface Comment {
         id: string;
         text: string;
@@ -890,14 +935,12 @@ declare namespace Video {
         size: number;
         title: string;
     }
+    /** @deprecated - use higher level Transcription namespace */
     interface Transcription {
         downloadUrl: string;
         fileSize: number;
         filename: string;
         locale: string;
-    }
-    namespace Transcription {
-        type SupportedLanguages = LiteralString<"da" | "de" | "el" | "en" | "en-gb" | "es" | "es-419" | "es-es" | "fi" | "fr" | "fr-ca" | "id" | "it" | "ja" | "ko" | "nl" | "no" | "pl" | "pt" | "pt-br" | "ru" | "sv" | "th" | "tr" | "zh" | "zh-tw" | "zh-cmn-hans" | "cs" | "en-au" | "hi" | "lt" | "so" | "hmn" | "my" | "cnh" | "kar" | "ku-kmr" | "ne" | "sw" | "af" | "sq" | "am" | "az" | "bn" | "bs" | "bg" | "hr" | "et" | "ka" | "ht" | "ha" | "hu" | "lv" | "ms" | "ro" | "sr" | "sk" | "sl" | "tl" | "ta" | "uk" | "vi">;
     }
     namespace Search {
         interface SuggestionOptions {
@@ -943,6 +986,40 @@ declare namespace Video {
          * Signal to stop poll loop early
          */
         signal?: AbortSignal;
+    }
+}
+interface Transcription {
+    downloadUrl: string;
+    fileSize: number;
+    filename: string;
+    locale: string;
+}
+declare namespace Transcription {
+    type SupportedLanguage = LiteralString<"da" | "de" | "el" | "en" | "en-gb" | "es" | "es-419" | "es-es" | "fi" | "fr" | "fr-ca" | "id" | "it" | "ja" | "ko" | "nl" | "no" | "pl" | "pt" | "pt-br" | "ru" | "sv" | "th" | "tr" | "zh" | "zh-tw" | "zh-cmn-hans" | "cs" | "en-au" | "hi" | "lt" | "so" | "hmn" | "my" | "cnh" | "kar" | "ku-kmr" | "ne" | "sw" | "af" | "sq" | "am" | "az" | "bn" | "bs" | "bg" | "hr" | "et" | "ka" | "ht" | "ha" | "hu" | "lv" | "ms" | "ro" | "sr" | "sk" | "sl" | "tl" | "ta" | "uk" | "vi">;
+    type TranslateSource = Extract<SupportedLanguage, 'en' | 'en-gb' | 'fr' | 'de' | 'pt-br' | 'es' | 'zh-cmn-hans'>;
+    type ServiceType = LiteralString<'Vbrick' | 'VoiceBase' | 'Manual'>;
+    type StatusEnum = LiteralString<'NotStarted' | 'Preparing' | 'InProgress' | 'Success' | 'Failed'>;
+    interface Request {
+        language: Transcription.SupportedLanguage;
+        audioTrack?: number;
+        serviceType?: Omit<Transcription.ServiceType, 'Manual'>;
+    }
+    interface Status {
+        videoId: string;
+        transcriptionId: string;
+        status: Transcription.StatusEnum;
+        language: Transcription.SupportedLanguage;
+        transcriptionService: Transcription.ServiceType;
+    }
+    interface TranslateResult {
+        videoId: string;
+        title: string;
+        sourceLanguage: Transcription.TranslateSource;
+        targetLanguages: Array<{
+            language: Transcription.SupportedLanguage;
+            transcriptionId: string;
+            status: Transcription.StatusEnum;
+        }>;
     }
 }
 interface ExternalAccess {
@@ -1656,12 +1733,12 @@ interface User {
     groups: {
         id: string;
         name: string;
-    }[];
+    }[] | null;
     roles: Role[];
     channels: {
         id: string;
         name: string;
-    }[];
+    }[] | null;
     profileImageUri: string | null;
     permissions: User.Permissions;
     status: User.UserStatus;
@@ -1697,6 +1774,9 @@ declare namespace User {
         roleIds?: string[];
     }
     type DetailsLookup = LiteralString<'username' | 'email' | 'userId'>;
+    interface DetailsOptions extends Rev.RequestOptions {
+        lookupType?: User.DetailsLookup;
+    }
     interface Permissions {
         canUpload: boolean;
         canCreateEvents: boolean;
@@ -1730,7 +1810,7 @@ interface Playlist {
     playbackUrl: string;
     playlistType?: Playlist.PlaylistTypeEnum;
     videos?: Playlist.Video[];
-    playlistDetails?: Video.SearchOptions;
+    searchFilter?: Video.SearchOptions;
 }
 declare namespace Playlist {
     type PlaylistTypeEnum = LiteralString<'Static' | 'Dynamic'>;
@@ -1760,7 +1840,9 @@ declare namespace Playlist {
     interface DetailsResponse {
         playlistId: string;
         playlistType: PlaylistTypeEnum;
-        playlistDetails: Playlist;
+        playlistDetails: Omit<Playlist, 'videos'> & {
+            videos?: undefined;
+        };
         videos: Video.Details[];
         scrollId?: string;
         totalVideos?: string;
@@ -2599,21 +2681,25 @@ declare function groupAPIFactory(rev: RevClient): {
 };
 
 declare class PlaylistDetailsRequest extends SearchRequest<Video.Details> {
-    playlist: Playlist;
-    get playlistName(): any;
-    get dynamicSearchCriteria(): any;
+    playlist: Playlist & Omit<Playlist.DetailsResponse, 'scrollId'>;
+    get playlistName(): string;
+    get searchFilter(): Video.SearchOptions | undefined;
     constructor(rev: RevClient, playlistId: string, query?: {
         count?: number;
     }, options?: Rev.SearchOptions<Video.Details>);
     getPlaylistInfo(): Promise<{
         videos: Video.Details[];
-        playlistName: any;
-        dynamicSearchCriteria: any;
+        playlistName: string;
+        searchFilter: Video.SearchOptions | undefined;
         id: string;
         name: string;
         playbackUrl: string;
-        playlistType?: Playlist.PlaylistTypeEnum | undefined;
-        playlistDetails?: Video.SearchOptions | undefined;
+        playlistType: (string & Record<never, never>) | "Static" | "Dynamic";
+        playlistId: string;
+        playlistDetails: Omit<Playlist, "videos"> & {
+            videos?: undefined;
+        };
+        totalVideos?: string | undefined;
     }>;
 }
 
@@ -2659,7 +2745,8 @@ declare function uploadAPIFactory(rev: RevClient): {
      * Upload a video, and returns the resulting video ID
      */
     video(file: Rev.FileUploadType, metadata?: Video.UploadMetadata, options?: Rev.UploadFileOptions): Promise<string>;
-    transcription(videoId: string, file: Rev.FileUploadType, language?: Video.Transcription.SupportedLanguages, options?: TranscriptionOptions): Promise<void>;
+    replaceVideo(videoId: string, file: Rev.FileUploadType, options?: Rev.UploadFileOptions): Promise<void>;
+    transcription(videoId: string, file: Rev.FileUploadType, language?: Transcription.SupportedLanguage, options?: TranscriptionOptions): Promise<void>;
     supplementalFile(videoId: string, file: Rev.FileUploadType, options?: Rev.RequestOptions & Rev.UploadFileOptions): Promise<void>;
     /**
      *
@@ -2686,21 +2773,19 @@ declare function userAPIFactory(rev: RevClient): {
      */
     create(user: User.Request): Promise<string>;
     delete(userId: string): Promise<void>;
-    /**
-     * Get details about a specific user
-     * @param userLookupValue default is search by userId
-     * @param type            specify that userLookupValue is email or
-     *                        username instead of userId
-     * @returns {User}        User details
-     */
     details: {
-        (userId: string): Promise<User>;
+        (userId: string, options?: User.DetailsOptions): Promise<User>;
         (username: string, type: 'username'): Promise<User>;
         (email: string, type: 'email'): Promise<User>;
     };
     /**
+     * Use the Details API to get information about currently logged in user
+     * @param requestOptions
+     */
+    profile(requestOptions?: Rev.RequestOptions): Promise<User>;
+    /**
      * get user details by username
-     * @deprecated - use details(username, 'username')
+     * @deprecated - use details(username, {lookupType: 'username'})
      */
     getByUsername(username: string): Promise<User>;
     /**
@@ -2771,6 +2856,7 @@ declare function parseOptions(options: Video.VideoReportOptions): {
     onProgress?: ((items: Video.VideoReportEntry[], current: number, total?: number | undefined) => void) | undefined;
     onError?: ((err: Error | ScrollError) => void) | undefined;
     onScrollError?: ((err: ScrollError) => void) | undefined;
+    signal?: AbortSignal | undefined;
     startDate: Date;
     endDate: Date;
     incrementDays: number;
@@ -2801,14 +2887,29 @@ declare function videoAPIFactory(rev: RevClient): {
         end: string;
     }>): Promise<any>;
     convertDualStreamToSwitched(videoId: string): Promise<void>;
-    patch(videoId: string, operations: Rev.PatchOperation[]): Promise<void>;
+    patch(videoId: string, operations: Rev.PatchOperation[], options?: Rev.RequestOptions): Promise<void>;
+    generateMetadata(videoId: string, fields?: Video.MetadataGenerationField[], options?: Rev.RequestOptions): Promise<void>;
+    generateMetadataStatus(videoId: string, options?: Rev.RequestOptions): Promise<Video.MetadataGenerationStatus>;
+    transcribe(videoId: string, language: Transcription.SupportedLanguage | Transcription.Request, options?: Rev.RequestOptions): Promise<Transcription.Status>;
+    transcriptionStatus(videoId: string, transcriptionId: string, options?: Rev.RequestOptions): Promise<Transcription.Status>;
+    translate(videoId: string, source: Transcription.TranslateSource, target: Transcription.SupportedLanguage | Transcription.SupportedLanguage[], options?: Rev.RequestOptions): Promise<Transcription.TranslateResult>;
+    getTranslationStatus(videoId: string, language: Transcription.SupportedLanguage, options?: Rev.RequestOptions): Promise<Transcription.StatusEnum>;
+    deleteTranscription(videoId: string, language?: Transcription.SupportedLanguage | Transcription.SupportedLanguage[], options?: Rev.RequestOptions): Promise<void>;
+    /**
+     * Helper - update the audio language for a video. If index isn't specified then update the default language
+     * @param video - videoId or video details (from video.details api call)
+     * @param language - language to use, for example 'en'
+     * @param trackIndex - index of audio track - if not supplied then update default or first index
+     * @param options
+     */
+    setAudioLanguage(video: string | Video.Details, language: Transcription.SupportedLanguage, trackIndex?: number, options?: Rev.RequestOptions): Promise<void>;
     /**
      * Helper - wait for video transcode to complete.
      * This doesn't indicate that a video is playable, rather that all transcoding jobs are complete
      * @param videoId
      * @param options
      */
-    waitTranscode(videoId: string, options: Video.WaitTranscodeOptions): Promise<Video.StatusResponse>;
+    waitTranscode(videoId: string, options: Video.WaitTranscodeOptions, requestOptions?: Rev.RequestOptions): Promise<Video.StatusResponse>;
     listExternalAccess(videoId: string, q?: string | undefined, options?: Rev.SearchOptions<ExternalAccess> | undefined): Rev.ISearchRequest<ExternalAccess>;
     createExternalAccess(videoId: string, request: ExternalAccess.Request): Promise<void>;
     renewExternalAccess(videoId: string, request: Pick<ExternalAccess.Request, "emails" | "noEmail">): Promise<ExternalAccess.RenewResponse>;
@@ -2819,24 +2920,29 @@ declare function videoAPIFactory(rev: RevClient): {
         (videoId: string, options?: Video.VideoReportOptions | undefined): VideoReportRequest;
     };
     uniqueSessionsReport(videoId: string, options?: Video.UniqueSessionReportOptions): VideoReportRequest;
-    download: (videoId: string, options?: Rev.RequestOptions) => Promise<Rev.Response<ReadableStream<any>>>;
+    summaryStatistics: {
+        (videoId: string, startDate?: undefined, endDate?: undefined, options?: Rev.RequestOptions | undefined): Promise<Video.SummaryStatistics>;
+        (videoId: string, startDate: string | Date, endDate?: undefined, options?: Rev.RequestOptions | undefined): Promise<Video.SummaryStatistics>;
+        (videoId: string, startDate: string | Date, endDate: string | Date, options?: Rev.RequestOptions | undefined): Promise<Video.SummaryStatistics>;
+    };
+    download: <T = ReadableStream<any>>(videoId: string, options?: Rev.RequestOptions) => Promise<Rev.Response<T>>;
     downloadChapter: (chapter: Video.Chapter, options?: Rev.RequestOptions) => Promise<Blob>;
     downloadSupplemental: {
-        <T = Blob>(file: Video.SupplementalFile, options?: Rev.RequestOptions | undefined): Promise<T>;
-        <T_1 = Blob>(videoId: string, fileId: string, options?: Rev.RequestOptions | undefined): Promise<T_1>;
+        <T_1 = Blob>(file: Video.SupplementalFile, options?: Rev.RequestOptions | undefined): Promise<T_1>;
+        <T_2 = Blob>(videoId: string, fileId: string, options?: Rev.RequestOptions | undefined): Promise<T_2>;
     };
     downloadThumbnail: {
-        <T_2 = Blob>(thumbnailUrl: string, options?: Rev.RequestOptions | undefined): Promise<T_2>;
-        <T_3 = Blob>(query: {
-            imageId: string;
-        }, options?: Rev.RequestOptions | undefined): Promise<T_3>;
+        <T_3 = Blob>(thumbnailUrl: string, options?: Rev.RequestOptions | undefined): Promise<T_3>;
         <T_4 = Blob>(query: {
-            videoId: string;
+            imageId: string;
         }, options?: Rev.RequestOptions | undefined): Promise<T_4>;
+        <T_5 = Blob>(query: {
+            videoId: string;
+        }, options?: Rev.RequestOptions | undefined): Promise<T_5>;
     };
     downloadTranscription: {
-        <T_5 = Blob>(transcription: Video.Transcription, options?: Rev.RequestOptions | undefined): Promise<T_5>;
-        <T_6 = Blob>(videoId: string, language: string, options?: Rev.RequestOptions | undefined): Promise<T_6>;
+        <T_6 = Blob>(transcription: Transcription, options?: Rev.RequestOptions | undefined): Promise<T_6>;
+        <T_7 = Blob>(videoId: string, language: string, options?: Rev.RequestOptions | undefined): Promise<T_7>;
     };
     /**
      * This is an example of using the video Patch API to only update a single field
@@ -2850,22 +2956,24 @@ declare function videoAPIFactory(rev: RevClient): {
      * @param customField - the custom field object (with id and value)
      */
     setCustomField(videoId: string, customField: Pick<Admin.CustomField, 'id' | 'value'>): Promise<void>;
-    delete(videoId: string): Promise<void>;
+    delete(videoId: string, options: Rev.RequestOptions): Promise<void>;
     /**
      * get processing status of a video
      * @param videoId
      */
-    status(videoId: string): Promise<Video.StatusResponse>;
-    details(videoId: string): Promise<Video.Details>;
+    status(videoId: string, options?: Rev.RequestOptions): Promise<Video.StatusResponse>;
+    details(videoId: string, options?: Rev.RequestOptions): Promise<Video.Details>;
+    update(videoId: string, metadata: Video.UpdateRequest, options?: Rev.RequestOptions): Promise<void>;
     comments: {
         (videoId: string): Promise<Video.Comment[]>;
         (videoId: string, showAll: true): Promise<Video.Comment.Unredacted[]>;
     };
-    chapters(videoId: string): Promise<Video.Chapter[]>;
-    supplementalFiles(videoId: string): Promise<Video.SupplementalFile[]>;
-    transcriptions(videoId: string): Promise<Video.Transcription[]>;
+    chapters(videoId: string, options?: Rev.RequestOptions): Promise<Video.Chapter[]>;
+    supplementalFiles(videoId: string, options?: Rev.RequestOptions): Promise<Video.SupplementalFile[]>;
+    transcriptions(videoId: string, options?: Rev.RequestOptions): Promise<Transcription[]>;
     upload: (file: Rev.FileUploadType, metadata?: Video.UploadMetadata, options?: Rev.UploadFileOptions) => Promise<string>;
-    migrate(videoId: string, options: Video.MigrateRequest): Promise<void>;
+    replace: (videoId: string, file: Rev.FileUploadType, options?: Rev.UploadFileOptions) => Promise<void>;
+    migrate(videoId: string, options: Video.MigrateRequest, requestOptions?: Rev.RequestOptions): Promise<void>;
     /**
      * search for videos, return as one big list. leave blank to get all videos in the account
      */
@@ -3132,4 +3240,4 @@ declare const utils: {
     getMimeForExtension: typeof getMimeForExtension;
 };
 
-export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, ExternalAccess, Group, GuestRegistration, OAuth, Playlist, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, User, Video, Webcast, Zone, RevClient as default, utils };
+export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, ExternalAccess, Group, GuestRegistration, OAuth, Playlist, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, Transcription, User, Video, Webcast, Zone, RevClient as default, utils };
