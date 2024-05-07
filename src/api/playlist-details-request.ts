@@ -11,17 +11,17 @@ function getSummaryFromResponse<T extends Record<string, any>>(response: T, hits
             // don't include arrays or scroll type keys
             return !(key === hitsKey || ignoreKeys.includes(key) || Array.isArray(value));
         }));
-    return summary;
+    return summary as Omit<Playlist.DetailsResponse, 'scrollId'>;
 }
 
 export class PlaylistDetailsRequest extends SearchRequest<Video.Details> {
-    playlist: Playlist = {} as any;
+    playlist: Playlist & Omit<Playlist.DetailsResponse, 'scrollId'> = {} as any;
     get playlistName() {
-        return this.playlist.name || this.playlist.playlistDetails?.name;
+        return this.playlist.playlistDetails?.name || this.playlist.name;
     }
-    get dynamicSearchCriteria() {
+    get searchFilter() {
         return this.playlist?.playlistType === 'Dynamic'
-            ? (this.playlist.playlistDetails?.playlistDetails || this.playlist.playlistDetails)
+            ? this.playlist.playlistDetails?.searchFilter || this.playlist.searchFilter
             : undefined;
     }
     constructor(rev: RevClient, playlistId: string, query: { count?: number } = {}, options: Rev.SearchOptions<Video.Details> = {}) {
@@ -48,9 +48,10 @@ export class PlaylistDetailsRequest extends SearchRequest<Video.Details> {
 
         return {
             ...this.playlist,
+            ...this.playlist?.playlistDetails,
             videos,
             playlistName: this.playlistName,
-            dynamicSearchCriteria: this.dynamicSearchCriteria
+            searchFilter: this.searchFilter
         };
     }
 }

@@ -7,7 +7,7 @@ export interface Playlist {
     playbackUrl: string;
     playlistType?: Playlist.PlaylistTypeEnum;
     videos?: Playlist.Video[];
-    playlistDetails?: Video.SearchOptions;
+    searchFilter?: Video.SearchOptions;
 }
 
 export namespace Playlist {
@@ -40,7 +40,7 @@ export namespace Playlist {
     export interface DetailsResponse {
         playlistId: string;
         playlistType: PlaylistTypeEnum;
-        playlistDetails: Playlist;
+        playlistDetails: Omit<Playlist, 'videos'> & { videos?: undefined };
         videos: Video.Details[];
         scrollId?: string;
         totalVideos?: string;
