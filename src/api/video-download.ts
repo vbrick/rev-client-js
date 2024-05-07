@@ -1,4 +1,4 @@
-import { Rev, Video } from "../types";
+import { Rev, Transcription, Video } from "../types";
 import { isPlainObject } from "../utils";
 import type {RevClient} from "../rev-client";
 
@@ -41,9 +41,9 @@ export function videoDownloadAPI(rev: RevClient) {
         return body;
     }
 
-    async function downloadTranscription<T = Blob>(transcription: Video.Transcription, options?: Rev.RequestOptions): Promise<T>;
+    async function downloadTranscription<T = Blob>(transcription: Transcription, options?: Rev.RequestOptions): Promise<T>;
     async function downloadTranscription<T = Blob>(videoId: string, language: string, options?: Rev.RequestOptions): Promise<T>;
-    async function downloadTranscription<T = Blob>(videoId: Video.Transcription | string, language?: string | Rev.RequestOptions, options?: Rev.RequestOptions): Promise<T> {
+    async function downloadTranscription<T = Blob>(videoId: Transcription | string, language?: string | Rev.RequestOptions, options?: Rev.RequestOptions): Promise<T> {
         const endpoint = isPlainObject(videoId)
             ? videoId.downloadUrl
             : `/api/v2/videos/${videoId}/transcription-files/${language}`;

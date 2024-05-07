@@ -1,6 +1,6 @@
 import { RevError } from '../rev-error';
 import type { RevClient } from '../rev-client';
-import { Video, Rev, Admin } from '../types';
+import { Video, Rev, Admin, Transcription } from '../types';
 import { SearchRequest } from '../utils/request-utils';
 import { videoReportAPI } from './video-report-request';
 import { videoDownloadAPI } from './video-download';
@@ -20,6 +20,7 @@ export default function videoAPIFactory(rev: RevClient) {
         const response = await rev.get<Video.Comment.ListResponse>(`/api/v2/videos/${videoId}/comments`, showAll ? { showAll: 'true' } : undefined);
         return response.comments;
     }
+
     const videoAPI = {
         /**
          * This is an example of using the video Patch API to only update a single field
@@ -66,6 +67,9 @@ export default function videoAPIFactory(rev: RevClient) {
             await rev.session.queueRequest(RateLimitEnum.GetVideoDetails);
             return rev.get(`/api/v2/videos/${videoId}/details`, undefined, options);
         },
+        async update(videoId: string, metadata: Video.UpdateRequest, options?: Rev.RequestOptions): Promise<void> {
+            await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
+            await rev.put(`/api/v2/videos/${videoId}`, metadata, options);
         },
         comments,
         async chapters(videoId: string, options?: Rev.RequestOptions): Promise<Video.Chapter[]> {
@@ -188,6 +192,52 @@ export default function videoAPIFactory(rev: RevClient) {
             await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
             await rev.patch(`/api/v2/videos/${videoId}`, operations, options);
         },
+        async generateMetadata(videoId: string, fields: Video.MetadataGenerationField[] = ["all"], options?: Rev.RequestOptions) {
+            await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
+            await rev.put(`/api/v2/videos/${videoId}/generate-metadata`, { metadataGenerationFields: fields }, options);
+        },
+        async generateMetadataStatus(videoId: string, options?: Rev.RequestOptions): Promise<Video.MetadataGenerationStatus> {
+            const {description} = await rev.get(`/api/v2/videos/${videoId}/metadata-generation-status`, undefined, {...options, responseType: 'json'});
+            return description.status;
+        },
+        async transcribe(videoId: string, language: Transcription.SupportedLanguage | Transcription.Request, options?: Rev.RequestOptions): Promise<Transcription.Status> {
+            const payload = typeof language === 'string' ? { language } : language;
+            return rev.post(`/api/v2/videos/${videoId}/transcription`, payload, {...options, responseType: 'json'})
+        },
+        async transcriptionStatus(videoId: string, transcriptionId: string, options?: Rev.RequestOptions): Promise<Transcription.Status> {
+            return rev.get(`/api/v2/videos/${videoId}/transcriptions/${transcriptionId}/status`, undefined, {...options, responseType: 'json'});
+        },
+        async translate(videoId: string, source: Transcription.TranslateSource, target: Transcription.SupportedLanguage | Transcription.SupportedLanguage[], options?: Rev.RequestOptions): Promise<Transcription.TranslateResult> {
+            const payload = {
+                sourceLanguage: source,
+                targetLanguages: typeof target === 'string' ? [target] : target
+            };
+            return rev.post(`/api/v2/videos/${videoId}/translations`, payload, {...options, responseType: 'json'});
+        },
+        async getTranslationStatus(videoId: string, language: Transcription.SupportedLanguage, options?: Rev.RequestOptions): Promise<Transcription.StatusEnum> {
+            const {status} = await rev.get(`/api/v2/videos/${videoId}/translations/${language}/status`, undefined, {...options, responseType: 'json'});
+            return status;
+        },
+        async deleteTranscription(videoId: string, language?: Transcription.SupportedLanguage | Transcription.SupportedLanguage[], options?: Rev.RequestOptions): Promise<void> {
+            const locale = Array.isArray(language) ? language.map(s => s.trim()).join(',') : language;
+            await rev.delete(`/api/v2/videos/${videoId}`, locale ? {locale} : undefined, options);
+        },
+        /**
+         * Helper - update the audio language for a video. If index isn't specified then update the default language
+         * @param video - videoId or video details (from video.details api call)
+         * @param language - language to use, for example 'en'
+         * @param trackIndex - index of audio track - if not supplied then update default or first index
+         * @param options
+         */
+        async setAudioLanguage(video: string | Video.Details, language: Transcription.SupportedLanguage, trackIndex?: number, options?: Rev.RequestOptions): Promise<void> {
+            const {id, audioTracks = []} = typeof video === 'string' ? { id: video } : video;
+            let index = trackIndex ?? audioTracks.findIndex(t => t.isDefault === true) ?? 0;
+            const op: Rev.PatchOperation = {
+                op: 'replace',
+                path: `/audioTracks/${index}`,
+                value: { track: index, languageId: language }
+            };
+            await videoAPI.patch(id, [op], options);
         },
         /**
          * Helper - wait for video transcode to complete.

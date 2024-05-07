@@ -1,5 +1,5 @@
 import type { RevClient } from '../rev-client';
-import { Rev, Video } from '../types';
+import { Rev, Transcription, Video } from '../types';
 import { appendFileToForm, appendJSONToForm, uploadMultipart } from '../utils/file-utils';
 import polyfills from '../interop';
 import { RateLimitEnum } from '../utils';
@@ -88,7 +88,6 @@ export default function uploadAPIFactory(rev: RevClient) {
             const { videoId } = await uploadMultipart(rev, 'POST', '/api/v2/uploads/videos', form, filePayload, requestOptions);
             return videoId;
         },
-        async transcription(videoId: string, file: Rev.FileUploadType, language: Video.Transcription.SupportedLanguages = 'en', options: TranscriptionOptions = { }): Promise<void> {
         async replaceVideo(videoId: string, file: Rev.FileUploadType, options: Rev.UploadFileOptions = {}): Promise<void> {
             const { uploadOptions, requestOptions } = splitOptions(options);
             const form = new FormData();
@@ -100,6 +99,7 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             await uploadMultipart(rev, 'PUT', `/api/v2/uploads/videos/${videoId}`, form, filePayload, requestOptions);
         },
+        async transcription(videoId: string, file: Rev.FileUploadType, language: Transcription.SupportedLanguage = 'en', options: TranscriptionOptions = { }): Promise<void> {
             const { uploadOptions, requestOptions } = splitOptions(options);
 
             const form = new FormData();

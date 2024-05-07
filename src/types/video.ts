@@ -16,6 +16,11 @@ export namespace Video {
     export type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
 
     export type SearchFilterEnum = LiteralString<"myRecommendations" | "mySubscriptions">;
+
+    export type MetadataGenerationField = LiteralString<"description" | "title" | "tags" | "all">;
+
+    export type MetadataGenerationStatus = LiteralString<"NotStarted" | "InProgress" | "Success" | "Failed">;
+
     export interface LinkedUrl {
         Url: string;
         EncodingType: EncodingType;
@@ -120,6 +125,12 @@ export namespace Video {
 
          */
         legacyViewCount?: number;
+    }
+    export type UpdateRequest = Pick<Video.UploadMetadata, 'title' | 'description' | 'categories' | 'tags' | 'isActive' | 'publishDate' | 'enableRatings' | 'enableDownloads' | 'enableComments' | 'enableExternalApplicationAccess' | 'enableExternalViewersAccess' | 'videoAccessControl' | 'accessControlEntities' | 'password' | 'customFields' | 'unlisted' | 'userTags' | 'owner' | 'viewerIdEnabled'> & {
+        audioTracks?: Array<{ track: number, languageId: string }>;
+        expirationDate?: string;
+        expirationAction?: Video.ExpirationAction;
+        linkedUrl?: Video.LinkedUrl
     }
 
     export interface MigrateRequest {
@@ -231,6 +242,7 @@ export namespace Video {
         } | null;
         /**
          * date video will be published
+         * NOTE: Must be in YYYY-MM-DD format
          */
         publishDate: `${number}${number}${number}${number}-${number}${number}-${number}${number}` | null;
         lastViewed: string;
@@ -251,6 +263,13 @@ export namespace Video {
         userTags: Array<{ userId: string, displayName: string; }>;
 
         duration: string;
+        audioTracks: Array<{
+            track: number;
+            isDefault: boolean;
+            languageId: string;
+            languageName: string;
+            status: Transcription.Status
+        }>;
         overallProgress: number;
         isProcessing: boolean;
         transcodeFailed: boolean;
@@ -545,15 +564,12 @@ export namespace Video {
         title: string;
     }
 
+    /** @deprecated - use higher level Transcription namespace */
     export interface Transcription {
         downloadUrl: string,
         fileSize: number;
         filename: string;
         locale: string;
-    }
-
-    export namespace Transcription {
-        export type SupportedLanguages = LiteralString<"da" | "de" | "el" | "en" | "en-gb" | "es" | "es-419" | "es-es" | "fi" | "fr" | "fr-ca" | "id" | "it" | "ja" | "ko" | "nl" | "no" | "pl" | "pt" | "pt-br" | "ru" | "sv" | "th" | "tr" | "zh" | "zh-tw" | "zh-cmn-hans" | "cs" | "en-au" | "hi" | "lt" | "so" | "hmn" | "my" | "cnh" | "kar" | "ku-kmr" | "ne" | "sw" | "af" | "sq" | "am" | "az" | "bn" | "bs" | "bg" | "hr" | "et" | "ka" | "ht" | "ha" | "hu" | "lv" | "ms" | "ro" | "sr" | "sk" | "sl" | "tl" | "ta" | "uk" | "vi">
     }
 
     export namespace Search {
@@ -604,6 +620,41 @@ export namespace Video {
          * Signal to stop poll loop early
          */
         signal?: AbortSignal;
+    }
+}
+
+export interface Transcription {
+    downloadUrl: string,
+    fileSize: number;
+    filename: string;
+    locale: string;
+}
+export namespace Transcription {
+    export type SupportedLanguage = LiteralString<"da" | "de" | "el" | "en" | "en-gb" | "es" | "es-419" | "es-es" | "fi" | "fr" | "fr-ca" | "id" | "it" | "ja" | "ko" | "nl" | "no" | "pl" | "pt" | "pt-br" | "ru" | "sv" | "th" | "tr" | "zh" | "zh-tw" | "zh-cmn-hans" | "cs" | "en-au" | "hi" | "lt" | "so" | "hmn" | "my" | "cnh" | "kar" | "ku-kmr" | "ne" | "sw" | "af" | "sq" | "am" | "az" | "bn" | "bs" | "bg" | "hr" | "et" | "ka" | "ht" | "ha" | "hu" | "lv" | "ms" | "ro" | "sr" | "sk" | "sl" | "tl" | "ta" | "uk" | "vi">
+    export type TranslateSource = Extract<SupportedLanguage, 'en' | 'en-gb' | 'fr' | 'de' | 'pt-br' | 'es' | 'zh-cmn-hans'>;
+    export type ServiceType = LiteralString<'Vbrick' | 'VoiceBase' | 'Manual'>
+    export type StatusEnum = LiteralString<'NotStarted' | 'Preparing' | 'InProgress' | 'Success' | 'Failed'>;
+    export interface Request {
+        language: Transcription.SupportedLanguage;
+        audioTrack?: number;
+        serviceType?: Omit<Transcription.ServiceType, 'Manual'>;
+    }
+    export interface Status {
+        videoId: string;
+        transcriptionId: string;
+        status: Transcription.StatusEnum;
+        language: Transcription.SupportedLanguage;
+        transcriptionService: Transcription.ServiceType;
+    }
+    export interface TranslateResult {
+        videoId: string;
+        title: string;
+        sourceLanguage: Transcription.TranslateSource;
+        targetLanguages: Array<{
+            language: Transcription.SupportedLanguage;
+            transcriptionId: string;
+            status: Transcription.StatusEnum;
+        }>;
     }
 }
 
