@@ -5,15 +5,28 @@ import { RateLimitEnum, isPlainObject } from '../utils';
 import { SearchRequest } from '../utils/request-utils';
 
 export default function userAPIFactory(rev: RevClient) {
-    async function details(userId: string): Promise<User>;
-    async function details(username: string, type: 'username'): Promise<User>;
-    async function details(email: string, type: 'email'): Promise<User>;
-    async function details(userLookupValue: string, type?: User.DetailsLookup) {
-        const query = (type === 'username' || type === 'email')
-            ? { type }
+    /**
+     * Get details about a specific user
+     * @param userLookupValue default is search by userId
+     * @param type            specify that userLookupValue is email or
+     *                        username instead of userId
+     * @returns {User}        User details
+     */
+    function details(userId: string, options?: User.DetailsOptions): Promise<User>;
+    /** @deprecated - use {lookupType: 'username'} */
+    function details(username: string, type: 'username'): Promise<User>;
+    /** @deprecated - use {lookupType: 'email'} */
+    function details(email: string, type: 'email'): Promise<User>;
+    async function details(userLookupValue: string, options: User.DetailsLookup | User.DetailsOptions = {}) {
+        const {lookupType, ...requestOptions} = typeof options === 'string'
+            ? {lookupType: options}
+            : options;
+
+        const query = (lookupType === 'username' || lookupType === 'email')
+            ? { type: lookupType }
             : undefined;
 
-        return rev.get<User>(`/api/v2/users/${userLookupValue}`, query);
+        return rev.get<User>(`/api/v2/users/${userLookupValue}`, query, {...requestOptions, responseType: 'json'});
     }
 
     const userAPI = {
@@ -35,28 +48,28 @@ export default function userAPIFactory(rev: RevClient) {
         async delete(userId: string): Promise<void> {
             await rev.delete(`/api/v2/users/${userId}`);
         },
-        /**
-         * Get details about a specific user
-         * @param userLookupValue default is search by userId
-         * @param type            specify that userLookupValue is email or
-         *                        username instead of userId
-         * @returns {User}        User details
-         */
         details,
         /**
+         * Use the Details API to get information about currently logged in user
+         * @param requestOptions
+         */
+        async profile(requestOptions?: Rev.RequestOptions) {
+            return details('me', requestOptions);
+        },
+        /**
          * get user details by username
-         * @deprecated - use details(username, 'username')
+         * @deprecated - use details(username, {lookupType: 'username'})
          */
         async getByUsername(username: string) {
             // equivalent to rev.get<User>(`/api/v2/users/${username}`, { type: 'username' });
-            return userAPI.details(username, 'username');
+            return userAPI.details(username, {lookupType: 'username'});
         },
         /**
          * get user details by email address
          * @deprecated - use details(email, 'email')
          */
         async getByEmail(email: string) {
-            return userAPI.details(email, 'email');
+            return userAPI.details(email, {lookupType: 'email'});
         },
         /**
          * Check if user exists in the system. Instead of throwing on a 401/403 error if

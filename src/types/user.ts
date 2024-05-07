@@ -55,6 +55,9 @@ export namespace User {
     }
 
     export type DetailsLookup = LiteralString<'username' | 'email' | 'userId'>
+    export interface DetailsOptions extends Rev.RequestOptions {
+        lookupType?: User.DetailsLookup
+    }
 
     export interface Permissions {
         canUpload: boolean
