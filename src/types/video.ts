@@ -492,6 +492,18 @@ export namespace Video {
         sortDirection?: Rev.SortDirection;
     }
 
+    export interface SummaryStatistics {
+        totalViews: number;
+        totalSessions: number;
+        totalTime: string;
+        averageTime: string;
+        completionRate: number;
+        totalUniqueViews: number;
+        deviceCounts: Array<{ key: string, value: number }>
+        totalViewsByDay: Array<{ key: string, value: number }>
+        browserCounts: Array<{ key: string, value: number }>
+    }
+
     export interface Comment {
         id: string;
         text: string;

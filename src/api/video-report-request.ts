@@ -154,10 +154,20 @@ export function videoReportAPI(rev: RevClient) {
         }
         return new VideoReportRequest(rev, options, '/api/v2/videos/report');
     }
+    function summaryStatistics(videoId: string, startDate?: undefined, endDate?: undefined, options?: Rev.RequestOptions): Promise<Video.SummaryStatistics>;
+    function summaryStatistics(videoId: string, startDate: Date | string, endDate?: undefined, options?: Rev.RequestOptions): Promise<Video.SummaryStatistics>;
+    function summaryStatistics(videoId: string, startDate: Date | string, endDate: Date | string, options?: Rev.RequestOptions): Promise<Video.SummaryStatistics>;
+    function summaryStatistics(videoId: string, startDate?: Date | string, endDate: Date | string | undefined = new Date(), options?: Rev.RequestOptions): Promise<Video.SummaryStatistics> {
+        const payload = startDate
+            ? { after: new Date(startDate).toISOString(), before: new Date(endDate ?? Date.now()) }
+            : undefined;
+        return rev.get(`/api/v2/videos/${videoId}/summary-statistics`, payload, options);
+    }
     return {
         report,
         uniqueSessionsReport(videoId: string, options: Video.UniqueSessionReportOptions = {}) {
             return new VideoReportRequest(rev, options, `/api/v2/videos/${videoId}/report`);
-        }
+        },
+        summaryStatistics
     };
 }
