@@ -190,17 +190,18 @@ export class RevClient {
             headers: responseHeaders
         } = response;
 
-        this.log('debug', `Response ${method} ${endpoint} ${statusCode} ${statusText}`);
-
         // check for error response code
         if (!ok) {
             if (throwHttpErrors) {
                 const err = await RevError.create(response);
+                this.log('debug', `Response ${method} ${endpoint} ${statusCode} ${err.code || statusText}`);
                 throw err;
             }
             // if not throwwing then force responseType to auto (could be text or json)
             responseType = undefined;
         }
+
+        this.log('debug', `Response ${method} ${endpoint} ${statusCode} ${statusText}`);
 
         let body: any = response.body;
 
@@ -316,6 +317,7 @@ export class RevClient {
         if (!this.logEnabled) {
             return;
         }
+
         const ts = (new Date()).toJSON().replace('T', ' ').slice(0, -5);
         console.debug(`${ts} REV-CLIENT [${severity}]`, ...args);
     }
