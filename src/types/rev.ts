@@ -152,6 +152,8 @@ export namespace Rev {
          * @deprecated use onError instead
          */
         onScrollError?: (err: ScrollError) => void;
+
+        signal?: AbortSignal | undefined;
     }
 
     export interface AccessEntitySearchOptions<T> extends SearchOptions<T> {

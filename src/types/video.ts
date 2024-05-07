@@ -15,6 +15,7 @@ export namespace Video {
 
     export type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
 
+    export type SearchFilterEnum = LiteralString<"myRecommendations" | "mySubscriptions">;
     export interface LinkedUrl {
         Url: string;
         EncodingType: EncodingType;
@@ -231,7 +232,7 @@ export namespace Video {
         /**
          * date video will be published
          */
-        publishDate: string | null;
+        publishDate: `${number}${number}${number}${number}-${number}${number}-${number}${number}` | null;
         lastViewed: string;
         totalViews: number;
         avgRating: number;
@@ -369,6 +370,11 @@ export namespace Video {
          * If channelId provided, videos in that particular channel are returned. User should have rights to the channel
          */
         channelId?: string;
+
+        /**
+         * Filter the results based on the channels and categories the Principal is subscribed OR apply the recommendation logic which boosts search results based on recent viewing history using up to the last 10 videos viewed by a user.
+         */
+        filter?: SearchFilterEnum;
 
         /**
          * search for videos matching specific custom field values.

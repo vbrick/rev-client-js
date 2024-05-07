@@ -29,6 +29,7 @@ export abstract class PagedRequest<ItemType> implements Rev.ISearchRequest<ItemT
                 console.warn("DEPRECATED: use onError instead of onScrollError with rev search requests");
                 this.options.onError(err);
             }),
+            signal: undefined as any,
             ...options
         };
 
@@ -43,8 +44,11 @@ export abstract class PagedRequest<ItemType> implements Rev.ISearchRequest<ItemT
     async nextPage(): Promise<Rev.SearchPage<ItemType>> {
         const {
             onProgress,
-            onError
+            onError,
+            signal
         } = this.options;
+
+        if (signal?.aborted) this.done = true;
 
         if (this.done) {
             return {
@@ -155,12 +159,14 @@ export abstract class PagedRequest<ItemType> implements Rev.ISearchRequest<ItemT
         return results;
     }
     async* [Symbol.asyncIterator]() {
+        const {signal} = this.options;
         do {
             const {
                 items
             } = await this.nextPage();
 
             for await (let hit of items) {
+                if (signal?.aborted) break;
                 yield hit;
             }
         } while (!this.done);

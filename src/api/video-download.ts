@@ -2,15 +2,14 @@ import { Rev, Video } from "../types";
 import { isPlainObject } from "../utils";
 import type {RevClient} from "../rev-client";
 
-
 export function videoDownloadAPI(rev: RevClient) {
     /**
      * Download a video. does not parse the output body. Note that content is sent as transfer-encoding: chunked;
      * @param videoId
      * @returns
      */
-    async function download(videoId: string, options: Rev.RequestOptions = {}) {
-        const response = await rev.request<ReadableStream>('GET', `/api/v2/videos/${videoId}/download`, undefined, {
+    async function download<T = ReadableStream>(videoId: string, options: Rev.RequestOptions = {}): Promise<Rev.Response<T>> {
+        const response = await rev.request<T>('GET', `/api/v2/videos/${videoId}/download`, undefined, {
             responseType: 'stream',
             ...options
         });
