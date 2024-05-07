@@ -89,6 +89,17 @@ export default function uploadAPIFactory(rev: RevClient) {
             return videoId;
         },
         async transcription(videoId: string, file: Rev.FileUploadType, language: Video.Transcription.SupportedLanguages = 'en', options: TranscriptionOptions = { }): Promise<void> {
+        async replaceVideo(videoId: string, file: Rev.FileUploadType, options: Rev.UploadFileOptions = {}): Promise<void> {
+            const { uploadOptions, requestOptions } = splitOptions(options);
+            const form = new FormData();
+            const filePayload = await appendFileToForm(form, 'VideoFile', file, uploadOptions);
+
+            rev.log('info', `Replacing ${videoId} with ${filePayload.filename} (${filePayload.contentType})`);
+
+            await rev.session.queueRequest(RateLimitEnum.UploadVideo);
+
+            await uploadMultipart(rev, 'PUT', `/api/v2/uploads/videos/${videoId}`, form, filePayload, requestOptions);
+        },
             const { uploadOptions, requestOptions } = splitOptions(options);
 
             const form = new FormData();

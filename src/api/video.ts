@@ -50,26 +50,27 @@ export default function videoAPIFactory(rev: RevClient) {
             await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
             await rev.patch(`/api/v2/videos/${videoId}`, payload);
         },
-        async delete(videoId: string): Promise<void> {
+        async delete(videoId: string, options: Rev.RequestOptions): Promise<void> {
             await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
-            await rev.delete(`/api/v2/videos/${videoId}`);
+            await rev.delete(`/api/v2/videos/${videoId}`, undefined, options);
             // TIP: If delete returns a 401 then video has likely already been deleted
         },
         /**
          * get processing status of a video
          * @param videoId
          */
-        async status(videoId: string): Promise<Video.StatusResponse> {
-            return rev.get(`/api/v2/videos/${videoId}/status`);
+        async status(videoId: string, options?: Rev.RequestOptions): Promise<Video.StatusResponse> {
+            return rev.get(`/api/v2/videos/${videoId}/status`, undefined, options);
         },
-        async details(videoId: string): Promise<Video.Details> {
+        async details(videoId: string, options?: Rev.RequestOptions): Promise<Video.Details> {
             await rev.session.queueRequest(RateLimitEnum.GetVideoDetails);
-            return rev.get(`/api/v2/videos/${videoId}/details`);
+            return rev.get(`/api/v2/videos/${videoId}/details`, undefined, options);
+        },
         },
         comments,
-        async chapters(videoId: string): Promise<Video.Chapter[]> {
+        async chapters(videoId: string, options?: Rev.RequestOptions): Promise<Video.Chapter[]> {
             try {
-                const {chapters} = await rev.get<{chapters: Video.Chapter[]}>(`/api/v2/videos/${videoId}/chapters`);
+                const {chapters} = await rev.get<{chapters: Video.Chapter[]}>(`/api/v2/videos/${videoId}/chapters`, undefined, options);
                 return chapters;
             } catch (err) {
                 // if no chapters then this api returns a 400 response
@@ -79,8 +80,8 @@ export default function videoAPIFactory(rev: RevClient) {
                 throw err;
             }
         },
-        async supplementalFiles(videoId: string): Promise<Video.SupplementalFile[]> {
-            const {supplementalFiles} = await rev.get(`/api/v2/videos/${videoId}/supplemental-files`);
+        async supplementalFiles(videoId: string, options?: Rev.RequestOptions): Promise<Video.SupplementalFile[]> {
+            const {supplementalFiles} = await rev.get(`/api/v2/videos/${videoId}/supplemental-files`, undefined, options);
             return supplementalFiles;
         },
         // async deleteSupplementalFiles(videoId: string, fileId: string | string[]): Promise<void> {
@@ -89,15 +90,19 @@ export default function videoAPIFactory(rev: RevClient) {
         //         : fileId
         //     await rev.delete(`/api/v2/videos/${videoId}/supplemental-files`, { fileIds });
         // },
-        async transcriptions(videoId: string): Promise<Video.Transcription[]> {
-            const {transcriptionFiles} = await rev.get(`/api/v2/videos/${videoId}/transcription-files`);
+        async transcriptions(videoId: string, options?: Rev.RequestOptions): Promise<Transcription[]> {
+            const {transcriptionFiles} = await rev.get(`/api/v2/videos/${videoId}/transcription-files`, undefined, options);
             return transcriptionFiles;
         },
         get upload() {
             return rev.upload.video;
         },
-        async migrate(videoId: string, options: Video.MigrateRequest) {
-            await rev.put(`/api/v2/videos/${videoId}/migration`, options);
+        get replace() {
+            return rev.upload.replaceVideo;
+        },
+        async migrate(videoId: string, options: Video.MigrateRequest, requestOptions?: Rev.RequestOptions) {
+            await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
+            await rev.put(`/api/v2/videos/${videoId}/migration`, options, requestOptions);
         },
         /**
          * search for videos, return as one big list. leave blank to get all videos in the account
@@ -179,9 +184,10 @@ export default function videoAPIFactory(rev: RevClient) {
             await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
             return rev.put<void>(`/api/v2/videos/${videoId}/convert-dual-streams-to-switched-stream`);
         },
-        async patch(videoId: string, operations: Rev.PatchOperation[]) {
+        async patch(videoId: string, operations: Rev.PatchOperation[], options?: Rev.RequestOptions) {
             await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
-            await rev.patch(`/api/v2/videos/${videoId}`, operations);
+            await rev.patch(`/api/v2/videos/${videoId}`, operations, options);
+        },
         },
         /**
          * Helper - wait for video transcode to complete.
@@ -189,7 +195,7 @@ export default function videoAPIFactory(rev: RevClient) {
          * @param videoId
          * @param options
          */
-        async waitTranscode(videoId: string, options: Video.WaitTranscodeOptions): Promise<Video.StatusResponse> {
+        async waitTranscode(videoId: string, options: Video.WaitTranscodeOptions, requestOptions?: Rev.RequestOptions): Promise<Video.StatusResponse> {
             const {
                 pollIntervalSeconds = 30,
                 timeoutMinutes = 240,
@@ -208,7 +214,7 @@ export default function videoAPIFactory(rev: RevClient) {
             while (Date.now() < timeoutDate && !signal?.aborted) {
                 // call video status API
                 try {
-                    statusResponse = await videoAPI.status(videoId);
+                    statusResponse = await videoAPI.status(videoId, options);
                     let {
                         isProcessing,
                         overallProgress = 0,
