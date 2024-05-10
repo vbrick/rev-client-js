@@ -10,6 +10,7 @@ export enum RateLimitEnum {
     GetUsersByLoginDate = 'loginReport',
     GetVideoDetails = 'videoDetails',
     GetWebcastAttendeesRealtime = 'attendeesRealtime',
+    GetVideoViewReport = 'viewReport'
 }
 
 export type RateLimits = { [K in RateLimitEnum]?: number }
@@ -24,7 +25,8 @@ export const defaultRateLimits: Required<RateLimits> = {
     [RateLimitEnum.GetVideoDetails]: 2000,
     [RateLimitEnum.GetWebcastAttendeesRealtime]: 2,
     [RateLimitEnum.AuditEndpoints]: 60,
-    [RateLimitEnum.GetUsersByLoginDate]: 10
+    [RateLimitEnum.GetUsersByLoginDate]: 10,
+    [RateLimitEnum.GetVideoViewReport]: 120,
 };
 
 // passthrough placeholder for ratelimit

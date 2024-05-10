@@ -1,6 +1,6 @@
 import type { RevClient } from '../rev-client';
 import type { Rev, Video } from '../types';
-import { asValidDate, isPlainObject } from '../utils';
+import { RateLimitEnum, asValidDate, isPlainObject } from '../utils';
 import { IPageResponse, PagedRequest } from '../utils/paged-request';
 
 
@@ -118,6 +118,7 @@ export class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
         if (videoIds) {
             query.videoIds = videoIds;
         }
+        await this._rev.session.queueRequest(RateLimitEnum.GetVideoViewReport);
         const items: Video.VideoReportEntry[] = await this._rev.get(this._endpoint, query, { responseType: "json" });
 
         // go to next date range

@@ -1,3 +1,9 @@
+## 0.21.1
+
+### Features
+
+* Added rate limiting on Video View Report endpoint (default: 120/min)
+
 ## 0.21.0
 * Add Rev 7.58 APIs
 * added Video Replace method `upload.replaceVideo`
