@@ -201,7 +201,8 @@ var defaultRateLimits = {
   ["videoDetails" /* GetVideoDetails */]: 2e3,
   ["attendeesRealtime" /* GetWebcastAttendeesRealtime */]: 2,
   ["auditEndpoint" /* AuditEndpoints */]: 60,
-  ["loginReport" /* GetUsersByLoginDate */]: 10
+  ["loginReport" /* GetUsersByLoginDate */]: 10,
+  ["viewReport" /* GetVideoViewReport */]: 120
 };
 var fn = () => Promise.resolve();
 function normalizeRateLimitOptions(rateLimits) {
@@ -2055,6 +2056,7 @@ var VideoReportRequest = class extends PagedRequest {
     if (videoIds) {
       query.videoIds = videoIds;
     }
+    await this._rev.session.queueRequest("viewReport" /* GetVideoViewReport */);
     const items = await this._rev.get(this._endpoint, query, { responseType: "json" });
     if (!done) {
       if (isAscending) {
@@ -2801,7 +2803,7 @@ var SessionKeepAlive = class {
     this._isExtending = false;
     this.extendOptions = {
       extendThresholdMilliseconds: 3 * ONE_MINUTE2,
-      keepAliveInterval: 5 * ONE_MINUTE2,
+      keepAliveInterval: 10 * ONE_MINUTE2,
       verify: true,
       ...options
     };

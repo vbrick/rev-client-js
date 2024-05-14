@@ -244,7 +244,8 @@ var defaultRateLimits = {
   ["videoDetails" /* GetVideoDetails */]: 2e3,
   ["attendeesRealtime" /* GetWebcastAttendeesRealtime */]: 2,
   ["auditEndpoint" /* AuditEndpoints */]: 60,
-  ["loginReport" /* GetUsersByLoginDate */]: 10
+  ["loginReport" /* GetUsersByLoginDate */]: 10,
+  ["viewReport" /* GetVideoViewReport */]: 120
 };
 var fn = () => Promise.resolve();
 function normalizeRateLimitOptions(rateLimits) {
@@ -2098,6 +2099,7 @@ var VideoReportRequest = class extends PagedRequest {
     if (videoIds) {
       query.videoIds = videoIds;
     }
+    await this._rev.session.queueRequest("viewReport" /* GetVideoViewReport */);
     const items = await this._rev.get(this._endpoint, query, { responseType: "json" });
     if (!done) {
       if (isAscending) {
@@ -2844,7 +2846,7 @@ var SessionKeepAlive = class {
     this._isExtending = false;
     this.extendOptions = {
       extendThresholdMilliseconds: 3 * ONE_MINUTE2,
-      keepAliveInterval: 5 * ONE_MINUTE2,
+      keepAliveInterval: 10 * ONE_MINUTE2,
       verify: true,
       ...options
     };
@@ -3563,7 +3565,7 @@ var import_node_fs = __toESM(require("fs"), 1);
 var import_node_path = __toESM(require("path"), 1);
 var import_node_stream = require("stream");
 var import_web = require("stream/web");
-var import_crypto = require("crypto");
+var import_node_crypto = require("crypto");
 async function getLengthFromStream(source) {
   const {
     length,
@@ -3665,13 +3667,13 @@ async function prepareUploadHeaders(form, headers, useChunkedTransfer = false) {
   }
 }
 function randomValues2(byteLength) {
-  return (0, import_crypto.randomBytes)(byteLength).toString("base64url");
+  return (0, import_node_crypto.randomBytes)(byteLength).toString("base64url");
 }
 async function sha256Hash2(value) {
-  return (0, import_crypto.createHash)("sha256").update(value).digest().toString("base64url");
+  return (0, import_node_crypto.createHash)("sha256").update(value).digest().toString("base64url");
 }
 async function hmacSign2(message, secret) {
-  const hmac = (0, import_crypto.createHmac)("sha256", secret);
+  const hmac = (0, import_node_crypto.createHmac)("sha256", secret);
   const signature = hmac.update(message).digest("base64");
   return signature;
 }

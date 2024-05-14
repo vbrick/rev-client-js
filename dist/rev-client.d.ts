@@ -67,7 +67,8 @@ declare enum RateLimitEnum {
     UpdateVideoMetadata = "updateVideo",
     GetUsersByLoginDate = "loginReport",
     GetVideoDetails = "videoDetails",
-    GetWebcastAttendeesRealtime = "attendeesRealtime"
+    GetWebcastAttendeesRealtime = "attendeesRealtime",
+    GetVideoViewReport = "viewReport"
 }
 
 declare namespace Auth {
