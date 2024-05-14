@@ -9,14 +9,18 @@
   "types": "dist/rev-client.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/rev-client.d.ts",
       "node": {
+        "types": "./dist/rev-client.d.ts",
         "import": "./dist/es/rev-client.mjs",
         "require": "./dist/node/rev-client.cjs"
       },
       "default": "./dist/rev-client.js"
     },
     "./native-fetch": {
+      "types": "./dist/rev-client.d.ts",
       "node": {
+        "types": "./dist/rev-client.d.ts",
         "import": "./dist/es18/rev-client.mjs",
         "require": "./dist/node18/rev-client.cjs"
       },

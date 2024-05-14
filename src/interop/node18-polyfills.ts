@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import { ReadableStream } from 'node:stream/web';
-import { createHmac, randomBytes, createHash } from 'crypto';
+import { createHmac, randomBytes, createHash } from 'node:crypto';
 import { isBlobLike, isReadable } from '../utils';
 import type { FileUploadPayloadInternal } from '../utils/file-utils';
 import type { Rev } from '../types/rev';
