@@ -4,6 +4,16 @@
 
 * Added rate limiting on Video View Report endpoint (default: 120/min)
 
+### Possibly Breaking Change
+* Change default keep alive interval to 10 minutes instead of 5 minutes. This value can be customized when setting the rev config:
+
+```js
+const rev = new RevClient({
+    ...
+    keepAliveInterval: 5 * 60 * 1000 // set keep alive interval to 5 minutes (in milliseconds)
+})
+```
+
 ## 0.21.0
 * Add Rev 7.58 APIs
 * added Video Replace method `upload.replaceVideo`

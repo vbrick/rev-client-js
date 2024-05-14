@@ -27,7 +27,7 @@ class SessionKeepAlive {
         // TODO verify values?
         this.extendOptions = {
             extendThresholdMilliseconds: 3 * ONE_MINUTE,
-            keepAliveInterval: 5 * ONE_MINUTE,
+            keepAliveInterval: 10 * ONE_MINUTE,
             verify: true,
             ...options
         };
