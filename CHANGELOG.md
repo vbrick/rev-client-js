@@ -1,3 +1,146 @@
+## 0.21.1
+
+### Features
+
+* Added rate limiting on Video View Report endpoint (default: 120/min)
+
+### Possibly Breaking Change
+* Change default keep alive interval to 10 minutes instead of 5 minutes. This value can be customized when setting the rev config:
+
+```js
+const rev = new RevClient({
+    ...
+    keepAliveInterval: 5 * 60 * 1000 // set keep alive interval to 5 minutes (in milliseconds)
+})
+```
+
+## 0.21.0
+* Add Rev 7.58 APIs
+* added Video Replace method `upload.replaceVideo`
+* added Video Translate/Transcribe APIs
+* added `video.setAudioLanguage` helper to set the language for the default audio track
+
+### **Bugfixes**
+
+* Fix bug when uploading files when using node.js and native fetch
+
+### **Deprecations**
+* `user.details(usernameOrEmail, type)` has changed to pass in an object as second parameter (old method is still supported). Use `user.details(username, {lookupType: 'username'})` or `user.details(email, {lookupType: 'email'})` instead.
+
+### **Possibly Breaking Change**
+* **Types only** - `Video.Transcription` namespace moved to own namespace `Transcription`
+
+
+## 0.20.2
+
+### **Possible Breaking Changes**
+* Require node v18 or higher.
+
+### Features
+* Add Rev 7.56 + 7.57 APIs
+* Add dynamic playlist API support
+* **Node.js** - Add ability to set preference for a Web Stream `ReadableStream` or the NodeJS `Readable` stream when using `responseType: 'stream'` -- usually only used for video downloads. This is for future compatibility changes when shifting from `node-fetch` to native nodejs `fetch` as the default.
+
+### Bugfixes
+* Don't block transcription uploads if language isn't recognized
+* webcast.pollResults: return array instead of {polls: array}
+
+## 0.17.1
+
+### Features
+* Minify IIFE version for ~50Kb size savings
+* Hardcode `RevError` classname to avoid mangling by build process
+
+### Bugfixes
+* Removed `RateLimitEnum` from main exports, which was only partially added in v0.16
+* Make session rate limit queues non-enumerable
+* Clean up top level exports
+
+## 0.17.0
+
+### **Deprecations**
+* In an upcoming major release this library will remove the `node-fetch` dependency in favor of node's built-in fetch functionality. The native fetch functionality is available now by using the `@vbrick/rev-client/native-fetch` export.
+
+### Features
+
+* Added Video [External Access endpoints](https://revdocs.vbrick.com/reference/getvideoexternalaccess)
+* Added User Details `status` property to TS types
+* Updated Video types with latest changes in Rev 7.56
+
+### Bugfixes
+* Bugfix in audit parsing of date ranges
+
+## 0.16.1
+
+### Features
+
+* Add `entityId` into Audit response entries
+
+### Bugfixes
+
+* fix how audit endpoints pass parameters
+
+## 0.16
+
+### Features
+
+* Add rate limiting option. This feature is disabled by default - add by including `rateLimits: true` when initializing `RevClient`.
+
+* Add Get Users by Login API endpoint
+
+### Breaking Changes
+
+* `rateLimit` now correctly handles limit options (`perSecond`, `perMinute`) that are less than 1. For example, `{ perSecond: 0.5 }` will be interpreted as "once every 2 seconds". Previously it was interpreted as "2 every second". This only impacts code if you used the `utils.rateLimit` function and specified a value less than 1.
+
+## 0.15.1
+
+### Bugfixes
+* `accessToken`-based sessions now return correct response when calling `verifySession()`
+
+## 0.15.0
+
+### Features
+* Add additional [environment api](README.md#environment).
+* Add additional `publicOnly` option to [`Rev.Credentials`](README.md#options)
+* Add additional Guest Registration login option
+* Add `webcast.playbackUrls()` to match `video.playbackUrls()` shape
+
+### Deprecations
+* Deprecate `webcast.playbackUrl()` *(use `webcast.playbackUrls()` instead)*
+
+### Bugfixes
+* Correct `Video.Transcription` type definition
+
+## 0.14.0
+
+### Features
+* Add optional `options` parameter to authentication API calls, to allow passing a custom `User-Agent` / `Authorization` headers. This may be needed if generating tokens server-side for use in the browser, where user agent mismatches can cause video playback issues. Also note that you can pass `{ headers: { Authorization: '' } }` to not pass any existing authentication token.
+* Added `video.playbackUrls` endpoint (Get Video Playback URLS)
+
+## 0.13.1
+
+### Features
+
+* Add `video.waitTranscode(videoId, options)` helper - this function simplifies the process of querying the [https://revdocs.vbrick.com/reference/getvideostatus](Get Video Status) API to check if a video has finished processing after upload.
+* Added `admin.featureSettings()` wrapper for the [https://revdocs.vbrick.com/reference/getvideofeatures-1](Get Video Feature Settings API)
+* Added `video.patch()` for calling the Video Patch API
+* export `Rev.FileUploadType` and `Rev.UploadFileOptions` to make typing uploads easier
+
+### Breaking Changes
+* `admin.getRoleByName()` now prefers comparing against the `roleType` value in the Get Roles API response, falling back to the Role Name (which is translated depending on user's language settings).
+* Role type's `name` field values changed to better reflect the actual response. The underlying type `string` did not change.
+* `utils.rateLimit()`'s `.abort()` helper in response now includes optional `message` and `dispose` parameters.
+
+### Bugfixes
+
+* Fixed Chapter upload
+* Avoid memory leaks when adding AbortSignal listeners.
+
+## 0.12.1
+
+* added `vtt` to mimetypes
+* fixed bug in setting content-type for non-video uploads
+
 ## 0.12.0
 
 ### Features

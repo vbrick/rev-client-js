@@ -1,4 +1,5 @@
 import { Rev, RegistrationField, Admin } from '.';
+import { Video } from './video';
 import { LiteralString } from './rev';
 
 export interface Webcast {
@@ -400,16 +401,10 @@ export namespace Webcast {
         userAgent?: string;
     }
 
-    export interface Playback {
-        label: string;
-        qValue: number;
-        player: string;
-        url: string;
-        zoneId: string;
-        slideDelaySeconds: number;
-        videoFormat: string;
-        videoInstanceId: string;
-        deviceId: string;
+    export interface PlaybackUrlsResponse extends Video.PlaybackUrlsResponse {}
+
+    export interface Playback extends Video.PlaybackUrlResult {
+
     }
 }
 

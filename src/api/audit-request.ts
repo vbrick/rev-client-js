@@ -3,12 +3,14 @@ import { Audit } from '../types';
 import { asValidDate, tryParseJson } from '../utils';
 import { IPageResponse, PagedRequest } from '../utils/paged-request';
 import { parseCSV } from '../utils/parse-csv';
+import { RateLimitEnum, makeQueue } from '../utils/rate-limit-queues';
 
 function parseEntry<T extends Audit.Entry>(line: Record<string, any>): T {
     return {
         messageKey: line['MessageKey'],
         entityKey: line['EntityKey'],
         when: line['When'],
+        entityId: line['EntityId'],
         principal: tryParseJson(line['Principal']) || {},
         message: tryParseJson(line['Message']) || {},
         currentState: tryParseJson(line['CurrentState']) || {},
@@ -28,7 +30,7 @@ export class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
         rev: RevClient,
         endpoint: string,
         label: string = 'audit records',
-        {toDate, fromDate, ...options}: Audit.Options<T> = {}
+        {toDate, fromDate, beforeRequest, ...options}: Audit.Options<T> = {}
     ) {
         super({
             onProgress: (items: T[], current: number, total?: number | undefined) => {
@@ -44,12 +46,13 @@ export class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
             fromDate: from.toISOString()
         };
 
-        this._req = this._buildReqFunction(rev, endpoint);
+        this._req = this._buildReqFunction(rev, endpoint, beforeRequest);
     }
     protected _requestPage() { return this._req(); }
-    private _buildReqFunction(rev: RevClient, endpoint: string) {
+    private _buildReqFunction(rev: RevClient, endpoint: string, beforeRequest?: (request: PagedRequest<T>) => Promise<void>) {
         return async () => {
-            const response = await rev.request('GET', endpoint, { params: this.params }, { responseType: 'text' });
+            await beforeRequest?.(this);
+            const response = await rev.request('GET', endpoint, this.params, { responseType: 'text' });
 
             const {
                 body,
@@ -80,7 +83,8 @@ export class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
         let to = asValidDate(toDate, new Date());
 
         // default to one year older than toDate
-        const defaultFrom = new Date(to.setFullYear(to.getFullYear() - 1));
+        const defaultFrom = new Date(to);
+        defaultFrom.setFullYear(to.getFullYear() - 1);
 
         let from = asValidDate(fromDate, defaultFrom);
 

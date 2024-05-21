@@ -12,7 +12,7 @@ function fileEntry(source: string, filepath: string): Partial<Options> {
     };
 }
 
-const commonConfig = {
+const commonConfig: Options = {
     splitting: false,
     sourcemap: true,
     clean: true,
@@ -59,9 +59,9 @@ export default defineConfig((options) => {
             platform: 'browser',
             globalName: 'revClientLib',
             ...commonConfig,
+            minify: true,
             dts: false
         }
     ];
-    console.log('CFG', cfg);
     return cfg;
 });

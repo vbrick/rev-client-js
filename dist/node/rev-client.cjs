@@ -140,20 +140,26 @@ var interop_default = {
     form.append(fieldName, file, filename);
   },
   async prepareUploadHeaders(form, headers, useChunkedTransfer) {
+  },
+  asPlatformStream(stream) {
+    return stream;
+  },
+  asWebStream(stream) {
+    return stream;
   }
 };
 
 // src/utils/rate-limit.ts
 var ONE_MINUTE = 60 * 1e3;
-function rateLimit(fn, options = {}) {
-  if (fn && typeof fn === "object") {
-    options = Object.assign({}, fn, options);
-    fn = void 0;
+function rateLimit(fn2, options = {}) {
+  if (fn2 && typeof fn2 === "object") {
+    options = Object.assign({}, fn2, options);
+    fn2 = void 0;
   }
-  if (!fn) {
-    fn = options.fn;
+  if (!fn2) {
+    fn2 = options.fn;
   }
-  if (typeof fn !== "function") {
+  if (typeof fn2 !== "function") {
     throw new TypeError("Rate limit function is not a function");
   }
   const {
@@ -177,7 +183,7 @@ function rateLimit(fn, options = {}) {
     interval = ONE_MINUTE * 60;
   }
   if (limit < 1) {
-    interval *= limit;
+    interval /= limit;
     limit = 1;
   } else {
     limit = Math.floor(limit);
@@ -195,7 +201,7 @@ function rateLimit(fn, options = {}) {
     let timeout;
     return new Promise((resolve, reject) => {
       const execute = () => {
-        resolve(fn.apply(null, args));
+        resolve(fn2.apply(null, args));
         queue.delete(timeout);
       };
       const now = Date.now();
@@ -212,19 +218,61 @@ function rateLimit(fn, options = {}) {
       queue.set(timeout, reject);
     });
   };
-  throttled.abort = (message = "Cancelled rate-limit queue") => {
+  let abortHandler = signal ? () => throttled.abort(signal.reason ? `${signal.reason}` : void 0, true) : void 0;
+  throttled.abort = (message = "Cancelled rate-limit queue", dispose = false) => {
+    if (dispose) {
+      signal?.removeEventListener("abort", abortHandler);
+    }
     for (const [timeout, reject] of queue.entries()) {
       clearTimeout(timeout);
       reject(interop_default.createAbortError(message));
     }
     queue.clear();
   };
-  if (signal) {
-    signal.addEventListener("abort", () => throttled.abort());
-  }
+  signal?.addEventListener("abort", abortHandler);
   return throttled;
 }
 var rate_limit_default = rateLimit;
+
+// src/utils/rate-limit-queues.ts
+var defaultRateLimits = {
+  ["get" /* Get */]: 24e3,
+  ["post" /* Post */]: 3600,
+  ["searchVideos" /* SearchVideos */]: 120,
+  ["uploadVideo" /* UploadVideo */]: 30,
+  ["updateVideo" /* UpdateVideoMetadata */]: 30,
+  ["videoDetails" /* GetVideoDetails */]: 2e3,
+  ["attendeesRealtime" /* GetWebcastAttendeesRealtime */]: 2,
+  ["auditEndpoint" /* AuditEndpoints */]: 60,
+  ["loginReport" /* GetUsersByLoginDate */]: 10,
+  ["viewReport" /* GetVideoViewReport */]: 120
+};
+var fn = () => Promise.resolve();
+function normalizeRateLimitOptions(rateLimits) {
+  return {
+    // include defaults if true or object
+    ...rateLimits && defaultRateLimits,
+    ...typeof rateLimits === "object" && rateLimits
+  };
+}
+function makeQueue(key, value) {
+  const defaultValue = defaultRateLimits[key];
+  const perMinute = value ?? defaultValue;
+  if (!isFinite(perMinute) || perMinute <= 0) {
+    return fn;
+  }
+  const limit = perMinute / 12;
+  const interval = 5e3;
+  return rate_limit_default({ fn, limit, interval });
+}
+function makeQueues(rateLimits = {}) {
+  const entries = Object.keys(defaultRateLimits).map((key) => [key, makeQueue(key, rateLimits[key])]);
+  return Object.fromEntries(entries);
+}
+function clearQueues(rateLimits, message) {
+  const fns = Object.values(rateLimits);
+  fns.forEach((fn2) => fn2.abort?.(message));
+}
 
 // src/utils/index.ts
 function asValidDate(val, defaultValue) {
@@ -236,11 +284,11 @@ function asValidDate(val, defaultValue) {
   }
   return isNaN(val.getTime()) ? defaultValue : val;
 }
-async function retry(fn, shouldRetry = () => true, maxAttempts = 3, sleepMilliseconds = 1e3) {
+async function retry(fn2, shouldRetry = () => true, maxAttempts = 3, sleepMilliseconds = 1e3) {
   let attempt = 0;
   while (attempt < maxAttempts) {
     try {
-      const result = await fn();
+      const result = await fn2();
       return result;
     } catch (err) {
       attempt += 1;
@@ -260,7 +308,7 @@ async function sleep(ms, signal) {
       signal?.removeEventListener("abort", cleanup);
       done();
     };
-    timer = setTimeout(done, ms);
+    timer = setTimeout(cleanup, ms);
     signal?.addEventListener("abort", cleanup);
   });
 }
@@ -275,7 +323,7 @@ function tryParseJson(val) {
 }
 
 // src/rev-error.ts
-var RevError = class extends Error {
+var RevError = class _RevError extends Error {
   constructor(response, body) {
     const {
       status = 500,
@@ -315,10 +363,10 @@ var RevError = class extends Error {
     }
   }
   get name() {
-    return this.constructor.name;
+    return "RevError";
   }
   get [Symbol.toStringTag]() {
-    return this.constructor.name;
+    return "RevError";
   }
   static async create(response) {
     let body;
@@ -330,7 +378,7 @@ var RevError = class extends Error {
         detail: `Unable to parse error response body: ${err}`
       };
     }
-    return new RevError(response, body);
+    return new _RevError(response, body);
   }
 };
 var ScrollError = class extends Error {
@@ -363,6 +411,7 @@ var PagedRequest = class {
         console.warn("DEPRECATED: use onError instead of onScrollError with rev search requests");
         this.options.onError(err);
       },
+      signal: void 0,
       ...options
     };
     this.current = 0;
@@ -375,8 +424,11 @@ var PagedRequest = class {
   async nextPage() {
     const {
       onProgress,
-      onError
+      onError,
+      signal
     } = this.options;
+    if (signal?.aborted)
+      this.done = true;
     if (this.done) {
       return {
         current: this.current,
@@ -465,11 +517,14 @@ var PagedRequest = class {
     return results;
   }
   async *[Symbol.asyncIterator]() {
+    const { signal } = this.options;
     do {
       const {
         items
       } = await this.nextPage();
       for await (let hit of items) {
+        if (signal?.aborted)
+          break;
         yield hit;
       }
     } while (!this.done);
@@ -479,7 +534,8 @@ var PagedRequest = class {
 // src/utils/request-utils.ts
 async function decodeBody(response, acceptType) {
   const contentType = response.headers.get("Content-Type") || acceptType || "";
-  if (contentType.startsWith("application/json")) {
+  const contentLength = response.headers.get("Content-Length");
+  if (contentType.startsWith("application/json") && contentLength !== "0") {
     try {
       return await response.json();
     } catch (err) {
@@ -576,18 +632,18 @@ function adminAPIFactory(rev) {
     },
     /**
     * Get a Role (with the role id) based on its name
-    * @param name Name of the Role, i.e. "Media Viewer"
+    * @param name Name of the Role OR RoleType. You can specify the specific enum value (preferred, only Rev 7.53+), or the localized string value in the current user's language, i.e. "Media Viewer" for english
     * @param fromCache - if true then use previously cached Role listing (more efficient)
     */
     async getRoleByName(name, fromCache = true) {
       const roles2 = await adminAPI.roles(fromCache);
-      const role = roles2.find((r) => r.name === name);
+      const role = roles2.find((r) => r.roleType === name || r.name === name);
       if (!role) {
-        throw new TypeError(`Invalid Role Name ${name}. Valid values are: ${roles2.map((r) => r.name).join(", ")}`);
+        throw new TypeError(`Invalid Role Name ${name}. Valid values are: ${roles2.flatMap((r) => r.roleType ? [r.roleType, r.name] : [r.name]).join(", ")}`);
       }
       return {
         id: role.id,
-        name: role.name
+        name: role.roleType || role.name
       };
     },
     /**
@@ -667,6 +723,10 @@ function adminAPIFactory(rev) {
      */
     async expirationRules() {
       return rev.get("/api/v2/expiration-rules");
+    },
+    async featureSettings(videoId) {
+      const params = videoId ? { videoId } : void 0;
+      return rev.get("/api/v2/videos/feature-settings", params);
     }
   };
   return adminAPI;
@@ -740,6 +800,7 @@ function parseEntry(line) {
     messageKey: line["MessageKey"],
     entityKey: line["EntityKey"],
     when: line["When"],
+    entityId: line["EntityId"],
     principal: tryParseJson(line["Principal"]) || {},
     message: tryParseJson(line["Message"]) || {},
     currentState: tryParseJson(line["CurrentState"]) || {},
@@ -747,7 +808,7 @@ function parseEntry(line) {
   };
 }
 var AuditRequest = class extends PagedRequest {
-  constructor(rev, endpoint, label = "audit records", { toDate, fromDate, ...options } = {}) {
+  constructor(rev, endpoint, label = "audit records", { toDate, fromDate, beforeRequest, ...options } = {}) {
     super({
       onProgress: (items, current, total) => {
         rev.log("debug", `loading ${label}, ${current} of ${total}...`);
@@ -759,14 +820,15 @@ var AuditRequest = class extends PagedRequest {
       toDate: to.toISOString(),
       fromDate: from.toISOString()
     };
-    this._req = this._buildReqFunction(rev, endpoint);
+    this._req = this._buildReqFunction(rev, endpoint, beforeRequest);
   }
   _requestPage() {
     return this._req();
   }
-  _buildReqFunction(rev, endpoint) {
+  _buildReqFunction(rev, endpoint, beforeRequest) {
     return async () => {
-      const response = await rev.request("GET", endpoint, { params: this.params }, { responseType: "text" });
+      await beforeRequest?.(this);
+      const response = await rev.request("GET", endpoint, this.params, { responseType: "text" });
       const {
         body,
         headers
@@ -787,7 +849,8 @@ var AuditRequest = class extends PagedRequest {
   }
   _parseDates(fromDate, toDate) {
     let to = asValidDate(toDate, /* @__PURE__ */ new Date());
-    const defaultFrom = new Date(to.setFullYear(to.getFullYear() - 1));
+    const defaultFrom = new Date(to);
+    defaultFrom.setFullYear(to.getFullYear() - 1);
     let from = asValidDate(fromDate, defaultFrom);
     if (to < from) {
       [to, from] = [from, to];
@@ -797,70 +860,118 @@ var AuditRequest = class extends PagedRequest {
 };
 
 // src/api/audit.ts
-function auditAPIFactory(rev) {
+function auditAPIFactory(rev, optRateLimits) {
+  const requestsPerMinute = normalizeRateLimitOptions(optRateLimits)["auditEndpoint" /* AuditEndpoints */];
+  function makeOptTransform() {
+    if (!requestsPerMinute)
+      return (opts) => opts;
+    const lock = makeQueue("auditEndpoint" /* AuditEndpoints */, requestsPerMinute);
+    return (opts = {}) => ({
+      ...opts,
+      async beforeRequest(req) {
+        await lock();
+        return opts.beforeRequest?.(req);
+      }
+    });
+  }
+  const locks = {
+    accountAccess: makeOptTransform(),
+    userAccess: makeOptTransform(),
+    accountUsers: makeOptTransform(),
+    user: makeOptTransform(),
+    accountGroups: makeOptTransform(),
+    group: makeOptTransform(),
+    accountDevices: makeOptTransform(),
+    device: makeOptTransform(),
+    accountVideos: makeOptTransform(),
+    video: makeOptTransform(),
+    accountWebcasts: makeOptTransform(),
+    webcast: makeOptTransform(),
+    principal: makeOptTransform()
+  };
   const auditAPI = {
     /**
     * Logs of user login / logout / failed login activity
     */
     accountAccess(accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess`, "UserAccess", options);
+      const opts = locks.accountAccess(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess`, "UserAccess", opts);
     },
     userAccess(userId, accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess/${userId}`, `UserAccess_${userId}`, options);
+      const opts = locks.userAccess(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/userAccess/${userId}`, `UserAccess_${userId}`, opts);
     },
     /**
     * Operations on User Records (create, delete, etc)
     */
     accountUsers(accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/users`, "User", options);
+      const opts = locks.accountUsers(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/users`, "User", opts);
     },
     user(userId, accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/users/${userId}`, "User", options);
+      const opts = locks.user(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/users/${userId}`, "User", opts);
     },
     /**
     * Operations on Group Records (create, delete, etc)
     */
     accountGroups(accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/groups`, "Groups", options);
+      const opts = locks.accountGroups(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/groups`, "Groups", opts);
     },
     group(groupId, accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/groups/${groupId}`, "Group", options);
+      const opts = locks.group(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/groups/${groupId}`, "Group", opts);
     },
     /**
     * Operations on Device Records (create, delete, etc)
     */
     accountDevices(accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/devices`, "Devices", options);
+      const opts = locks.accountDevices(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/devices`, "Devices", opts);
     },
     device(deviceId, accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/devices/${deviceId}`, "Device", options);
+      const opts = locks.device(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/devices/${deviceId}`, "Device", opts);
     },
     /**
     * Operations on Video Records (create, delete, etc)
     */
     accountVideos(accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/videos`, "Videos", options);
+      const opts = locks.accountVideos(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/videos`, "Videos", opts);
     },
     video(videoId, accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/videos/${videoId}`, "Video", options);
+      const opts = locks.video(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/videos/${videoId}`, "Video", opts);
     },
     /**
     * Operations on Webcast Records (create, delete, etc)
     */
     accountWebcasts(accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/scheduledEvents`, "Webcasts", options);
+      const opts = locks.accountWebcasts(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/scheduledEvents`, "Webcasts", opts);
     },
     webcast(eventId, accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/scheduledEvents/${eventId}`, `Webcast`, options);
+      const opts = locks.webcast(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/scheduledEvents/${eventId}`, `Webcast`, opts);
     },
     /**
     * All operations a single user has made
     */
     principal(userId, accountId, options) {
-      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/principals/${userId}`, "Principal", options);
+      const opts = locks.principal(options);
+      return new AuditRequest(rev, `/network/audit/accounts/${accountId}/principals/${userId}`, "Principal", opts);
     }
   };
   return auditAPI;
+}
+
+// src/utils/merge-headers.ts
+function mergeHeaders(source, other) {
+  const merged = new interop_default.Headers(source);
+  new interop_default.Headers(other).forEach((value, key) => merged.set(key, value));
+  return merged;
 }
 
 // src/api/oauth.ts
@@ -924,11 +1035,11 @@ function parseLegacyOAuthRedirectResponse(url) {
 // src/api/auth.ts
 function authAPIFactory(rev) {
   const authAPI = {
-    async loginToken(apiKey, secret) {
+    async loginToken(apiKey, secret, options) {
       return rev.post("/api/v2/authenticate", {
         apiKey,
         secret
-      });
+      }, options);
     },
     async extendSessionToken(apiKey) {
       return rev.post(`/api/v2/auth/extend-session-timeout/${apiKey}`);
@@ -936,11 +1047,11 @@ function authAPIFactory(rev) {
     async logoffToken(apiKey) {
       return rev.delete(`/api/v2/tokens/${apiKey}`);
     },
-    async loginUser(username, password) {
+    async loginUser(username, password, options) {
       return rev.post("/api/v2/user/login", {
         username,
         password
-      });
+      }, options);
     },
     async logoffUser(userId) {
       return rev.post("/api/v2/user/logoff", { userId });
@@ -948,8 +1059,15 @@ function authAPIFactory(rev) {
     async extendSessionUser(userId) {
       return rev.post("/api/v2/user/extend-session-timeout", { userId });
     },
-    async loginJWT(jwtToken) {
-      return rev.get("/api/v2/jwtauthenticate", { jwt_token: jwtToken });
+    async loginJWT(jwtToken, options) {
+      return rev.get("/api/v2/jwtauthenticate", { jwt_token: jwtToken }, options);
+    },
+    async loginGuestRegistration(webcastId, jwtToken, options) {
+      const opts = {
+        ...options,
+        headers: mergeHeaders(options?.headers, { "x-requested-with": "xmlhttprequest" })
+      };
+      return rev.post(`/external/auth/jwt/${webcastId}`, { token: `vbrick_rev ${jwtToken}` }, options);
     },
     async extendSession() {
       return rev.post("/api/v2/user/extend-session");
@@ -987,7 +1105,7 @@ function authAPIFactory(rev) {
         codeVerifier
       };
     },
-    async loginOAuth2(config, code, codeVerifier) {
+    async loginOAuth2(config, code, codeVerifier, options) {
       return rev.post("/api/v2/oauth2/token", {
         // sometimes the authCode can get mangled, with the pluses in the code being replaced by spaces.
         code: code.replace(/ /g, "+"),
@@ -995,7 +1113,7 @@ function authAPIFactory(rev) {
         grant_type: "authorization_code",
         redirect_uri: config.redirectUri,
         code_verifier: codeVerifier
-      });
+      }, options);
     },
     /**
      * @deprecated
@@ -1130,6 +1248,23 @@ function channelAPIFactory(rev) {
         return { op: "remove", path: "/Members", value: entityId };
       });
       await rev.patch(`/api/v2/channels/${channelId}`, operations);
+    },
+    /**
+     *
+     * @param {string} [searchText]
+     * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
+     */
+    search(searchText, options = {}) {
+      const searchDefinition = {
+        endpoint: `/api/v2/search/access-entity${options?.assignable ? "/assignable" : ""}`,
+        totalKey: "totalEntities",
+        hitsKey: "accessEntities"
+      };
+      const query = {
+        type: options.type || "Channel",
+        ...searchText && { q: searchText }
+      };
+      return new SearchRequest(rev, searchDefinition, query, options);
     }
   };
   return channelAPI;
@@ -1262,7 +1397,7 @@ function groupAPIFactory(rev) {
      */
     search(searchText, options = {}) {
       const searchDefinition = {
-        endpoint: "/api/v2/search/access-entity",
+        endpoint: `/api/v2/search/access-entity${options?.assignable ? "/assignable" : ""}`,
         totalKey: "totalEntities",
         hitsKey: "accessEntities",
         transform: (hits) => hits.map(formatGroupSearchHit)
@@ -1323,21 +1458,68 @@ function formatGroupSearchHit(hit) {
   };
 }
 
+// src/api/playlist-details-request.ts
+function getSummaryFromResponse(response, hitsKey) {
+  const ignoreKeys = ["scrollId", "statusCode", "statusDescription"];
+  const summary = Object.fromEntries(Object.entries(response).filter(([key, value]) => {
+    return !(key === hitsKey || ignoreKeys.includes(key) || Array.isArray(value));
+  }));
+  return summary;
+}
+var PlaylistDetailsRequest = class extends SearchRequest {
+  constructor(rev, playlistId, query = {}, options = {}) {
+    const searchDefinition = {
+      endpoint: `/api/v2/playlists/${playlistId}`,
+      totalKey: "totalVideos",
+      hitsKey: "videos",
+      // get summary from initial response
+      request: async (endpoint, query2, options2) => {
+        await rev.session.queueRequest("searchVideos" /* SearchVideos */);
+        const response = await rev.get(endpoint, query2, options2);
+        Object.assign(this.playlist, getSummaryFromResponse(response, "videos"));
+        return response;
+      }
+    };
+    super(rev, searchDefinition, query, options);
+    this.playlist = {};
+  }
+  get playlistName() {
+    return this.playlist.playlistDetails?.name || this.playlist.name;
+  }
+  get searchFilter() {
+    return this.playlist?.playlistType === "Dynamic" ? this.playlist.playlistDetails?.searchFilter || this.playlist.searchFilter : void 0;
+  }
+  async getPlaylistInfo() {
+    this.options.maxResults = 0;
+    const { items: videos } = await this.nextPage();
+    return {
+      ...this.playlist,
+      ...this.playlist?.playlistDetails,
+      videos,
+      playlistName: this.playlistName,
+      searchFilter: this.searchFilter
+    };
+  }
+};
+
 // src/api/playlist.ts
 function playlistAPIFactory(rev) {
   const playlistAPI = {
-    async create(name, videoIds) {
-      const payload = {
-        name,
-        videoIds
-      };
+    async create(name, videos) {
+      const isStatic = Array.isArray(videos);
+      const payload = isStatic ? { name, playlistType: "Static", videoIds: videos } : { name, playlistType: "Dynamic", playlistDetails: videos };
       const { playlistId } = await rev.post("/api/v2/playlists", payload, { responseType: "json" });
       return playlistId;
     },
+    async details(playlistId, query) {
+      return rev.get(`/api/v2/playlists/${playlistId}`, query, { responseType: "json" });
+    },
+    listVideos(playlistId, query, options) {
+      return new PlaylistDetailsRequest(rev, playlistId, query, options);
+    },
     async update(playlistId, actions) {
-      const payload = {
-        playlistVideoDetails: actions
-      };
+      const isStatic = Array.isArray(actions);
+      const payload = isStatic ? { playlistVideoDetails: actions } : { playlistDetails: actions };
       return rev.put(`/api/v2/playlists/${playlistId}`, payload);
     },
     async updateFeatured(actions) {
@@ -1356,14 +1538,23 @@ function playlistAPIFactory(rev) {
      */
     async list() {
       function parsePlaylist(entry) {
+        const {
+          id,
+          playlistId,
+          featurePlaylistId,
+          featuredPlaylist,
+          name,
+          playlistName,
+          ...extra
+        } = entry;
         return {
-          id: entry.id ?? entry.playlistId ?? entry.featurePlaylistId ?? entry.featuredPlaylist,
-          name: entry.name ?? entry.playlistName,
-          playbackUrl: entry.playbackUrl,
+          ...extra,
+          id: id ?? playlistId ?? featurePlaylistId ?? featuredPlaylist,
+          name: name ?? playlistName,
           videos: entry.videos ?? entry.Videos
         };
       }
-      const rawResult = await rev.get("/api/v2/playlists", { responseType: "json" });
+      const rawResult = await rev.get("/api/v2/playlists", void 0, { responseType: "json" });
       const hasFeatured = !Array.isArray(rawResult);
       const rawPlaylists = hasFeatured ? rawResult.playlists : rawResult;
       const output = {
@@ -1450,6 +1641,7 @@ var mimeTypes = {
   ".zip": "application/zip",
   ".mks": "video/x-matroska",
   ".mts": "model/vnd.mts",
+  ".vtt": "text/vtt",
   ".wma": "audio/x-ms-wma"
 };
 function getMimeForExtension(extension = "", defaultType = "video/mp4") {
@@ -1463,7 +1655,7 @@ function getExtensionForMime(contentType, defaultExtension = ".mp4") {
   const match = contentType && Object.entries(mimeTypes).find(([ext, mime]) => contentType.startsWith(mime));
   return match ? match[0] : defaultExtension;
 }
-function sanitizeFileUpload(payload) {
+function sanitizeFileUpload(payload, defaultContentType) {
   let {
     file,
     options: {
@@ -1477,14 +1669,14 @@ function sanitizeFileUpload(payload) {
   if (/charset/.test(contentType)) {
     contentType = contentType.replace(/;?.*charset.*$/, "");
   }
-  let name = filename.replace(".[^.]+$", "");
+  let name = filename.replace(/\.[^\.]+$/, "");
   let ext = filename.replace(name, "");
   if (!ext) {
     ext = getExtensionForMime(contentType);
   }
   filename = `${name}${ext}`;
   if (!contentType) {
-    contentType = getMimeForExtension(ext);
+    contentType = getMimeForExtension(ext, defaultContentType);
   }
   if (isBlobLike(file) && file.type !== contentType) {
     payload.file = file.slice(0, file.size, contentType);
@@ -1555,20 +1747,22 @@ function uploadAPIFactory(rev) {
       appendJSONToForm(form, "video", metadata);
       const filePayload = await appendFileToForm(form, "VideoFile", file, uploadOptions);
       rev.log("info", `Uploading ${filePayload.filename} (${filePayload.contentType})`);
+      await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
       const { videoId } = await uploadMultipart(rev, "POST", "/api/v2/uploads/videos", form, filePayload, requestOptions);
       return videoId;
     },
+    async replaceVideo(videoId, file, options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options);
+      const form = new FormData2();
+      const filePayload = await appendFileToForm(form, "VideoFile", file, uploadOptions);
+      rev.log("info", `Replacing ${videoId} with ${filePayload.filename} (${filePayload.contentType})`);
+      await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
+      await uploadMultipart(rev, "PUT", `/api/v2/uploads/videos/${videoId}`, form, filePayload, requestOptions);
+    },
     async transcription(videoId, file, language = "en", options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options);
-      const supportedLanguages = ["de", "en", "en-gb", "es-es", "es-419", "es", "fr", "fr-ca", "id", "it", "ko", "ja", "nl", "no", "pl", "pt", "pt-br", "th", "tr", "fi", "sv", "ru", "el", "zh", "zh-tw", "zh-cmn-hans"];
-      let lang = language.toLowerCase();
-      if (!supportedLanguages.includes(lang)) {
-        lang = lang.slice(2);
-        if (!supportedLanguages.includes(lang)) {
-          throw new TypeError(`Invalid language ${language} - supported values are ${supportedLanguages.join(", ")}`);
-        }
-      }
       const form = new FormData2();
+      const lang = language.toLowerCase();
       const filePayload = await appendFileToForm(form, "File", file, uploadOptions);
       const metadata = {
         files: [
@@ -1610,16 +1804,18 @@ function uploadAPIFactory(rev) {
         const {
           title,
           time,
-          imageFile
+          imageFile,
+          uploadOptions: fileUploadOptions = {}
         } = chapter;
         const chapterEntry = { time };
         if (title) {
           chapterEntry.title = title;
         }
         if (imageFile) {
-          const filePayload = await appendFileToForm(form, "File", imageFile, uploadOptions);
+          const filePayload = await appendFileToForm(form, "File", imageFile, { ...uploadOptions, ...fileUploadOptions });
           chapterEntry.imageFile = filePayload.filename;
         }
+        metadata.chapters.push(chapterEntry);
       }
       appendJSONToForm(form, "Chapters", metadata);
       rev.log("info", `${action === "replace" ? "Uploading" : "Updating"} ${metadata.chapters.length} chapters to ${videoId}`);
@@ -1646,9 +1842,10 @@ function uploadAPIFactory(rev) {
 
 // src/api/user.ts
 function userAPIFactory(rev) {
-  async function details(userLookupValue, type) {
-    const query = type === "username" || type === "email" ? { type } : void 0;
-    return rev.get(`/api/v2/users/${userLookupValue}`, query);
+  async function details(userLookupValue, options = {}) {
+    const { lookupType, ...requestOptions } = typeof options === "string" ? { lookupType: options } : options;
+    const query = lookupType === "username" || lookupType === "email" ? { type: lookupType } : void 0;
+    return rev.get(`/api/v2/users/${userLookupValue}`, query, { ...requestOptions, responseType: "json" });
   }
   const userAPI = {
     /**
@@ -1669,27 +1866,27 @@ function userAPIFactory(rev) {
     async delete(userId) {
       await rev.delete(`/api/v2/users/${userId}`);
     },
-    /**
-     * Get details about a specific user
-     * @param userLookupValue default is search by userId
-     * @param type            specify that userLookupValue is email or
-     *                        username instead of userId
-     * @returns {User}        User details
-     */
     details,
     /**
+     * Use the Details API to get information about currently logged in user
+     * @param requestOptions
+     */
+    async profile(requestOptions) {
+      return details("me", requestOptions);
+    },
+    /**
      * get user details by username
-     * @deprecated - use details(username, 'username')
+     * @deprecated - use details(username, {lookupType: 'username'})
      */
     async getByUsername(username) {
-      return userAPI.details(username, "username");
+      return userAPI.details(username, { lookupType: "username" });
     },
     /**
      * get user details by email address
      * @deprecated - use details(email, 'email')
      */
     async getByEmail(email) {
-      return userAPI.details(email, "email");
+      return userAPI.details(email, { lookupType: "email" });
     },
     /**
      * Check if user exists in the system. Instead of throwing on a 401/403 error if
@@ -1730,6 +1927,14 @@ function userAPIFactory(rev) {
       ];
       await rev.patch(`/api/v2/users/${userId}`, operations);
     },
+    async suspend(userId) {
+      const operations = [{ op: "replace", path: "/ItemStatus", value: "Suspended" }];
+      await rev.patch(`/api/v2/users/${userId}`, operations);
+    },
+    async unsuspend(userId) {
+      const operations = [{ op: "replace", path: "/ItemStatus", value: "Active" }];
+      await rev.patch(`/api/v2/users/${userId}`, operations);
+    },
     /**
      * search for users based on text query. Leave blank to return all users.
      *
@@ -1737,8 +1942,11 @@ function userAPIFactory(rev) {
      * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
      */
     search(searchText, options = {}) {
+      const {
+        assignable = false
+      } = options;
       const searchDefinition = {
-        endpoint: "/api/v2/search/access-entity",
+        endpoint: `/api/v2/search/access-entity${assignable ? "/assignable" : ""}`,
         totalKey: "totalEntities",
         hitsKey: "accessEntities",
         /**
@@ -1776,6 +1984,15 @@ function userAPIFactory(rev) {
      */
     async markNotificationRead(notificationId) {
       await rev.put("/api/v2/users/notifications", notificationId ? { notificationId } : void 0);
+    },
+    async loginReport(sortField, sortOrder) {
+      const query = {
+        ...sortField && { sortField },
+        ...sortOrder && { sortOrder }
+      };
+      await rev.session.queueRequest("loginReport" /* GetUsersByLoginDate */);
+      const { Users } = await rev.get("/api/v2/users/login-report", query, { responseType: "json" });
+      return Users;
     }
   };
   return userAPI;
@@ -1787,7 +2004,8 @@ function formatUserSearchHit(hit) {
     email: hit.Email,
     firstname: hit.FirstName,
     lastname: hit.LastName,
-    username: hit.UserName
+    username: hit.UserName,
+    profileImageUri: hit.ProfileImageUri
   };
 }
 
@@ -1849,8 +2067,9 @@ function parseDates(startArg, endArg) {
   return { startDate, endDate };
 }
 var VideoReportRequest = class extends PagedRequest {
-  constructor(rev, options = {}) {
+  constructor(rev, options = {}, endpoint = "/api/v2/videos/report") {
     super(parseOptions(options));
+    this._endpoint = endpoint;
     this._rev = rev;
   }
   async _requestPage() {
@@ -1880,7 +2099,8 @@ var VideoReportRequest = class extends PagedRequest {
     if (videoIds) {
       query.videoIds = videoIds;
     }
-    const items = await this._rev.get("/api/v2/videos/report", query, { responseType: "json" });
+    await this._rev.session.queueRequest("viewReport" /* GetVideoViewReport */);
+    const items = await this._rev.get(this._endpoint, query, { responseType: "json" });
     if (!done) {
       if (isAscending) {
         this.startDate = rangeEnd;
@@ -1916,10 +2136,18 @@ function videoReportAPI(rev) {
         videoIds: videoId
       };
     }
-    return new VideoReportRequest(rev, options);
+    return new VideoReportRequest(rev, options, "/api/v2/videos/report");
+  }
+  function summaryStatistics(videoId, startDate, endDate = /* @__PURE__ */ new Date(), options) {
+    const payload = startDate ? { after: new Date(startDate).toISOString(), before: new Date(endDate ?? Date.now()) } : void 0;
+    return rev.get(`/api/v2/videos/${videoId}/summary-statistics`, payload, options);
   }
   return {
-    report
+    report,
+    uniqueSessionsReport(videoId, options = {}) {
+      return new VideoReportRequest(rev, options, `/api/v2/videos/${videoId}/report`);
+    },
+    summaryStatistics
   };
 }
 
@@ -1927,27 +2155,29 @@ function videoReportAPI(rev) {
 function videoDownloadAPI(rev) {
   async function download(videoId, options = {}) {
     const response = await rev.request("GET", `/api/v2/videos/${videoId}/download`, void 0, {
-      ...options,
-      responseType: "stream"
+      responseType: "stream",
+      ...options
     });
     return response;
   }
-  async function downloadChapter(chapter) {
+  async function downloadChapter(chapter, options = {}) {
     const { imageUrl } = chapter;
-    const { body } = await rev.request("GET", imageUrl, void 0, { responseType: "blob" });
+    const { body } = await rev.request("GET", imageUrl, void 0, { responseType: "blob", ...options });
     return body;
   }
-  async function downloadSupplemental(videoId, fileId) {
+  async function downloadSupplemental(videoId, fileId, options) {
     const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/supplemental-files/${fileId}`;
-    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob" });
+    const opts = isPlainObject(fileId) ? fileId : options;
+    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob", ...opts });
     return body;
   }
-  async function downloadTranscription(videoId, language) {
+  async function downloadTranscription(videoId, language, options) {
     const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/transcription-files/${language}`;
-    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob" });
+    const opts = isPlainObject(language) ? language : options;
+    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob", ...opts });
     return body;
   }
-  async function downloadThumbnail(query) {
+  async function downloadThumbnail(query, options = {}) {
     let {
       videoId = "",
       imageId = ""
@@ -1961,7 +2191,7 @@ function videoDownloadAPI(rev) {
       imageId = `${imageId}.jpg`;
     }
     let thumbnailUrl = imageId.startsWith("http") ? imageId : `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
-    const { body } = await rev.request("GET", thumbnailUrl, void 0, { responseType: "blob" });
+    const { body } = await rev.request("GET", thumbnailUrl, void 0, { responseType: "blob", ...options });
     return body;
   }
   return {
@@ -1970,6 +2200,41 @@ function videoDownloadAPI(rev) {
     downloadSupplemental,
     downloadThumbnail,
     downloadTranscription
+  };
+}
+
+// src/api/video-external-access.ts
+function videoExternalAccessAPI(rev) {
+  return {
+    /**
+     *
+     * @param videoId Id of video to submit emails for external access
+     * @param q       Search string
+     * @param options search options
+     * @returns
+     */
+    listExternalAccess(videoId, q, options) {
+      const searchDefinition = {
+        endpoint: `/api/v2/videos/${videoId}/external-access`,
+        /** NOTE: this API doesn't actually return a total, so this will always be undefined */
+        totalKey: "total",
+        hitsKey: "items"
+      };
+      const payload = q ? { q } : void 0;
+      return new SearchRequest(rev, searchDefinition, payload, options);
+    },
+    async createExternalAccess(videoId, request) {
+      await rev.post(`/api/v2/videos/${videoId}/external-access`, request);
+    },
+    async renewExternalAccess(videoId, request) {
+      return rev.put(`/api/v2/videos/${videoId}/external-access`, request);
+    },
+    async deleteExternalAccess(videoId, request) {
+      return rev.delete(`/api/v2/videos/${videoId}/external-access`, request);
+    },
+    async revokeExternalAccess(videoId, request) {
+      return rev.put(`/api/v2/videos/${videoId}/external-access/revoke`, request);
+    }
   };
 }
 
@@ -1987,6 +2252,7 @@ function videoAPIFactory(rev) {
      */
     async setTitle(videoId, title) {
       const payload = [{ op: "add", path: "/Title", value: title }];
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
       await rev.patch(`/api/v2/videos/${videoId}`, payload);
     },
     /**
@@ -1995,26 +2261,37 @@ function videoAPIFactory(rev) {
      * @param customField - the custom field object (with id and value)
      */
     async setCustomField(videoId, customField) {
-      const payload = [
-        { op: "remove", path: "/customFields", value: customField.id },
-        { op: "add", path: "/customFields/-", value: customField }
-      ];
+      const payload = [{
+        op: "replace",
+        path: "/CustomFields",
+        value: [customField]
+      }];
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
       await rev.patch(`/api/v2/videos/${videoId}`, payload);
+    },
+    async delete(videoId, options) {
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
+      await rev.delete(`/api/v2/videos/${videoId}`, void 0, options);
     },
     /**
      * get processing status of a video
      * @param videoId
      */
-    async status(videoId) {
-      return rev.get(`/api/v2/videos/${videoId}/status`);
+    async status(videoId, options) {
+      return rev.get(`/api/v2/videos/${videoId}/status`, void 0, options);
     },
-    async details(videoId) {
-      return rev.get(`/api/v2/videos/${videoId}/details`);
+    async details(videoId, options) {
+      await rev.session.queueRequest("videoDetails" /* GetVideoDetails */);
+      return rev.get(`/api/v2/videos/${videoId}/details`, void 0, options);
+    },
+    async update(videoId, metadata, options) {
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
+      await rev.put(`/api/v2/videos/${videoId}`, metadata, options);
     },
     comments,
-    async chapters(videoId) {
+    async chapters(videoId, options) {
       try {
-        const { chapters } = await rev.get(`/api/v2/videos/${videoId}/chapters`);
+        const { chapters } = await rev.get(`/api/v2/videos/${videoId}/chapters`, void 0, options);
         return chapters;
       } catch (err) {
         if (err instanceof RevError && err.code === "NoVideoChapters") {
@@ -2023,8 +2300,8 @@ function videoAPIFactory(rev) {
         throw err;
       }
     },
-    async supplementalFiles(videoId) {
-      const { supplementalFiles } = await rev.get(`/api/v2/videos/${videoId}/supplemental-files`);
+    async supplementalFiles(videoId, options) {
+      const { supplementalFiles } = await rev.get(`/api/v2/videos/${videoId}/supplemental-files`, void 0, options);
       return supplementalFiles;
     },
     // async deleteSupplementalFiles(videoId: string, fileId: string | string[]): Promise<void> {
@@ -2033,15 +2310,19 @@ function videoAPIFactory(rev) {
     //         : fileId
     //     await rev.delete(`/api/v2/videos/${videoId}/supplemental-files`, { fileIds });
     // },
-    async transcriptions(videoId) {
-      const { transcriptionFiles } = await rev.get(`/api/v2/videos/${videoId}/transcription-files`);
+    async transcriptions(videoId, options) {
+      const { transcriptionFiles } = await rev.get(`/api/v2/videos/${videoId}/transcription-files`, void 0, options);
       return transcriptionFiles;
     },
     get upload() {
       return rev.upload.video;
     },
-    async migrate(videoId, options) {
-      await rev.put(`/api/v2/videos/${videoId}/migration`, options);
+    get replace() {
+      return rev.upload.replaceVideo;
+    },
+    async migrate(videoId, options, requestOptions) {
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
+      await rev.put(`/api/v2/videos/${videoId}/migration`, options, requestOptions);
     },
     /**
      * search for videos, return as one big list. leave blank to get all videos in the account
@@ -2050,7 +2331,11 @@ function videoAPIFactory(rev) {
       const searchDefinition = {
         endpoint: "/api/v2/videos/search",
         totalKey: "totalVideos",
-        hitsKey: "videos"
+        hitsKey: "videos",
+        async request(endpoint, query2, options2) {
+          await rev.session.queueRequest("searchVideos" /* SearchVideos */);
+          return rev.get(endpoint, query2, options2);
+        }
       };
       const request = new SearchRequest(rev, searchDefinition, query, options);
       return request;
@@ -2058,6 +2343,10 @@ function videoAPIFactory(rev) {
     /**
      * Example of using the video search API to search for videos, then getting
      * the details of each video
+     * @deprecated This method can cause timeouts if iterating through a very
+     *             large number of results, as the search scroll cursor has a
+     *             timeout of ~5 minutes. Consider getting all search results
+     *             first, then getting details
      * @param query
      * @param options
      */
@@ -2088,17 +2377,133 @@ function videoAPIFactory(rev) {
       const { video } = await rev.get(`/api/v2/videos/${videoId}/playback-url`);
       return video;
     },
+    async playbackUrls(videoId, { ip, userAgent } = {}, options) {
+      const query = ip ? { ip } : void 0;
+      const opts = {
+        ...options,
+        ...userAgent && {
+          headers: mergeHeaders(options?.headers, { "User-Agent": userAgent })
+        },
+        responseType: "json"
+      };
+      return rev.get(`/api/v2/videos/${videoId}/playback-urls`, query, opts);
+    },
     ...videoDownloadAPI(rev),
     ...videoReportAPI(rev),
+    ...videoExternalAccessAPI(rev),
     async trim(videoId, removedSegments) {
+      await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
       return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);
+    },
+    async convertDualStreamToSwitched(videoId) {
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
+      return rev.put(`/api/v2/videos/${videoId}/convert-dual-streams-to-switched-stream`);
+    },
+    async patch(videoId, operations, options) {
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
+      await rev.patch(`/api/v2/videos/${videoId}`, operations, options);
+    },
+    async generateMetadata(videoId, fields = ["all"], options) {
+      await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
+      await rev.put(`/api/v2/videos/${videoId}/generate-metadata`, { metadataGenerationFields: fields }, options);
+    },
+    async generateMetadataStatus(videoId, options) {
+      const { description } = await rev.get(`/api/v2/videos/${videoId}/metadata-generation-status`, void 0, { ...options, responseType: "json" });
+      return description.status;
+    },
+    async transcribe(videoId, language, options) {
+      const payload = typeof language === "string" ? { language } : language;
+      return rev.post(`/api/v2/videos/${videoId}/transcription`, payload, { ...options, responseType: "json" });
+    },
+    async transcriptionStatus(videoId, transcriptionId, options) {
+      return rev.get(`/api/v2/videos/${videoId}/transcriptions/${transcriptionId}/status`, void 0, { ...options, responseType: "json" });
+    },
+    async translate(videoId, source, target, options) {
+      const payload = {
+        sourceLanguage: source,
+        targetLanguages: typeof target === "string" ? [target] : target
+      };
+      return rev.post(`/api/v2/videos/${videoId}/translations`, payload, { ...options, responseType: "json" });
+    },
+    async getTranslationStatus(videoId, language, options) {
+      const { status } = await rev.get(`/api/v2/videos/${videoId}/translations/${language}/status`, void 0, { ...options, responseType: "json" });
+      return status;
+    },
+    async deleteTranscription(videoId, language, options) {
+      const locale = Array.isArray(language) ? language.map((s) => s.trim()).join(",") : language;
+      await rev.delete(`/api/v2/videos/${videoId}`, locale ? { locale } : void 0, options);
+    },
+    /**
+     * Helper - update the audio language for a video. If index isn't specified then update the default language
+     * @param video - videoId or video details (from video.details api call)
+     * @param language - language to use, for example 'en'
+     * @param trackIndex - index of audio track - if not supplied then update default or first index
+     * @param options
+     */
+    async setAudioLanguage(video, language, trackIndex, options) {
+      const { id, audioTracks = [] } = typeof video === "string" ? { id: video } : video;
+      let index = trackIndex ?? audioTracks.findIndex((t) => t.isDefault === true) ?? 0;
+      const op = {
+        op: "replace",
+        path: `/audioTracks/${index}`,
+        value: { track: index, languageId: language }
+      };
+      await videoAPI.patch(id, [op], options);
+    },
+    /**
+     * Helper - wait for video transcode to complete.
+     * This doesn't indicate that a video is playable, rather that all transcoding jobs are complete
+     * @param videoId
+     * @param options
+     */
+    async waitTranscode(videoId, options, requestOptions) {
+      const {
+        pollIntervalSeconds = 30,
+        timeoutMinutes = 240,
+        signal,
+        ignorePlaybackWhileTranscoding = true,
+        onProgress,
+        onError = (error) => {
+          throw error;
+        }
+      } = options;
+      const ONE_MINUTE3 = 1e3 * 60;
+      const timeoutDate = Date.now() + timeoutMinutes * ONE_MINUTE3 || Infinity;
+      const pollInterval = Math.max((pollIntervalSeconds || 30) * 1e3, 5e3);
+      let statusResponse = { status: "UploadFailed" };
+      while (Date.now() < timeoutDate && !signal?.aborted) {
+        try {
+          statusResponse = await videoAPI.status(videoId, options);
+          let {
+            isProcessing,
+            overallProgress = 0,
+            status
+          } = statusResponse;
+          if (ignorePlaybackWhileTranscoding && status === "Ready" && isProcessing) {
+            status = "Processing";
+          }
+          if (status === "ProcessingFailed") {
+            overallProgress = 1;
+            isProcessing = false;
+          }
+          Object.assign(statusResponse, { status, overallProgress, isProcessing });
+          onProgress?.(statusResponse);
+          if (overallProgress === 1 && !isProcessing) {
+            break;
+          }
+        } catch (error) {
+          await Promise.resolve(onError(error));
+        }
+        await sleep(pollInterval, signal);
+      }
+      return statusResponse;
     }
   };
   return videoAPI;
 }
 
 // src/api/webcast-report-request.ts
-function getSummaryFromResponse(response, hitsKey) {
+function getSummaryFromResponse2(response, hitsKey) {
   const ignoreKeys = ["scrollId", "statusCode", "statusDescription"];
   const summary = Object.fromEntries(Object.entries(response).filter(([key, value]) => {
     return !(key === hitsKey || ignoreKeys.includes(key) || Array.isArray(value));
@@ -2113,8 +2518,9 @@ var RealtimeReportRequest = class extends SearchRequest {
       hitsKey: "attendees",
       // get summary from initial response
       request: async (endpoint, query2, options2) => {
+        await rev.session.queueRequest("attendeesRealtime" /* GetWebcastAttendeesRealtime */);
         const response = await rev.post(endpoint, query2, options2);
-        const summary = getSummaryFromResponse(response, "attendees");
+        const summary = getSummaryFromResponse2(response, "attendees");
         Object.assign(this.summary, summary);
         return response;
       }
@@ -2142,7 +2548,7 @@ var PostEventReportRequest = class extends SearchRequest {
       hitsKey: "sessions",
       request: async (endpoint, query2, options2) => {
         const response = await rev.get(endpoint, query2, options2);
-        const summary = getSummaryFromResponse(response, "sessions");
+        const summary = getSummaryFromResponse2(response, "sessions");
         Object.assign(this.summary, summary);
         return response;
       }
@@ -2206,7 +2612,8 @@ function webcastAPIFactory(rev) {
     },
     async pollResults(eventId, runNumber) {
       const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
-      return rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: "json" });
+      const { polls } = await rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: "json" });
+      return polls;
     },
     async comments(eventId, runNumber) {
       const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
@@ -2215,19 +2622,31 @@ function webcastAPIFactory(rev) {
     async status(eventId) {
       return rev.get(`/api/v2/scheduled-events/${eventId}/status`);
     },
-    async playbackUrl(eventId, options = {}) {
-      const {
-        ip,
-        userAgent
-      } = options;
+    async isPublic(eventId) {
+      const response = await rev.request("GET", `/api/v2/scheduled-events/${eventId}/is-public`, void 0, { throwHttpErrors: false, responseType: "json" });
+      return response.statusCode !== 401 && response.body?.isPublic;
+    },
+    async playbackUrls(eventId, { ip, userAgent } = {}, options) {
       const query = ip ? { ip } : void 0;
-      const requestOptions = {
+      const opts = {
+        ...options,
+        ...userAgent && {
+          headers: mergeHeaders(options?.headers, { "User-Agent": userAgent })
+        },
         responseType: "json"
       };
-      if (userAgent) {
-        requestOptions.headers = { "User-Agent": userAgent };
-      }
-      return rev.get(`/api/v2/scheduled-events/${eventId}/playback-url`, query, requestOptions);
+      return rev.get(`/api/v2/scheduled-events/${eventId}/playback-url`, query, opts);
+    },
+    /**
+     * @deprecated
+     * @param eventId
+     * @param options
+     * @returns
+     */
+    async playbackUrl(eventId, options = {}) {
+      rev.log("debug", "webcast.playbackUrl is deprecated - use webcast.playbackUrls instead");
+      const { playbackResults } = await webcastAPI.playbackUrls(eventId, options);
+      return playbackResults;
     },
     async startEvent(eventId, preProduction = false) {
       await rev.put(`/api/v2/scheduled-events/${eventId}/start`, { preProduction });
@@ -2341,6 +2760,84 @@ function zonesAPIFactory(rev) {
   return zonesAPI;
 }
 
+// src/api/environment.ts
+function environmentAPIFactory(rev) {
+  let accountId = "";
+  let version = "";
+  let ulsInfo = void 0;
+  const environmentAPI = {
+    /**
+     * Get's the accountId embedded in Rev's main entry point
+     * @returns
+     */
+    async getAccountId(forceRefresh = false) {
+      if (!accountId || forceRefresh) {
+        const text = await rev.get("/", void 0, { responseType: "text" }).catch((error) => "");
+        accountId = (/BootstrapContext.*account[":{ ]*"id"\s*:\s*"([^"]+)"/.exec(text) || [])[1] || "";
+      }
+      return accountId;
+    },
+    /**
+     * Get's the version of Rev returned by /js/version.js
+     * @returns
+     */
+    async getRevVersion(forceRefresh = false) {
+      if (!version || forceRefresh) {
+        const text = await rev.get("/js/version.js", void 0, { responseType: "text" }).catch((error) => "");
+        version = (/buildNumber:\s+['"]([\d.]+)/.exec(text) || [])[1] || "";
+      }
+      return version;
+    },
+    /**
+     * Use the Get User Location Service API to get a user's IP address for zoning purposes
+     * Returns the IP if ULS enabled and one successfully found, otherwise undefined.
+     * undefined response indicates Rev should use the user's public IP for zoning.
+     * @param timeoutMs    - how many milliseconds to wait for a response (if user is not)
+     *                       on VPN / intranet with ULS DME then DNS lookup or request
+     *                       can time out, so don't set this too long.
+     *                       Default is 10 seconds
+     * @param forceRefresh   By default the User Location Services settings is cached
+     *                       (not the user's detected IP). Use this to force reloading
+     *                       the settings from Rev.
+     * @returns
+     */
+    async getUserLocalIp(timeoutMs = 10 * 1e3, forceRefresh = false) {
+      if (!ulsInfo || forceRefresh) {
+        ulsInfo = await rev.get("/api/v2/user-location");
+      }
+      if (!ulsInfo?.enabled || ulsInfo.locationUrls.length === 0) {
+        return void 0;
+      }
+      const controller = new AbortController();
+      const getIp = async function(ulsUrl) {
+        try {
+          let { ip = "" } = await rev.get(ulsUrl, {}, {
+            headers: { Authorization: "" },
+            responseType: "json",
+            signal: controller.signal
+          });
+          ip = `${ip}`.split(",")[0].trim();
+          if (ip) {
+            controller.abort();
+          }
+          return ip;
+        } catch (error) {
+          rev.log("debug", `ULS URL Failed: ${ulsUrl}`, error);
+          return void 0;
+        }
+      };
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const ips = await Promise.all(ulsInfo.locationUrls.map(getIp));
+        return ips.find((ip) => !!ip);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  };
+  return environmentAPI;
+}
+
 // src/rev-session.ts
 var ONE_MINUTE2 = 1e3 * 60;
 var _credentials = Symbol("credentials");
@@ -2349,7 +2846,7 @@ var SessionKeepAlive = class {
     this._isExtending = false;
     this.extendOptions = {
       extendThresholdMilliseconds: 3 * ONE_MINUTE2,
-      keepAliveInterval: 5 * ONE_MINUTE2,
+      keepAliveInterval: 10 * ONE_MINUTE2,
       verify: true,
       ...options
     };
@@ -2422,12 +2919,16 @@ var SessionKeepAlive = class {
   }
 };
 var SessionBase = class {
-  constructor(rev, credentials, keepAliveOptions) {
+  constructor(rev, credentials, keepAliveOptions, rateLimits) {
     this.expires = /* @__PURE__ */ new Date();
     if (keepAliveOptions === true) {
       this.keepAlive = new SessionKeepAlive(this);
     } else if (isPlainObject(keepAliveOptions)) {
       this.keepAlive = new SessionKeepAlive(this, keepAliveOptions);
+    }
+    let rateLimitQueues = void 0;
+    if (rateLimits) {
+      rateLimitQueues = makeQueues(isPlainObject(rateLimits) ? rateLimits : void 0);
     }
     Object.defineProperties(this, {
       rev: {
@@ -2439,6 +2940,12 @@ var SessionBase = class {
       [_credentials]: {
         get() {
           return credentials;
+        },
+        enumerable: false
+      },
+      _rateLimits: {
+        get() {
+          return rateLimitQueues;
         },
         enumerable: false
       }
@@ -2513,6 +3020,16 @@ var SessionBase = class {
     await this.login();
     return true;
   }
+  async queueRequest(queue) {
+    await this._rateLimits?.[queue]?.();
+  }
+  /**
+   * Abort pending executions. All unresolved promises are rejected with a `AbortError` error.
+   * @param {string} [message] - message parameter for rejected AbortError
+   */
+  async clearQueues(message) {
+    await clearQueues(this._rateLimits ?? {}, message);
+  }
   /**
    * check if expiration time of session has passed
    */
@@ -2531,6 +3048,9 @@ var SessionBase = class {
   }
   get username() {
     return this[_credentials].username;
+  }
+  get hasRateLimits() {
+    return !!this._rateLimits;
   }
 };
 _credentials;
@@ -2674,6 +3194,30 @@ var JWTSession = class extends SessionBase {
     };
   }
 };
+var GuestRegistrationSession = class extends SessionBase {
+  async _login() {
+    const { webcastId, guestRegistrationToken } = this[_credentials];
+    if (!guestRegistrationToken || !webcastId) {
+      throw new TypeError("Guest Registration Token or Webcast ID not specified");
+    }
+    const { accessToken: token } = await this.rev.auth.loginGuestRegistration(webcastId, guestRegistrationToken);
+    const expiresTime = Date.now() + 1e3 * 60 * 15;
+    const expiration = new Date(expiresTime).toISOString();
+    return { token, expiration, issuer: "vbrick" };
+  }
+  async _extend() {
+    return this.rev.auth.extendSession();
+  }
+  async _logoff() {
+    return;
+  }
+  toJSON() {
+    return {
+      token: this.token || "",
+      expiration: this.expires
+    };
+  }
+};
 var AccessTokenSession = class extends SessionBase {
   // just verify user on login
   async _login() {
@@ -2696,11 +3240,18 @@ var AccessTokenSession = class extends SessionBase {
       expiration: this.expires
     };
   }
+  get isConnected() {
+    return true;
+  }
+  get isExpired() {
+    return false;
+  }
 };
-function createSession(rev, credentials, keepAliveOptions) {
+function createSession(rev, credentials, keepAliveOptions, rateLimits) {
   let session;
   const {
     session: sessionState = {},
+    publicOnly,
     ...creds
   } = credentials;
   const {
@@ -2717,24 +3268,27 @@ function createSession(rev, credentials, keepAliveOptions) {
   const isApiKeyLogin = credentials.apiKey && (credentials.secret || hasSession && !userId);
   const isUsernameLogin = credentials.username && (credentials.password || hasSession && userId);
   const isJWTLogin = credentials.jwtToken;
+  const isGuestRegistration = credentials.webcastId && credentials.guestRegistrationToken;
   if (isOAuth2Login) {
-    session = new OAuth2Session(rev, creds, keepAliveOptions);
+    session = new OAuth2Session(rev, creds, keepAliveOptions, rateLimits);
   } else if (isLegacyOauthLogin) {
-    session = new OAuthSession(rev, creds, keepAliveOptions);
+    session = new OAuthSession(rev, creds, keepAliveOptions, rateLimits);
     if (refreshToken) {
       session.refreshToken = refreshToken;
     }
   } else if (isApiKeyLogin) {
-    session = new ApiKeySession(rev, creds, keepAliveOptions);
+    session = new ApiKeySession(rev, creds, keepAliveOptions, rateLimits);
   } else if (isJWTLogin) {
-    session = new JWTSession(rev, creds, keepAliveOptions);
+    session = new JWTSession(rev, creds, keepAliveOptions, rateLimits);
+  } else if (isGuestRegistration) {
+    session = new GuestRegistrationSession(rev, creds, keepAliveOptions, rateLimits);
   } else if (isUsernameLogin) {
-    session = new UserSession(rev, creds, keepAliveOptions);
+    session = new UserSession(rev, creds, keepAliveOptions, rateLimits);
     if (userId) {
       session.userId = userId;
     }
-  } else if (hasSession) {
-    session = new AccessTokenSession(rev, creds, keepAliveOptions);
+  } else if (hasSession || publicOnly) {
+    session = new AccessTokenSession(rev, creds, keepAliveOptions, rateLimits);
   } else {
     throw new TypeError("Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)");
   }
@@ -2756,11 +3310,14 @@ var RevClient = class {
       log,
       logEnabled = false,
       keepAlive = true,
+      // NOTE default to false rate limiting for now. In future this may change
+      rateLimits = false,
+      defaultStreamPreference = "stream",
       ...credentials
     } = options;
     const urlObj = new URL(url);
     this.url = urlObj.origin;
-    this.session = createSession(this, credentials, keepAlive);
+    this.session = createSession(this, credentials, keepAlive, rateLimits);
     this.logEnabled = !!logEnabled;
     if (log) {
       this.log = (severity, ...args) => {
@@ -2770,13 +3327,16 @@ var RevClient = class {
         log(severity, ...args);
       };
     }
+    this._streamPreference = defaultStreamPreference;
     Object.defineProperties(this, {
       admin: { value: adminAPIFactory(this), writable: false },
-      audit: { value: auditAPIFactory(this), writable: false },
+      // NOTE rate limiting option passed into api factory since its
+      audit: { value: auditAPIFactory(this, rateLimits), writable: false },
       auth: { value: authAPIFactory(this), writable: false },
       category: { value: categoryAPIFactory(this), writable: false },
       channel: { value: channelAPIFactory(this), writable: false },
       device: { value: deviceAPIFactory(this), writable: false },
+      environment: { value: environmentAPIFactory(this), writable: false },
       group: { value: groupAPIFactory(this), writable: false },
       playlist: { value: playlistAPIFactory(this), writable: false },
       recording: { value: recordingAPIFactory(this), writable: false },
@@ -2820,8 +3380,9 @@ var RevClient = class {
       headers
     };
     let shouldSetAsJSON = !headers.has("Content-Type");
+    const normalizedMethod = method.toUpperCase();
     if (data) {
-      if (["POST", "PUT", "PATCH"].includes(method.toUpperCase())) {
+      if (["POST", "PUT", "PATCH"].includes(normalizedMethod)) {
         if (typeof data === "string") {
           fetchOptions.body = data;
         } else if (data instanceof interop_default.FormData) {
@@ -2847,6 +3408,19 @@ var RevClient = class {
       headers.set("Content-Type", "application/json");
     }
     this.log("debug", `Request ${method} ${endpoint}`);
+    if (this.session.hasRateLimits) {
+      switch (normalizedMethod) {
+        case "GET":
+          await this.session.queueRequest("get" /* Get */);
+          break;
+        case "POST":
+        case "PATCH":
+        case "PUT":
+        case "DELETE":
+          await this.session.queueRequest("post" /* Post */);
+          break;
+      }
+    }
     const response = await interop_default.fetch(`${url}`, {
       ...fetchOptions,
       method,
@@ -2858,14 +3432,15 @@ var RevClient = class {
       statusText,
       headers: responseHeaders
     } = response;
-    this.log("debug", `Response ${method} ${endpoint} ${statusCode} ${statusText}`);
     if (!ok) {
       if (throwHttpErrors) {
         const err = await RevError.create(response);
+        this.log("debug", `Response ${method} ${endpoint} ${statusCode} ${err.code || statusText}`);
         throw err;
       }
       responseType = void 0;
     }
+    this.log("debug", `Response ${method} ${endpoint} ${statusCode} ${statusText}`);
     let body = response.body;
     switch (responseType) {
       case "json":
@@ -2878,7 +3453,23 @@ var RevClient = class {
         body = await response.blob();
         break;
       case "stream":
+        switch (this._streamPreference) {
+          case "webstream":
+            body = interop_default.asWebStream(response.body);
+            break;
+          case "nativestream":
+            body = interop_default.asPlatformStream(response.body);
+            break;
+          default:
+            body = response.body;
+        }
         body = response.body;
+        break;
+      case "webstream":
+        body = interop_default.asWebStream(response.body);
+        break;
+      case "nativestream":
+        body = interop_default.asPlatformStream(response.body);
         break;
       default:
         body = await decodeBody(response, headers.get("Accept"));
@@ -2940,7 +3531,7 @@ var RevClient = class {
     return this.session.verify();
   }
   get isConnected() {
-    return !!this.session.token && !this.session.isExpired;
+    return this.session.isConnected;
   }
   get token() {
     return this.session.token;
@@ -2970,10 +3561,12 @@ var RevClient = class {
 };
 
 // src/interop/node-polyfills.ts
-var import_fs = __toESM(require("fs"), 1);
-var import_path = __toESM(require("path"), 1);
-var import_crypto = require("crypto");
-var import_util = require("util");
+var import_node_fs = __toESM(require("fs"), 1);
+var import_node_path = __toESM(require("path"), 1);
+var import_web = require("stream/web");
+var import_node_stream = require("stream");
+var import_node_crypto = require("crypto");
+var import_node_util = require("util");
 var import_node_fetch = __toESM(require("node-fetch"), 1);
 var import_form_data = __toESM(require("form-data"), 1);
 var import_node_abort_controller = require("node-abort-controller");
@@ -3003,7 +3596,7 @@ async function getLengthFromStream(source) {
       timer = setTimeout(done, TIMEOUT_MS, {});
     });
     try {
-      const stat = await Promise.race([import_fs.default.promises.stat(filepath), timeout]);
+      const stat = await Promise.race([import_node_fs.default.promises.stat(filepath), timeout]);
       if (stat?.size) {
         return stat.size;
       }
@@ -3023,9 +3616,9 @@ async function parseFileUpload(file, options) {
   const shouldUpdateLength = !(contentLength || useChunkedTransfer);
   if (typeof file === "string") {
     if (!filename) {
-      filename = import_path.default.basename(file);
+      filename = import_node_path.default.basename(file);
     }
-    file = import_fs.default.createReadStream(file);
+    file = import_node_fs.default.createReadStream(file);
     if (shouldUpdateLength) {
       contentLength = await getLengthFromStream(file);
     }
@@ -3045,7 +3638,7 @@ async function parseFileUpload(file, options) {
       const { path: _path, filename: _filename, name: _name } = file;
       const streamPath = _path || _filename || _name;
       if (streamPath && typeof streamPath === "string") {
-        filename = import_path.default.basename(streamPath);
+        filename = import_node_path.default.basename(streamPath);
       }
     }
     if (shouldUpdateLength) {
@@ -3078,7 +3671,7 @@ async function appendFileToForm2(form, fieldName, payload) {
   form.append(fieldName, file, appendOptions);
 }
 async function prepareUploadHeaders(form, headers, useChunkedTransfer = false) {
-  const totalBytes = useChunkedTransfer ? 0 : await (0, import_util.promisify)(form.getLength).call(form).catch(() => 0);
+  const totalBytes = useChunkedTransfer ? 0 : await (0, import_node_util.promisify)(form.getLength).call(form).catch(() => 0);
   if (totalBytes > 0) {
     headers.set("content-length", `${totalBytes}`);
   } else {
@@ -3087,13 +3680,13 @@ async function prepareUploadHeaders(form, headers, useChunkedTransfer = false) {
   }
 }
 function randomValues2(byteLength) {
-  return (0, import_crypto.randomBytes)(byteLength).toString("base64url");
+  return (0, import_node_crypto.randomBytes)(byteLength).toString("base64url");
 }
 async function sha256Hash2(value) {
-  return (0, import_crypto.createHash)("sha256").update(value).digest().toString("base64url");
+  return (0, import_node_crypto.createHash)("sha256").update(value).digest().toString("base64url");
 }
 async function hmacSign2(message, secret) {
-  const hmac = (0, import_crypto.createHmac)("sha256", secret);
+  const hmac = (0, import_node_crypto.createHmac)("sha256", secret);
   const signature = hmac.update(message).digest("base64");
   return signature;
 }
@@ -3128,7 +3721,15 @@ Object.assign(interop_default, {
   hmacSign: hmacSign2,
   appendFileToForm: appendFileToForm2,
   parseFileUpload,
-  prepareUploadHeaders
+  prepareUploadHeaders,
+  asPlatformStream(stream) {
+    if (!stream)
+      return stream;
+    return stream instanceof import_web.ReadableStream ? import_node_stream.Readable.fromWeb(stream) : stream;
+  },
+  asWebStream(stream) {
+    return !stream || stream instanceof import_web.ReadableStream ? stream : import_node_stream.Readable.toWeb(import_node_stream.Readable.from(stream));
+  }
 });
 
 // src/index-node.ts

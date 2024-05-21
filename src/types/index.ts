@@ -10,7 +10,7 @@ export type { Device } from './device';
 export type { Group } from './group';
 export type { Rev } from './rev';
 export type { User } from './user';
-export type { Video } from './video';
+export type { Video, ExternalAccess, Transcription } from './video';
 export type { Playlist } from './playlist';
 export type { Recording } from './recording';
 export type { Webcast, GuestRegistration } from './webcast';
@@ -19,12 +19,18 @@ export type { Zone } from './zone';
 
 export interface Role {
     id: string;
-    name: Role.RoleName;
+    name: Role.RoleType;
 }
 
 export namespace Role {
-    export type RoleName = LiteralString<'Account Admin' | 'Media Admin' | 'Media Contributor' | 'Media Viewer' | 'Event Admin' | 'Event Host' | 'Channel Creator' | 'Category Creator'>;
-    export type Details = Role & { description: string; };
+    export type RoleType = LiteralString<'AccountAdmin' | 'MediaAdmin' | 'EventAdmin' | 'EventHost' | 'InternalEventHost' | 'MediaContributor' | 'InternalMediaContributor' | 'MediaViewer' | 'TeamCreator' | 'CategoryCreator' | 'VodAnalyst' | 'EventAnalyst' | 'RevIqUser' | 'ChannelCreator'>;
+    export type RoleName = LiteralString<'Account Admin' | 'Media Admin' | 'Media Contributor' | 'Media Viewer' | 'Event Admin' | 'Event Host' | 'Channel Creator' | 'Category Creator' | 'Internal Event Host' | 'Internal Media Contributor' | 'VOD Analyst' | 'Event Analyst' | 'Rev IQ User'>;
+    export interface Details {
+        id: string;
+        name: string;
+        description: string;
+        roleType: Role.RoleType;
+    };
 }
 
 export interface RegistrationField {

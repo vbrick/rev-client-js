@@ -1,5 +1,4 @@
 import type { AccessControl, Category, Admin, Rev } from '.';
-import { FileUploadType } from '../utils/file-utils';
 import { LiteralString } from './rev';
 
 export namespace Video {
@@ -8,9 +7,19 @@ export namespace Video {
     export type EncodingType = LiteralString<"H264" | "HLS" | "HDS" | "H264TS" | "Mpeg4" | "Mpeg2" | "WM" | "Flash" | "RTP">;
     export type ExpirationAction = LiteralString<'Delete' | 'Inactivate'>;
     export type ExpiryRule = LiteralString<'None' | 'DaysAfterUpload' | 'DaysWithoutViews'>;
-    export type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
+
     export type SourceType = LiteralString<'REV' | 'WEBEX' | 'API' | 'VIDEO CONFERENCE' | 'WebexLiveStream' | 'LiveEnrichment'>
     export type VideoType = LiteralString<"Live" | "Vod">;
+
+    export type SortFieldEnum = LiteralString<"duration" | "lastViewed" | "ownerName" | "title" | "uploaderName" | "viewCount" | "whenUploaded" | "_score">
+
+    export type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
+
+    export type SearchFilterEnum = LiteralString<"myRecommendations" | "mySubscriptions">;
+
+    export type MetadataGenerationField = LiteralString<"description" | "title" | "tags" | "all">;
+
+    export type MetadataGenerationStatus = LiteralString<"NotStarted" | "InProgress" | "Success" | "Failed">;
 
     export interface LinkedUrl {
         Url: string;
@@ -18,7 +27,6 @@ export namespace Video {
         Type: VideoType;
         IsMulticast: boolean;
     }
-
 
     export interface SearchHit {
         id: string;
@@ -69,6 +77,8 @@ export namespace Video {
         enableRatings?: boolean;
         enableDownloads?: boolean;
         enableComments?: boolean;
+        enableExternalApplicationAccess?: boolean;
+        enableExternalViewersAccess?: boolean;
 
         /**
          * This sets access control for the  This is an enum and can have the following values: Public/AllUsers/Private/Channels.
@@ -115,6 +125,12 @@ export namespace Video {
 
          */
         legacyViewCount?: number;
+    }
+    export type UpdateRequest = Pick<Video.UploadMetadata, 'title' | 'description' | 'categories' | 'tags' | 'isActive' | 'publishDate' | 'enableRatings' | 'enableDownloads' | 'enableComments' | 'enableExternalApplicationAccess' | 'enableExternalViewersAccess' | 'videoAccessControl' | 'accessControlEntities' | 'password' | 'customFields' | 'unlisted' | 'userTags' | 'owner' | 'viewerIdEnabled'> & {
+        audioTracks?: Array<{ track: number, languageId: string }>;
+        expirationDate?: string;
+        expirationAction?: Video.ExpirationAction;
+        linkedUrl?: Video.LinkedUrl
     }
 
     export interface MigrateRequest {
@@ -226,8 +242,9 @@ export namespace Video {
         } | null;
         /**
          * date video will be published
+         * NOTE: Must be in YYYY-MM-DD format
          */
-        publishDate: string | null;
+        publishDate: `${number}${number}${number}${number}-${number}${number}-${number}${number}` | null;
         lastViewed: string;
         totalViews: number;
         avgRating: number;
@@ -238,12 +255,21 @@ export namespace Video {
         enableRatings: boolean;
         enableDownloads: boolean;
         enableComments: boolean;
+        enableExternalApplicationAccess: boolean;
+        enableExternalViewersAccess: boolean;
         closeCaptionsEnabled: boolean;
         unlisted: boolean;
         is360: boolean;
         userTags: Array<{ userId: string, displayName: string; }>;
 
         duration: string;
+        audioTracks: Array<{
+            track: number;
+            isDefault: boolean;
+            languageId: string;
+            languageName: string;
+            status: Transcription.Status
+        }>;
         overallProgress: number;
         isProcessing: boolean;
         transcodeFailed: boolean;
@@ -292,6 +318,8 @@ export namespace Video {
         enableRatings?: boolean;
         enableDownloads?: boolean;
         enableComments?: boolean;
+        enableExternalApplicationAccess?: boolean;
+        enableExternalViewersAccess?: boolean;
         videoAccessControl?: AccessControl;
         accessControlEntities: string | string[];
         customFields: Admin.CustomField.Request[];
@@ -313,6 +341,8 @@ export namespace Video {
     export interface SearchOptions {
         /** text to search for */
         q?: string;
+        /** specific videoIds to search for */
+        videoIds?: string | string[];
         /**
          * live or vod videos
          */
@@ -352,13 +382,18 @@ export namespace Video {
          */
         recommendedFor?: string;
 
-        sortField?: LiteralString<'title' | 'whenUploaded' | 'uploaderName' | 'duration' | '_score'>;
+        sortField?: SortFieldEnum;
         sortDirection?: Rev.SortDirection;
 
         /**
          * If channelId provided, videos in that particular channel are returned. User should have rights to the channel
          */
         channelId?: string;
+
+        /**
+         * Filter the results based on the channels and categories the Principal is subscribed OR apply the recommendation logic which boosts search results based on recent viewing history using up to the last 10 videos viewed by a user.
+         */
+        filter?: SearchFilterEnum;
 
         /**
          * search for videos matching specific custom field values.
@@ -380,6 +415,46 @@ export namespace Video {
         playbackUrl: string;
     }
 
+    export interface PlaybackUrlsRequest {
+        /**
+         * IP address of viewer that will use this stream - used for Zoning rules.
+         * Use the User Location Service endpoint to get the correct IP
+         * await revClient.admin.userLocationService()
+         * https://revdocs.vbrick.com/reference/user-location
+         * If not specified then the public IP address of rev client will be used
+         */
+        ip?: string;
+        /**
+         * Override user agent of viewer. This should match the eventual viewing
+         * browser device, otherwise authenticated streams may return Unauthorized.
+         * Default is to use user agent of rev client.
+         */
+        userAgent?: string;
+    }
+
+    export interface PlaybackUrlsResponse {
+        playbackResults: PlaybackUrlResult[];
+        jwtToken: string;
+    }
+
+    export interface PlaybackUrlResult {
+        label: string;
+        qValue: number;
+        player: LiteralString<'Native' | 'Vbrick' | 'NativeIos' | 'NativeAndroid' | 'NativeMfStb'>;
+        url: string;
+        zoneId: string;
+        zoneName?: string;
+        slideDelaySeconds: number;
+
+        name?: null | LiteralString<'RevConnect'>;
+        videoFormat: string;
+        videoInstanceId: string;
+        deviceId?: string;
+        deviceName?: string;
+        isEnriched: boolean;
+        streamDeliveryType: LiteralString<'PublicCDN' | 'ECDN' | 'Custom'>;
+    }
+
     export interface VideoReportEntry {
         videoId: string;
         title: string;
@@ -399,6 +474,7 @@ export namespace Video {
         eCDNTime?: string;
         viewingStartTime: string;
         viewingEndTime: string;
+        userId: string;
     }
     export interface VideoReportOptions extends Rev.SearchOptions<VideoReportEntry> {
         videoIds?: string | string[] | undefined;
@@ -406,6 +482,26 @@ export namespace Video {
         endDate?: string;
         incrementDays?: number;
         sortDirection?: Rev.SortDirection;
+    }
+
+    export interface UniqueSessionReportOptions extends Rev.SearchOptions<VideoReportEntry> {
+        userId?: string;
+        startDate?: string;
+        endDate?: string;
+        incrementDays?: number;
+        sortDirection?: Rev.SortDirection;
+    }
+
+    export interface SummaryStatistics {
+        totalViews: number;
+        totalSessions: number;
+        totalTime: string;
+        averageTime: string;
+        completionRate: number;
+        totalUniqueViews: number;
+        deviceCounts: Array<{ key: string, value: number }>
+        totalViewsByDay: Array<{ key: string, value: number }>
+        browserCounts: Array<{ key: string, value: number }>
     }
 
     export interface Comment {
@@ -466,7 +562,9 @@ export namespace Video {
              */
             time: string;
             title?: string;
-            imageFile?: FileUploadType
+            imageFile?: Rev.FileUploadType;
+            /** set filename/contenttype or other options for appended file */
+            uploadOptions?: Rev.UploadFileOptions;
         }
     }
 
@@ -478,12 +576,12 @@ export namespace Video {
         title: string;
     }
 
-    export interface Transcription extends SupplementalFile {
+    /** @deprecated - use higher level Transcription namespace */
+    export interface Transcription {
+        downloadUrl: string,
+        fileSize: number;
+        filename: string;
         locale: string;
-    }
-
-    export namespace Transcription {
-        export type SupportedLanguages = LiteralString<'de' | 'en' | 'en-gb' | 'es-es' | 'es-419' | 'es' | 'fr' | 'fr-ca' | 'id' | 'it' | 'ko' | 'ja' | 'nl' | 'no' | 'pl' | 'pt' | 'pt-br' | 'th' | 'tr' | 'fi' | 'sv' | 'ru' | 'el' | 'zh' | 'zh-tw' | 'zh-cmn-hans'>
     }
 
     export namespace Search {
@@ -502,4 +600,131 @@ export namespace Video {
         sessionId: string;
         timeStamp: string;
     }
+
+    export interface WaitTranscodeOptions {
+        /**
+         * How often to check video status
+         * @default 30
+         */
+        pollIntervalSeconds?: number;
+        /**
+         * How long to wait for transcode to complete before stopping poll loop
+         * @default 240 (4 hours)
+         */
+        timeoutMinutes?: number;
+        /**
+         * callback to report current transcode progress
+         */
+        onProgress?: (state: Video.StatusResponse) => void;
+        /**
+         * callback on error getting video status
+         * @default throw error immediately
+         */
+        onError?: (error: Error) => void | Promise<void>;
+        /**
+         * If true set the status of video as "Processing" until transcode completes, instead of the
+         * default behavior of indicating "Ready" as soon as a playable version is available.
+         * See https://revdocs.vbrick.com/docs/allow-playback-during-transcoding
+         * @default {true} - set status to "Processing" until all processing jobs are complete.
+         */
+        ignorePlaybackWhileTranscoding?: boolean;
+        /**
+         * Signal to stop poll loop early
+         */
+        signal?: AbortSignal;
+    }
+}
+
+export interface Transcription {
+    downloadUrl: string,
+    fileSize: number;
+    filename: string;
+    locale: string;
+}
+export namespace Transcription {
+    export type SupportedLanguage = LiteralString<"da" | "de" | "el" | "en" | "en-gb" | "es" | "es-419" | "es-es" | "fi" | "fr" | "fr-ca" | "id" | "it" | "ja" | "ko" | "nl" | "no" | "pl" | "pt" | "pt-br" | "ru" | "sv" | "th" | "tr" | "zh" | "zh-tw" | "zh-cmn-hans" | "cs" | "en-au" | "hi" | "lt" | "so" | "hmn" | "my" | "cnh" | "kar" | "ku-kmr" | "ne" | "sw" | "af" | "sq" | "am" | "az" | "bn" | "bs" | "bg" | "hr" | "et" | "ka" | "ht" | "ha" | "hu" | "lv" | "ms" | "ro" | "sr" | "sk" | "sl" | "tl" | "ta" | "uk" | "vi">
+    export type TranslateSource = Extract<SupportedLanguage, 'en' | 'en-gb' | 'fr' | 'de' | 'pt-br' | 'es' | 'zh-cmn-hans'>;
+    export type ServiceType = LiteralString<'Vbrick' | 'VoiceBase' | 'Manual'>
+    export type StatusEnum = LiteralString<'NotStarted' | 'Preparing' | 'InProgress' | 'Success' | 'Failed'>;
+    export interface Request {
+        language: Transcription.SupportedLanguage;
+        audioTrack?: number;
+        serviceType?: Omit<Transcription.ServiceType, 'Manual'>;
+    }
+    export interface Status {
+        videoId: string;
+        transcriptionId: string;
+        status: Transcription.StatusEnum;
+        language: Transcription.SupportedLanguage;
+        transcriptionService: Transcription.ServiceType;
+    }
+    export interface TranslateResult {
+        videoId: string;
+        title: string;
+        sourceLanguage: Transcription.TranslateSource;
+        targetLanguages: Array<{
+            language: Transcription.SupportedLanguage;
+            transcriptionId: string;
+            status: Transcription.StatusEnum;
+        }>;
+    }
+}
+
+export interface ExternalAccess {
+    /**
+     * email address this token is associated with
+     */
+  email: string
+
+  /**
+   * When this token was added (JSON date)
+   */
+  whenAdded: string
+
+  /**
+   * Current status of the token.
+   */
+  status: LiteralString<'Active' | 'Revoked' | 'Expired'>
+
+  /**
+   * which Rev User generated this token
+   */
+  grantor: string
+
+  /**
+   * the date until this token expires
+   */
+  validUntil: string
+
+  /**
+   * link to access the resource this token is associated with
+   */
+  link: string
+  /**
+   * optional message assigned when the token was created
+   */
+  message: string
+}
+export namespace ExternalAccess {
+    export interface Request {
+        /** List of email adddresses to add/remove/renew/revoke external access for */
+        emails: string[];
+        /**
+         * Optional message - only when first adding external access
+         * @default ""
+         */
+        message?: string;
+        /**
+         * Send email to each address notifying them of external access.
+         * Set to `true` to disable sending emails
+         * @default false
+         */
+        noEmail?: boolean;
+    }
+    export interface RenewResponse {
+        /**
+         * Email that external access could not be renewed for.
+         */
+        invalidEmails: string[]
+      }
 }

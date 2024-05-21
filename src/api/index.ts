@@ -12,3 +12,4 @@ export { default as user } from './user';
 export { default as video } from './video';
 export { default as webcast } from './webcast';
 export { default as zones } from './zones';
+export { default as environment } from './environment';

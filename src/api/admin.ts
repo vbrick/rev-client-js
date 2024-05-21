@@ -28,18 +28,18 @@ export default function adminAPIFactory(rev: RevClient) {
         },
         /**
         * Get a Role (with the role id) based on its name
-        * @param name Name of the Role, i.e. "Media Viewer"
+        * @param name Name of the Role OR RoleType. You can specify the specific enum value (preferred, only Rev 7.53+), or the localized string value in the current user's language, i.e. "Media Viewer" for english
         * @param fromCache - if true then use previously cached Role listing (more efficient)
         */
-        async getRoleByName(name: Role.RoleName, fromCache: CacheOption = true): Promise<Role> {
+        async getRoleByName(name: Role.RoleType | Role.RoleName, fromCache: CacheOption = true): Promise<Role> {
             const roles = await adminAPI.roles(fromCache);
-            const role = roles.find(r => r.name === name);
+            const role = roles.find(r => r.roleType === name || r.name === name);
             if (!role) {
-                throw new TypeError(`Invalid Role Name ${name}. Valid values are: ${roles.map(r => r.name).join(', ')}`);
+                throw new TypeError(`Invalid Role Name ${name}. Valid values are: ${roles.flatMap(r => r.roleType ? [r.roleType, r.name] : [r.name]).join(', ')}`);
             }
             return {
                 id: role.id,
-                name: role.name
+                name: role.roleType || role.name
             };
         },
         /**
@@ -88,7 +88,7 @@ export default function adminAPIFactory(rev: RevClient) {
         async deleteWebcastRegistrationField(fieldId: string): Promise<void> {
             return rev.delete(`/api/v2/accounts/webcast-registration-fields/${fieldId}`);
         },
-        listIQCreditsUsage(query: { startDate?: string | Date, endDate?: string | Date }, options?: Rev.SearchOptions<Admin.IQCreditsSession>): SearchRequest<Admin.IQCreditsSession> {
+        listIQCreditsUsage(query: { startDate?: string | Date, endDate?: string | Date }, options?: Rev.SearchOptions<Admin.IQCreditsSession>): Rev.ISearchRequest<Admin.IQCreditsSession> {
             const searchDefinition: Rev.SearchDefinition<Admin.IQCreditsSession> = {
                 endpoint: `/api/v2/analytics/accounts/iq-credits-usage`,
                 totalKey: 'total',
@@ -121,6 +121,10 @@ export default function adminAPIFactory(rev: RevClient) {
          */
         async expirationRules(): Promise<Admin.ExpirationRule[]> {
             return rev.get('/api/v2/expiration-rules');
+        },
+        async featureSettings(videoId?: string): Promise<Admin.FeatureSettings> {
+            const params = videoId ? { videoId } : undefined;
+            return rev.get('/api/v2/videos/feature-settings', params);
         }
     };
     return adminAPI;

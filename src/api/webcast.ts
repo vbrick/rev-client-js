@@ -4,6 +4,7 @@ import { Webcast, GuestRegistration } from '../types/webcast';
 import { SearchRequest } from '../utils/request-utils';
 import { titleCase } from '../utils';
 import { PostEventReportRequest, RealtimeReportRequest } from './webcast-report-request';
+import { mergeHeaders } from '../utils/merge-headers';
 
 type RealtimeSession<T extends Webcast.RealtimeRequest | undefined> = T extends { attendeeDetails: 'All' }
     ? Webcast.RealtimeSessionDetail
@@ -16,7 +17,7 @@ export default function webcastAPIFactory(rev: RevClient) {
         async list(options: Webcast.ListRequest = { }): Promise<Webcast[]> {
             return rev.get('/api/v2/scheduled-events', options, { responseType: 'json' });
         },
-        search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): SearchRequest<Webcast> {
+        search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): Rev.ISearchRequest<Webcast> {
             const searchDefinition: Rev.SearchDefinition<Webcast> = {
                 endpoint: `/api/v2/search/scheduled-events`,
                 totalKey: 'total',
@@ -63,7 +64,8 @@ export default function webcastAPIFactory(rev: RevClient) {
         },
         async pollResults(eventId: string, runNumber?: number): Promise<Webcast.PollResults[]> {
             const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
-            return rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: 'json' });
+            const {polls} = await rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: 'json' });
+            return polls;
         },
         async comments(eventId: string, runNumber?: number): Promise<Webcast.Comment[]> {
             const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
@@ -72,22 +74,33 @@ export default function webcastAPIFactory(rev: RevClient) {
         async status(eventId: string): Promise<Webcast.Status> {
             return rev.get(`/api/v2/scheduled-events/${eventId}/status`);
         },
-        async playbackUrl(eventId: string, options: Webcast.PlaybackUrlRequest = { }): Promise<Webcast.Playback[]> {
-            const {
-                ip,
-                userAgent
-            } = options;
-
+        async isPublic(eventId: string): Promise<boolean> {
+            const response = await rev.request('GET', `/api/v2/scheduled-events/${eventId}/is-public`, undefined, { throwHttpErrors: false, responseType: 'json' });
+            return response.statusCode !== 401 && response.body?.isPublic;
+        },
+        async playbackUrls(eventId: string, {ip, userAgent}: Webcast.PlaybackUrlRequest = { }, options?: Rev.RequestOptions): Promise<Webcast.PlaybackUrlsResponse> {
             const query = ip ? { ip } : undefined;
 
-            const requestOptions: Rev.RequestOptions = {
+            const opts: Rev.RequestOptions = {
+                ...options,
+                ...userAgent && {
+                    headers: mergeHeaders(options?.headers, { 'User-Agent': userAgent })
+                },
                 responseType: 'json'
             };
-            if (userAgent) {
-                requestOptions.headers = { 'User-Agent': userAgent };
-            }
 
-            return rev.get(`/api/v2/scheduled-events/${eventId}/playback-url`, query, requestOptions);
+            return rev.get(`/api/v2/scheduled-events/${eventId}/playback-url`, query, opts);
+        },
+        /**
+         * @deprecated
+         * @param eventId
+         * @param options
+         * @returns
+         */
+        async playbackUrl(eventId: string, options: Webcast.PlaybackUrlRequest = { }): Promise<Webcast.Playback[]> {
+            rev.log('debug', 'webcast.playbackUrl is deprecated - use webcast.playbackUrls instead');
+            const {playbackResults} = await webcastAPI.playbackUrls(eventId, options);
+            return playbackResults;
         },
         async startEvent(eventId: string, preProduction: boolean = false): Promise<void> {
             await rev.put(`/api/v2/scheduled-events/${eventId}/start`, { preProduction });
@@ -139,7 +152,7 @@ export default function webcastAPIFactory(rev: RevClient) {
             eventId: string,
             query: GuestRegistration.SearchRequest = {},
             options?: Rev.SearchOptions<GuestRegistration>
-        ): SearchRequest<GuestRegistration> {
+        ): Rev.ISearchRequest<GuestRegistration> {
             const searchDefinition: Rev.SearchDefinition<GuestRegistration> = {
                 endpoint: `/api/v2/scheduled-events/${eventId}/registrations`,
                 /** NOTE: this API doesn't actually return a total, so this will always be undefined */

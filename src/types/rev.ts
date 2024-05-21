@@ -1,13 +1,20 @@
-import { RevError, ScrollError } from '..';
-import { OAuth } from './auth';
+import type { ScrollError } from '..';
+import type { RateLimitEnum } from '../utils/rate-limit-queues';
+import type { OAuth } from './auth';
 
-export type LiteralString<T> = T | (string & { _?: never; });
+export type LiteralString<T> = T | (string & Record<never, never>);
 
 type FetchResponse = Response;
 
 export namespace Rev {
     // HTTP Method for requests
     export type HTTPMethod = LiteralString<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD'>;
+    export type ResponseType = LiteralString<'json' | 'text' | 'blob' | 'stream' | 'webstream' | 'nativestream'>;
+    export type PatchOperation = {
+        op: 'add' | 'remove' | 'replace';
+        path: string;
+        value?: any;
+    }
     export interface Response<T> {
         statusCode: number;
         headers: Headers;
@@ -45,8 +52,15 @@ export namespace Rev {
         codeVerifier?: string;
         /** JWT Token */
         jwtToken?: string;
+        /** Webcast Guest Registration */
+        guestRegistrationToken?: string;
+        /** Webcast ID for Guest Registration */
+        webcastId?: string;
+
         /** existing token/extend session details */
         session?: Rev.IRevSessionState;
+        /** use public APIs only - no authentication */
+        publicOnly?: boolean;
     }
     export type LogSeverity = LiteralString<'debug' | 'info' | 'warn' | 'error'>;
     export type LogFunction = (severity: LogSeverity, ...args: any[]) => void;
@@ -64,12 +78,26 @@ export namespace Rev {
          *     rev.disconnect() is called. Optionally, pass in keepAlive options instead of `true`
          */
         keepAlive?: boolean | KeepAliveOptions;
+
+        rateLimits?: boolean | Rev.RateLimits
+
+        /**
+         * Specify the default response type for streaming responses
+         * 'stream': whatever underlying library returns (NodeJS Readable for node-fetch, ReadableStream otherwise)
+         * 'webstream': always return a ReadableStream
+         * 'nativestream': always return native stream type (NodeJS Readable on NodeJS, ReadableStream otherwise)
+         */
+        defaultStreamPreference?: 'stream' | 'webstream' | 'nativestream';
     }
+
+    export type RateLimits = { [K in RateLimitEnum]?: number }
 
     export interface IRevSession {
         token?: string;
         expires: Date;
         readonly isExpired: boolean;
+        readonly isConnected: boolean;
+        readonly hasRateLimits: boolean;
         readonly username: string | undefined;
         login(): Promise<void>;
         extend(): Promise<void>;
@@ -77,13 +105,14 @@ export namespace Rev {
         verify(): Promise<boolean>;
         lazyExtend(options?: Rev.KeepAliveOptions): Promise<boolean>;
         toJSON(): Rev.IRevSessionState;
+        queueRequest(queue: `${RateLimitEnum}`): Promise<void>;
     }
 
     export interface RequestOptions extends Partial<RequestInit> {
         /**
          * specify body type when decoding. Use 'stream' to skip parsing body completely
          */
-        responseType?: 'json' | 'text' | 'blob' | 'stream';
+        responseType?: ResponseType;
         /**
          * whether to throw errors or not for HTTP error response codes.
          * @default true
@@ -123,6 +152,15 @@ export namespace Rev {
          * @deprecated use onError instead
          */
         onScrollError?: (err: ScrollError) => void;
+
+        signal?: AbortSignal | undefined;
+    }
+
+    export interface AccessEntitySearchOptions<T> extends SearchOptions<T> {
+        // type?: LiteralString<'User' | 'Group' | 'Channel'>;
+        assignable?: boolean;
+        // count?: number;
+        // transformResult?: boolean;
     }
 
     export interface SearchDefinition<T = any, RawType = any> {
@@ -137,6 +175,8 @@ export namespace Rev {
     export interface KeepAliveOptions {
         /**
          * How many milliseconds between automatic extend session calls
+         * Default 5 minutes
+         * @default 300000
          */
         keepAliveInterval?: number;
         /**
@@ -166,4 +206,18 @@ export namespace Rev {
     }
 
     export type SortDirection = LiteralString<'asc' | 'desc'>;
+
+    export type FileUploadType = string | File | Blob | AsyncIterable<any>;
+    export interface UploadFileOptions {
+        /** specify filename of video as reported to Rev */
+        filename?: string;
+        /** specify content type of video */
+        contentType?: string;
+        /** if content length is known this will avoid needing to detect it */
+        contentLength?: number;
+        /** node-only - bypass dealing with content length and just upload as transfer-encoding: chunked */
+        useChunkedTransfer?: boolean;
+        /** An AbortSignal to set request's signal. */
+        signal?: AbortSignal | null;
+    }
 }

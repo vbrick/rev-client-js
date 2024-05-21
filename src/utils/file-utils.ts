@@ -3,22 +3,9 @@ import { isBlobLike } from './is-utils';
 import type { RevClient } from '../rev-client';
 import type { Rev } from '../types';
 
-export type FileUploadType = string | File | Blob | AsyncIterable<any>;
-export interface UploadFileOptions {
-    /** specify filename of video as reported to Rev */
-    filename?: string;
-    /** specify content type of video */
-    contentType?: string;
-    /** if content length is known this will avoid needing to detect it */
-    contentLength?: number;
-    /** node-only - bypass dealing with content length and just upload as transfer-encoding: chunked */
-    useChunkedTransfer?: boolean;
-    /** An AbortSignal to set request's signal. */
-    signal?: AbortSignal | null;
-}
 export interface FileUploadPayloadInternal {
-    file: FileUploadType;
-    options: UploadFileOptions;
+    file: Rev.FileUploadType;
+    options: Rev.UploadFileOptions;
 }
 
 export const mimeTypes = {
@@ -55,6 +42,7 @@ export const mimeTypes = {
     '.zip': 'application/zip',
     '.mks': 'video/x-matroska',
     '.mts': 'model/vnd.mts',
+    '.vtt': 'text/vtt',
     '.wma': 'audio/x-ms-wma'
 };
 
@@ -75,7 +63,7 @@ export function getExtensionForMime(contentType: string, defaultExtension = '.mp
 
 }
 
-function sanitizeFileUpload(payload: FileUploadPayloadInternal) {
+function sanitizeFileUpload(payload: FileUploadPayloadInternal, defaultContentType?: string) {
     let {
         file,
         options: {
@@ -91,14 +79,14 @@ function sanitizeFileUpload(payload: FileUploadPayloadInternal) {
     if (/charset/.test(contentType)) {
         contentType = contentType.replace(/;?.*charset.*$/, '');
     }
-    let name = filename.replace('\.[^\.]+$', '');
+    let name = filename.replace(/\.[^\.]+$/, '');
     let ext = filename.replace(name, '');
     if (!ext) {
         ext = getExtensionForMime(contentType);
     }
     filename = `${name}${ext}`;
     if (!contentType) {
-        contentType = getMimeForExtension(ext);
+        contentType = getMimeForExtension(ext, defaultContentType);
     }
     if (isBlobLike(file) && file.type !== contentType) {
         payload.file = file.slice(0, file.size, contentType);
@@ -121,8 +109,8 @@ export function appendJSONToForm(form: FormData, fieldName: string, data: any) {
  * @param file the file. Can be Blob or File on browser. On node.js it can be anything the 'form-data' package will accept
  * @param options optional filename, contentType and contentLength of upload. Otherwise it will try to guess based on input
  */
-export async function appendFileToForm(form: FormData, fieldName: string, file: FileUploadType, options: UploadFileOptions = { }): Promise<UploadFileOptions> {
-    const opts: UploadFileOptions = {
+export async function appendFileToForm(form: FormData, fieldName: string, file: Rev.FileUploadType, options: Rev.UploadFileOptions = { }): Promise<Rev.UploadFileOptions> {
+    const opts: Rev.UploadFileOptions = {
         filename: 'upload',
         contentType: '',
         ...options
@@ -153,7 +141,7 @@ export async function uploadMultipart(
     method: Rev.HTTPMethod,
     endpoint: string,
     form: FormData,
-    useChunkedTransfer: boolean | UploadFileOptions = false,
+    useChunkedTransfer: boolean | Rev.UploadFileOptions = false,
     options: Rev.RequestOptions = { }
 ) {
     const {

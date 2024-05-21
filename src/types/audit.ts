@@ -1,15 +1,18 @@
 import { Rev } from '.';
+import { PagedRequest } from '../utils/paged-request';
 
 export namespace Audit {
 
-    export interface Options<T extends Entry> extends Rev.SearchOptions<T> {
+    export interface Options<T extends Audit.Entry = Audit.Entry> extends Rev.SearchOptions<T> {
         fromDate?: string | Date,
         toDate?: string | Date;
+        beforeRequest?: (request: PagedRequest<T>) => Promise<void>;
     }
 
     export interface Entry<EntityKey extends string = string> {
         messageKey: string;
         entityKey: EntityKey;
+        entityId: string;
         when: string;
         principal: Record<string, string | null>,
         message: Record<string, any>,

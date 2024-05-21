@@ -1,5 +1,5 @@
 import { RevError } from './rev-error';
-import { isPlainObject, retry } from './utils';
+import { RateLimitEnum, isPlainObject, retry } from './utils';
 import * as api from './api';
 import polyfills from './interop';
 import { Rev } from './types';
@@ -18,6 +18,7 @@ export class RevClient {
     readonly category!: ReturnType<typeof api.category>;
     readonly channel!: ReturnType<typeof api.channel>;
     readonly device!: ReturnType<typeof api.device>;
+    readonly environment!: ReturnType<typeof api.environment>;
     readonly group!: ReturnType<typeof api.group>;
     readonly playlist!: ReturnType<typeof api.playlist>;
     readonly recording!: ReturnType<typeof api.recording>;
@@ -26,6 +27,7 @@ export class RevClient {
     readonly video!: ReturnType<typeof api.video>;
     readonly webcast!: ReturnType<typeof api.webcast>;
     readonly zones!: ReturnType<typeof api.zones>;
+    private _streamPreference: Rev.RequestOptions['responseType'];
     constructor(options: Rev.Options) {
         if (!isPlainObject(options) || !options.url) {
             throw new TypeError('Missing configuration options for client - url and username/password or apiKey/secret');
@@ -35,6 +37,9 @@ export class RevClient {
             log,
             logEnabled = false,
             keepAlive = true,
+            // NOTE default to false rate limiting for now. In future this may change
+            rateLimits = false,
+            defaultStreamPreference = 'stream',
             ...credentials
         } = options;
 
@@ -43,7 +48,7 @@ export class RevClient {
         this.url = urlObj.origin;
 
         // will throw error if credentials are invalid
-        this.session = createSession(this, credentials, keepAlive);
+        this.session = createSession(this, credentials, keepAlive, rateLimits);
 
         // add logging functionality
         this.logEnabled = !!logEnabled;
@@ -55,15 +60,18 @@ export class RevClient {
                 log(severity, ...args);
             };
         }
+        this._streamPreference = defaultStreamPreference;
 
         // add all API endpoints
         Object.defineProperties(this, {
             admin: { value: api.admin(this), writable: false },
-            audit: { value: api.audit(this), writable: false },
+            // NOTE rate limiting option passed into api factory since its
+            audit: { value: api.audit(this, rateLimits), writable: false },
             auth: { value: api.auth(this), writable: false },
             category: { value: api.category(this), writable: false },
             channel: { value: api.channel(this), writable: false },
             device: { value: api.device(this), writable: false },
+            environment: { value: api.environment(this), writable: false },
             group: { value: api.group(this), writable: false },
             playlist: { value: api.playlist(this), writable: false },
             recording: { value: api.recording(this), writable: false },
@@ -117,11 +125,11 @@ export class RevClient {
 
         // default to JSON request payload, but allow it to be overridden
         let shouldSetAsJSON = !headers.has('Content-Type');
+        const normalizedMethod = method.toUpperCase();
 
         // add provided data to request body or as query string parameters
-
         if (data) {
-            if (['POST', 'PUT', 'PATCH'].includes(method.toUpperCase())) {
+            if (['POST', 'PUT', 'PATCH'].includes(normalizedMethod)) {
                 if (typeof data === 'string') {
                     fetchOptions.body = data;
                 } else if (data instanceof polyfills.FormData) {
@@ -154,6 +162,20 @@ export class RevClient {
         // OPTIONAL log request and response
         this.log('debug', `Request ${method} ${endpoint}`);
 
+        if (this.session.hasRateLimits) {
+            switch (normalizedMethod) {
+                case 'GET':
+                    await this.session.queueRequest(RateLimitEnum.Get);
+                    break;
+                case 'POST':
+                case 'PATCH':
+                case 'PUT':
+                case 'DELETE':
+                    await this.session.queueRequest(RateLimitEnum.Post);
+                    break;
+            }
+        }
+
         // NOTE: will throw error on AbortError or client fetch errors
         const response = await polyfills.fetch(`${url}`, {
             ...fetchOptions,
@@ -168,17 +190,18 @@ export class RevClient {
             headers: responseHeaders
         } = response;
 
-        this.log('debug', `Response ${method} ${endpoint} ${statusCode} ${statusText}`);
-
         // check for error response code
         if (!ok) {
             if (throwHttpErrors) {
                 const err = await RevError.create(response);
+                this.log('debug', `Response ${method} ${endpoint} ${statusCode} ${err.code || statusText}`);
                 throw err;
             }
             // if not throwwing then force responseType to auto (could be text or json)
             responseType = undefined;
         }
+
+        this.log('debug', `Response ${method} ${endpoint} ${statusCode} ${statusText}`);
 
         let body: any = response.body;
 
@@ -193,7 +216,18 @@ export class RevClient {
                 body = await response.blob();
                 break;
             case 'stream':
+                switch (this._streamPreference) {
+                    case 'webstream': body = polyfills.asWebStream(response.body); break;
+                    case 'nativestream': body = polyfills.asPlatformStream(response.body); break;
+                    default: body = response.body;
+                }
                 body = response.body;
+                break;
+            case 'webstream':
+                body = polyfills.asWebStream(response.body);
+                break;
+            case 'nativestream':
+                body = polyfills.asPlatformStream(response.body);
                 break;
             default:
                 // if no mimetype in response then assume JSON unless otherwise specified
@@ -259,7 +293,7 @@ export class RevClient {
         return this.session.verify();
     }
     get isConnected() {
-        return !!this.session.token && !this.session.isExpired;
+        return this.session.isConnected;
     }
     get token() {
         return this.session.token;
@@ -283,6 +317,7 @@ export class RevClient {
         if (!this.logEnabled) {
             return;
         }
+
         const ts = (new Date()).toJSON().replace('T', ' ').slice(0, -5);
         console.debug(`${ts} REV-CLIENT [${severity}]`, ...args);
     }

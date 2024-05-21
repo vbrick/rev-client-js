@@ -1,5 +1,6 @@
 import type { RevClient } from '../rev-client';
-import type { Channel, Rev } from '../types';
+import type { AccessControl, Channel, Rev } from '../types';
+import { SearchRequest } from '../utils/request-utils';
 
 export default function channelAPIFactory(rev: RevClient) {
     const channelAPI = {
@@ -38,6 +39,23 @@ export default function channelAPIFactory(rev: RevClient) {
                 });
 
             await rev.patch(`/api/v2/channels/${channelId}`, operations);
+        },
+        /**
+         *
+         * @param {string} [searchText]
+         * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
+         */
+        search(searchText?: string, options: Rev.AccessEntitySearchOptions<AccessControl.SearchHit> & { type?: AccessControl.EntitySearchType } = { }) {
+            const searchDefinition = {
+                endpoint: `/api/v2/search/access-entity${options?.assignable ? '/assignable' : ''}`,
+                totalKey: 'totalEntities',
+                hitsKey: 'accessEntities'
+            };
+            const query: Record<string, any> = {
+                type: options.type || 'Channel',
+                ...searchText && {q: searchText}
+            };
+            return new SearchRequest<AccessControl.SearchHit>(rev, searchDefinition, query, options);
         }
     };
     return channelAPI;

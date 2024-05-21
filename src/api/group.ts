@@ -24,9 +24,9 @@ export default function groupAPIFactory(rev: RevClient) {
          * @param {string} [searchText]
          * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
          */
-        search(searchText?: string, options: Rev.SearchOptions<Group.SearchHit> = { }) {
+        search(searchText?: string, options: Rev.AccessEntitySearchOptions<Group.SearchHit> = { }) {
             const searchDefinition = {
-                endpoint: '/api/v2/search/access-entity',
+                endpoint: `/api/v2/search/access-entity${options?.assignable ? '/assignable' : ''}`,
                 totalKey: 'totalEntities',
                 hitsKey: 'accessEntities',
                 transform: (hits: Group.RawSearchHit[]) => hits.map(formatGroupSearchHit)

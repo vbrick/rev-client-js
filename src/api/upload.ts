@@ -1,10 +1,10 @@
 import type { RevClient } from '../rev-client';
-import { Rev, Video } from '../types';
-import { appendFileToForm, appendJSONToForm, FileUploadType, UploadFileOptions, uploadMultipart } from '../utils/file-utils';
+import { Rev, Transcription, Video } from '../types';
+import { appendFileToForm, appendJSONToForm, uploadMultipart } from '../utils/file-utils';
 import polyfills from '../interop';
+import { RateLimitEnum } from '../utils';
 
-
-function splitOptions(options: UploadFileOptions) {
+function splitOptions(options: Rev.UploadFileOptions) {
     const {
         signal,
         ...uploadOptions
@@ -16,17 +16,17 @@ function splitOptions(options: UploadFileOptions) {
     };
 }
 
-type PresentationChaptersOptions = Rev.RequestOptions & UploadFileOptions & {
+type PresentationChaptersOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
     contentType?: 'application/vnd.ms-powerpoint'
                 | 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 };
 
-type TranscriptionOptions = Rev.RequestOptions & UploadFileOptions & {
+type TranscriptionOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
     contentType?: 'text/plain'
                 | 'application/x-subrip';
 };
 
-type ChaptersOptions = Rev.RequestOptions & Omit<UploadFileOptions, 'filename' | 'contentLength'> & {
+type ChaptersOptions = Rev.RequestOptions & Omit<Rev.UploadFileOptions, 'filename' | 'contentLength'> & {
     contentType?: 'application/x-7z-compressed'
                 | 'text/csv'
                 | 'application/msword'
@@ -55,9 +55,9 @@ export default function uploadAPIFactory(rev: RevClient) {
          * Upload a video, and returns the resulting video ID
          */
         async video(
-            file: FileUploadType,
+            file: Rev.FileUploadType,
             metadata: Video.UploadMetadata = { uploader: rev.session.username ?? '' },
-            options: UploadFileOptions = {}): Promise<string> {
+            options: Rev.UploadFileOptions = {}): Promise<string> {
 
             const { uploadOptions, requestOptions } = splitOptions(options);
 
@@ -83,26 +83,27 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             rev.log('info', `Uploading ${filePayload.filename} (${filePayload.contentType})`);
 
+            await rev.session.queueRequest(RateLimitEnum.UploadVideo);
+
             const { videoId } = await uploadMultipart(rev, 'POST', '/api/v2/uploads/videos', form, filePayload, requestOptions);
             return videoId;
         },
-        async transcription(videoId: string, file: FileUploadType, language: Video.Transcription.SupportedLanguages = 'en', options: TranscriptionOptions = { }): Promise<void> {
+        async replaceVideo(videoId: string, file: Rev.FileUploadType, options: Rev.UploadFileOptions = {}): Promise<void> {
+            const { uploadOptions, requestOptions } = splitOptions(options);
+            const form = new FormData();
+            const filePayload = await appendFileToForm(form, 'VideoFile', file, uploadOptions);
+
+            rev.log('info', `Replacing ${videoId} with ${filePayload.filename} (${filePayload.contentType})`);
+
+            await rev.session.queueRequest(RateLimitEnum.UploadVideo);
+
+            await uploadMultipart(rev, 'PUT', `/api/v2/uploads/videos/${videoId}`, form, filePayload, requestOptions);
+        },
+        async transcription(videoId: string, file: Rev.FileUploadType, language: Transcription.SupportedLanguage = 'en', options: TranscriptionOptions = { }): Promise<void> {
             const { uploadOptions, requestOptions } = splitOptions(options);
 
-            // validate language
-            // TODO put this in a constants file somewhere
-            const supportedLanguages = ['de', 'en', 'en-gb', 'es-es', 'es-419', 'es', 'fr', 'fr-ca', 'id', 'it', 'ko', 'ja', 'nl', 'no', 'pl', 'pt', 'pt-br', 'th', 'tr', 'fi', 'sv', 'ru', 'el', 'zh', 'zh-tw', 'zh-cmn-hans'];
-
-            let lang = language.toLowerCase();
-            if (!supportedLanguages.includes(lang)) {
-                // try removing trailing language specifier
-                lang = lang.slice(2);
-                if (!supportedLanguages.includes(lang)) {
-                    throw new TypeError(`Invalid language ${language} - supported values are ${supportedLanguages.join(', ')}`);
-                }
-            }
-
             const form = new FormData();
+            const lang = language.toLowerCase();
 
             const filePayload = await appendFileToForm(form, 'File', file, uploadOptions);
             const metadata = {
@@ -116,7 +117,7 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/transcription-files/${videoId}`, form, filePayload, requestOptions);
         },
-        async supplementalFile(videoId: string, file: FileUploadType, options: Rev.RequestOptions & UploadFileOptions = {}) {
+        async supplementalFile(videoId: string, file: Rev.FileUploadType, options: Rev.RequestOptions & Rev.UploadFileOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options);
 
             const form = new FormData();
@@ -154,7 +155,7 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             for (let chapter of chapters) {
                 const {
-                    title, time, imageFile
+                    title, time, imageFile, uploadOptions: fileUploadOptions = {}
                 } = chapter;
 
                 const chapterEntry: ChapterPayload = { time };
@@ -162,10 +163,11 @@ export default function uploadAPIFactory(rev: RevClient) {
                     chapterEntry.title = title;
                 }
                 if (imageFile) {
-                    const filePayload = await appendFileToForm(form, 'File', imageFile, uploadOptions);
+                    const filePayload = await appendFileToForm(form, 'File', imageFile, { ...uploadOptions, ...fileUploadOptions });
                     // add image filename based on what was appended to form
                     chapterEntry.imageFile = filePayload.filename;
                 }
+                metadata.chapters.push(chapterEntry);
             }
 
             appendJSONToForm(form, 'Chapters', metadata);
@@ -178,7 +180,7 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             await uploadMultipart(rev, method, `/api/v2/uploads/chapters/${videoId}`, form, uploadOptions, requestOptions);
         },
-        async thumbnail(videoId: string, file: FileUploadType, options: Rev.RequestOptions & UploadFileOptions = {}) {
+        async thumbnail(videoId: string, file: Rev.FileUploadType, options: Rev.RequestOptions & Rev.UploadFileOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options);
 
             const form = new FormData();
@@ -189,7 +191,7 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
         },
-        async presentationChapters(videoId: string, file: FileUploadType, options: PresentationChaptersOptions = {}) {
+        async presentationChapters(videoId: string, file: Rev.FileUploadType, options: PresentationChaptersOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options);
 
             const form = new FormData();

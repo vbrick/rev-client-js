@@ -1,6 +1,6 @@
-export * from './rev-error';
-export * from './types';
 export * from './rev-client';
+export * from './rev-error';
+export type * from './types';
 
 import {rateLimit} from './utils';
 import {getExtensionForMime, getMimeForExtension} from './utils/file-utils'

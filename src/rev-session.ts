@@ -2,6 +2,7 @@ import type { RevClient } from './rev-client';
 import type { Rev } from './types';
 import { isPlainObject, sleep } from './utils';
 import interop from './interop';
+import { RateLimitEnum, RateLimitQueues, clearQueues, makeQueues } from './utils/rate-limit-queues';
 
 const ONE_MINUTE = 1000 * 60;
 
@@ -26,7 +27,7 @@ class SessionKeepAlive {
         // TODO verify values?
         this.extendOptions = {
             extendThresholdMilliseconds: 3 * ONE_MINUTE,
-            keepAliveInterval: 5 * ONE_MINUTE,
+            keepAliveInterval: 10 * ONE_MINUTE,
             verify: true,
             ...options
         };
@@ -120,13 +121,19 @@ abstract class SessionBase implements Rev.IRevSession {
     protected readonly rev!: RevClient;
     protected readonly [_credentials]!: Rev.Credentials;
     readonly keepAlive?: SessionKeepAlive;
-    constructor(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions) {
+    readonly _rateLimits?: Partial<RateLimitQueues>;
+    constructor(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions, rateLimits?: boolean | Rev.RateLimits) {
         this.expires = new Date();
 
         if (keepAliveOptions === true) {
             this.keepAlive = new SessionKeepAlive(this);
         } else if (isPlainObject(keepAliveOptions)) {
             this.keepAlive = new SessionKeepAlive(this, keepAliveOptions);
+        }
+
+        let rateLimitQueues: undefined | Partial<RateLimitQueues> = undefined;
+        if (rateLimits) {
+            rateLimitQueues = makeQueues(isPlainObject(rateLimits) ? rateLimits : undefined);
         }
 
         // add as private member
@@ -137,6 +144,10 @@ abstract class SessionBase implements Rev.IRevSession {
             },
             [_credentials]: {
                 get() { return credentials; },
+                enumerable: false
+            },
+            _rateLimits: {
+                get() { return rateLimitQueues; },
                 enumerable: false
             }
         });
@@ -227,6 +238,16 @@ abstract class SessionBase implements Rev.IRevSession {
         await this.login();
         return true;
     }
+    async queueRequest(queue: `${RateLimitEnum}`) {
+        await this._rateLimits?.[queue]?.();
+    }
+    /**
+     * Abort pending executions. All unresolved promises are rejected with a `AbortError` error.
+     * @param {string} [message] - message parameter for rejected AbortError
+     */
+    async clearQueues(message?: string) {
+        await clearQueues(this._rateLimits ?? {}, message);
+    }
     /**
      * check if expiration time of session has passed
      */
@@ -245,6 +266,9 @@ abstract class SessionBase implements Rev.IRevSession {
     }
     get username() {
         return this[_credentials].username;
+    }
+    get hasRateLimits() {
+        return !!this._rateLimits;
     }
     protected abstract _login(): Promise<LoginResponse>;
     protected abstract _extend(): Promise<{ expiration: string; }>;
@@ -410,6 +434,34 @@ export class JWTSession extends SessionBase {
     }
 }
 
+export class GuestRegistrationSession extends SessionBase {
+    async _login() {
+        const { webcastId, guestRegistrationToken } = this[_credentials];
+        if (!guestRegistrationToken || !webcastId) {
+            throw new TypeError('Guest Registration Token or Webcast ID not specified');
+        }
+        const {accessToken: token} = await this.rev.auth.loginGuestRegistration(webcastId, guestRegistrationToken);
+
+        // expires time is not sent, so just assume 15 minutes
+        const expiresTime = Date.now() + 1000 * 60 * 15;
+        const expiration = new Date(expiresTime).toISOString();
+
+        return { token, expiration, issuer: 'vbrick' };
+    }
+    async _extend() {
+        return this.rev.auth.extendSession();
+    }
+    async _logoff() {
+        return;
+    }
+    public toJSON(): Rev.IRevSessionState {
+        return {
+            token: this.token || '',
+            expiration: this.expires
+        };
+    }
+}
+
 export class AccessTokenSession extends SessionBase {
     // just verify user on login
     async _login() {
@@ -432,13 +484,47 @@ export class AccessTokenSession extends SessionBase {
             expiration: this.expires
         };
     }
+    get isConnected() {
+        return true;
+    }
+    get isExpired() {
+        return false;
+    }
 }
 
-export function createSession(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions) {
+export class PublicOnlySession extends SessionBase {
+    async _login() {
+        this.rev.log('debug', 'Using client with no authentication (publicOnly) - non-public endpoints will return 401');
+        // no verify
+        return {
+            token: this.token || '',
+            // very long expiration
+            expiration: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            issuer: 'vbrick'
+        };
+    }
+    async _extend() {
+        return {
+            expiration: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        }
+    }
+    async _logoff() {
+        return;
+    }
+    public toJSON(): Rev.IRevSessionState {
+        return {
+            token: this.token || '',
+            expiration: this.expires
+        };
+    }
+}
+
+export function createSession(rev: RevClient, credentials: Rev.Credentials, keepAliveOptions?: boolean | Rev.KeepAliveOptions, rateLimits?: boolean | Rev.RateLimits) {
     let session: Rev.IRevSession;
 
     const {
         session: sessionState = {} as Rev.IRevSessionState,
+        publicOnly,
         ...creds
     } = credentials;
 
@@ -458,26 +544,29 @@ export function createSession(rev: RevClient, credentials: Rev.Credentials, keep
     const isApiKeyLogin = credentials.apiKey && (credentials.secret || (hasSession && !userId));
     const isUsernameLogin = credentials.username && (credentials.password || (hasSession && userId));
     const isJWTLogin = credentials.jwtToken;
+    const isGuestRegistration = credentials.webcastId && credentials.guestRegistrationToken;
 
     // prefer oauth first, then apikey then username if multiple params specified
     if (isOAuth2Login) {
-        session = new OAuth2Session(rev, creds, keepAliveOptions);
+        session = new OAuth2Session(rev, creds, keepAliveOptions, rateLimits);
     } else if (isLegacyOauthLogin) {
-        session = new OAuthSession(rev, creds, keepAliveOptions);
+        session = new OAuthSession(rev, creds, keepAliveOptions, rateLimits);
         if (refreshToken) {
             (session as OAuthSession).refreshToken = refreshToken;
         }
     } else if (isApiKeyLogin) {
-        session = new ApiKeySession(rev, creds, keepAliveOptions);
+        session = new ApiKeySession(rev, creds, keepAliveOptions, rateLimits);
     } else if (isJWTLogin) {
-        session = new JWTSession(rev, creds, keepAliveOptions);
+        session = new JWTSession(rev, creds, keepAliveOptions, rateLimits);
+    } else if (isGuestRegistration) {
+        session = new GuestRegistrationSession(rev, creds, keepAliveOptions, rateLimits);
     } else if (isUsernameLogin) {
-        session = new UserSession(rev, creds, keepAliveOptions);
+        session = new UserSession(rev, creds, keepAliveOptions, rateLimits);
         if (userId) {
             (session as UserSession).userId = userId;
         }
-    } else if (hasSession) {
-        session = new AccessTokenSession(rev, creds, keepAliveOptions);
+    } else if (hasSession || publicOnly) {
+        session = new AccessTokenSession(rev, creds, keepAliveOptions, rateLimits);
     } else {
         throw new TypeError('Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)');
     }

@@ -1,11 +1,14 @@
-import fs from 'fs';
-import path from 'path';
-import { createHmac, randomBytes, createHash } from 'crypto';
-import { promisify } from 'util';
+import fs from 'node:fs';
+import path from 'node:path';
+import { ReadableStream } from 'node:stream/web';
+import { Readable } from 'node:stream';
+import { createHmac, randomBytes, createHash } from 'node:crypto';
+import { promisify } from 'node:util';
 import fetch, { Headers, Request, Response } from 'node-fetch';
 import FormData, { AppendOptions } from 'form-data';
 import { isBlobLike, isReadable } from '../utils';
-import type { UploadFileOptions, FileUploadPayloadInternal, FileUploadType } from '../utils/file-utils';
+import type { Rev } from '../types/rev';
+import type { FileUploadPayloadInternal } from '../utils/file-utils';
 import { AbortSignal, AbortController } from 'node-abort-controller';
 import polyfills from '.';
 
@@ -54,7 +57,7 @@ async function getLengthFromStream(source: Record<string, any>) {
 /**
  * For node.js support this allows uploading videos based on filename or from a readable stream
  */
-async function parseFileUpload(file: FileUploadType, options: UploadFileOptions): Promise<FileUploadPayloadInternal> {
+async function parseFileUpload(file: Rev.FileUploadType, options: Rev.UploadFileOptions): Promise<FileUploadPayloadInternal> {
     let {
         filename,
         contentType,
@@ -196,6 +199,17 @@ Object.assign(polyfills, {
     hmacSign,
     appendFileToForm,
     parseFileUpload,
-    prepareUploadHeaders
+    prepareUploadHeaders,
+    asPlatformStream(stream: NodeJS.ReadableStream | Readable | ReadableStream<any>): NodeJS.ReadableStream {
+        if (!stream) return stream;
+        return (stream instanceof ReadableStream)
+            ? Readable.fromWeb(stream)
+            : stream;
+    },
+    asWebStream(stream: NodeJS.ReadableStream | Readable | ReadableStream<any>): ReadableStream {
+        return (!stream || (stream instanceof ReadableStream))
+            ? stream
+            : Readable.toWeb(Readable.from(stream));
+    }
 });
 

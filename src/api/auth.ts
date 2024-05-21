@@ -1,15 +1,17 @@
 import type { RevClient } from '../rev-client';
 import { Auth, OAuth } from '../types/auth';
+import { Rev } from '../types/rev';
+import { mergeHeaders } from '../utils/merge-headers';
 import {buildLegacyOAuthQuery, getOAuth2AuthorizationUrl, getOAuth2PKCEVerifier, parseLegacyOAuthRedirectResponse} from './oauth';
 
 export default function authAPIFactory(rev: RevClient) {
 
     const authAPI = {
-        async loginToken(apiKey: string, secret: string): Promise<Auth.LoginResponse> {
+        async loginToken(apiKey: string, secret: string, options?: Rev.RequestOptions): Promise<Auth.LoginResponse> {
             return rev.post('/api/v2/authenticate', {
                 apiKey,
                 secret
-            });
+            }, options);
         },
         async extendSessionToken(apiKey: string): Promise<Auth.ExtendResponse> {
             return rev.post(`/api/v2/auth/extend-session-timeout/${apiKey}`);
@@ -17,11 +19,11 @@ export default function authAPIFactory(rev: RevClient) {
         async logoffToken(apiKey: string): Promise<void> {
             return rev.delete(`/api/v2/tokens/${apiKey}`);
         },
-        async loginUser(username: string, password: string): Promise<Auth.UserLoginResponse> {
+        async loginUser(username: string, password: string, options?: Rev.RequestOptions): Promise<Auth.UserLoginResponse> {
             return rev.post('/api/v2/user/login', {
                 username,
                 password
-            });
+            }, options);
         },
         async logoffUser(userId: string): Promise<void> {
             return rev.post('/api/v2/user/logoff', { userId });
@@ -29,8 +31,15 @@ export default function authAPIFactory(rev: RevClient) {
         async extendSessionUser(userId: string): Promise<Auth.ExtendResponse> {
             return rev.post('/api/v2/user/extend-session-timeout', { userId });
         },
-        async loginJWT(jwtToken: string): Promise<Auth.JWTLoginResponse> {
-            return rev.get('/api/v2/jwtauthenticate', { jwt_token: jwtToken });
+        async loginJWT(jwtToken: string, options?: Rev.RequestOptions): Promise<Auth.JWTLoginResponse> {
+            return rev.get('/api/v2/jwtauthenticate', { jwt_token: jwtToken }, options);
+        },
+        async loginGuestRegistration(webcastId: string, jwtToken: string, options?: Rev.RequestOptions): Promise<Auth.GuestRegistrationResposne> {
+            const opts = {
+                ...options,
+                headers: mergeHeaders(options?.headers, { 'x-requested-with': 'xmlhttprequest' })
+            };
+            return rev.post(`/external/auth/jwt/${webcastId}`, { token: `vbrick_rev ${jwtToken}`}, options);
         },
         async extendSession(): Promise<Auth.ExtendResponse> {
             return rev.post('/api/v2/user/extend-session');
@@ -65,7 +74,7 @@ export default function authAPIFactory(rev: RevClient) {
                 codeVerifier
             };
         },
-        async loginOAuth2(config: OAuth.Config, code: string, codeVerifier: string): Promise<OAuth.AuthTokenResponse> {
+        async loginOAuth2(config: OAuth.Config, code: string, codeVerifier: string, options?: Rev.RequestOptions): Promise<OAuth.AuthTokenResponse> {
             return rev.post('/api/v2/oauth2/token', {
                 // sometimes the authCode can get mangled, with the pluses in the code being replaced by spaces.
                 code: code.replace(/ /g, '+'),
@@ -73,7 +82,7 @@ export default function authAPIFactory(rev: RevClient) {
                 grant_type: 'authorization_code',
                 redirect_uri: config.redirectUri,
                 code_verifier: codeVerifier
-            });
+            }, options);
         },
         /**
          * @deprecated

@@ -1,3 +1,5 @@
+import { Role } from '.';
+import { Rev } from './rev';
 import { LiteralString } from './rev';
 
 export interface User {
@@ -7,13 +9,15 @@ export interface User {
     firstname: string;
     lastname: string;
     language: string | null;
+    userType: User.UserType;
     title: string | null;
     phone: string | null;
-    groups: { id: string, name: string; }[];
-    roles: { id: string, name: string; }[];
-    channels: { id: string, name: string; }[];
+    groups: { id: string, name: string; }[] | null;
+    roles: Role[];
+    channels: { id: string, name: string; }[] | null;
     profileImageUri: string | null;
     permissions: User.Permissions;
+    status: User.UserStatus;
 }
 
 export namespace User {
@@ -25,6 +29,7 @@ export namespace User {
         firstname: string;
         lastname: string;
         username: string;
+        profileImageUri: string;
     }
 
     export interface RawSearchHit {
@@ -34,6 +39,7 @@ export namespace User {
         FirstName: string;
         LastName: string;
         UserName: string;
+        ProfileImageUri: string;
     }
 
     export interface Request {
@@ -49,6 +55,9 @@ export namespace User {
     }
 
     export type DetailsLookup = LiteralString<'username' | 'email' | 'userId'>
+    export interface DetailsOptions extends Rev.RequestOptions {
+        lookupType?: User.DetailsLookup
+    }
 
     export interface Permissions {
         canUpload: boolean
@@ -66,5 +75,17 @@ export namespace User {
         isRead: boolean;
         notificationText: string;
         notificationTargetUri: string;
+    }
+
+    export type UserType = LiteralString<'System' | 'LDAP' | 'Sso' | 'SCIM'>
+
+    export type UserStatus = LiteralString<'Suspended' | 'Unlicensed' | 'AwaitingConfirmation' | 'AwaitingPasswordReset' | 'AwaitingSecurityQuestionReset' | 'LockedOut' | 'Active'>;
+
+    export type LoginReportSort = LiteralString<'LastLogin' | 'Username'>
+    export interface LoginReportEntry {
+        Username: string;
+        FullName: string;
+        UserId: string;
+        LastLogin: string;
     }
 }

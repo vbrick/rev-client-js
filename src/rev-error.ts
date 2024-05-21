@@ -48,10 +48,10 @@ export class RevError extends Error {
         }
     }
     get name() {
-        return this.constructor.name;
+        return 'RevError';
     }
     get [Symbol.toStringTag]() {
-        return this.constructor.name;
+        return 'RevError';
     }
     static async create(response: Response) {
         let body: any;

@@ -1,8 +1,11 @@
-import fs from 'fs';
-import path from 'path';
-import { createHmac, randomBytes, createHash } from 'crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { Readable } from 'node:stream';
+import { ReadableStream } from 'node:stream/web';
+import { createHmac, randomBytes, createHash } from 'node:crypto';
 import { isBlobLike, isReadable } from '../utils';
-import type { UploadFileOptions, FileUploadPayloadInternal, FileUploadType } from '../utils/file-utils';
+import type { FileUploadPayloadInternal } from '../utils/file-utils';
+import type { Rev } from '../types/rev';
 import polyfills from '.';
 
 async function getLengthFromStream(source: Record<string, any>) {
@@ -50,7 +53,7 @@ async function getLengthFromStream(source: Record<string, any>) {
 /**
  * For node.js support this allows uploading videos based on filename or from a readable stream
  */
-async function parseFileUpload(file: FileUploadType, options: UploadFileOptions): Promise<FileUploadPayloadInternal> {
+async function parseFileUpload(file: Rev.FileUploadType, options: Rev.UploadFileOptions): Promise<FileUploadPayloadInternal> {
     let {
         filename,
         contentType,
@@ -111,17 +114,11 @@ async function appendFileToForm(form: FormData, fieldName: string, payload: File
     const {
         file,
         options: {
-            filename,
-            contentType,
-            contentLength
+            filename
         }
     } = payload;
-    const appendOptions: any = { filename, contentType };
-    if (contentLength) {
-        appendOptions.knownLength = contentLength;
-    }
 
-    form.append(fieldName, file as any, appendOptions);
+    form.append(fieldName, file as any, filename);
 }
 
 async function prepareUploadHeaders(form: FormData, headers: Headers, useChunkedTransfer: boolean = false) {
@@ -184,6 +181,17 @@ Object.assign(polyfills, {
     hmacSign,
     appendFileToForm,
     parseFileUpload,
-    prepareUploadHeaders
+    prepareUploadHeaders,
+    asPlatformStream(stream: NodeJS.ReadableStream | Readable | ReadableStream<any>): NodeJS.ReadableStream {
+        if (!stream) return stream;
+        return (stream instanceof ReadableStream)
+            ? Readable.fromWeb(stream)
+            : stream;
+    },
+    asWebStream(stream: NodeJS.ReadableStream | Readable | ReadableStream<any>): ReadableStream {
+        return (!stream || (stream instanceof ReadableStream))
+            ? stream
+            : Readable.toWeb(Readable.from(stream));
+    }
 });
 
