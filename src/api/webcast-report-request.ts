@@ -1,3 +1,4 @@
+import { RevError } from '..';
 import type { RevClient } from '../rev-client';
 import type { Rev } from '../types';
 import { Webcast } from '../types/webcast';
@@ -61,15 +62,38 @@ export class PostEventReportRequest extends SearchRequest<Webcast.PostEventSessi
                 totalKey: 'totalSessions',
                 hitsKey: 'sessions',
                 request: async (endpoint, query, options) => {
-                    const response = await rev.get<Webcast.PostEventSummary>(endpoint, query, options);
+                    // this endpoint has a particular error response that isn't automatically captured
+                    // by the RevError parser, so need to manually check
+                    const response = await rev.request<Webcast.PostEventSummary>('GET', endpoint, query, {
+                        ...options,
+                        responseType: 'json',
+                        throwHttpErrors: false
+                    });
 
-                    const summary = getSummaryFromResponse(response, 'sessions');
-                    Object.assign(this.summary, summary);
-                    return response;
+                    // will throw on error response
+                    await this._assertResponseOk(response);
+
+                    // get summary removes scrollId and other internal data
+                    Object.assign(this.summary, getSummaryFromResponse(response.body, 'sessions'));
+                    return response.body;
                 }
         };
         super(rev, searchDefinition,  runQuery, options);
         this.summary = {};
+    }
+    private async _assertResponseOk({response, statusCode, body}: Rev.Response<Webcast.PostEventSummary>): Promise<Webcast.PostEventSummary> {
+        if (response.ok) {
+            return body;
+        }
+
+        if (statusCode == 400 && (body as PostEventErrorResponse)?.errorDescription) {
+            throw new RevError(response, { details: (body as PostEventErrorResponse).errorDescription });
+        }
+        // bodyUsed should always be true, but this is just a safety check
+        const error = (!!body || response.bodyUsed)
+            ? new RevError(response, body as string)
+            : await RevError.create(response);
+        throw error;
     }
     /**
      * get the aggregate statistics only, instead of actual session data.
@@ -82,4 +106,18 @@ export class PostEventReportRequest extends SearchRequest<Webcast.PostEventSessi
         await this.nextPage();
         return this.summary;
     }
+}
+
+
+interface PostEventErrorResponse {
+    errorDescription: string;
+    sessions: [],
+    totalSessions: 0
+}
+
+/**
+ * The Post Event Report returns a special JSON body on 400 error, unlike other endpoints
+ */
+async function parseAttendeesError(revResponse: Rev.Response<unknown>) {
+
 }
