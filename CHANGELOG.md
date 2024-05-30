@@ -1,3 +1,10 @@
+## 0.21.2
+
+### Bugfixes
+
+* fixed `Webcast.Status` type - *(`status` instead of `eventStatus`)*
+* handle parsing of 400 error response on `webcast.attendees` endpoint
+
 ## 0.21.1
 
 ### Features

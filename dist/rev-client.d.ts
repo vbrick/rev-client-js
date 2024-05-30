@@ -444,6 +444,8 @@ declare namespace Video {
         whenModified: string;
         whenPublished: string;
         commentCount: number;
+        hasHls: boolean;
+        thumbnailSheets: string;
         score: number;
     }
     interface UploadMetadata {
@@ -732,6 +734,10 @@ declare namespace Video {
         uploaders?: string;
         /** list of uploader IDs separated by commas */
         uploaderIds?: string;
+        /** Include the first name and last name of the owner. Note that partial matches may be returned. Example: owners="john doe" is going to retrieve all videos owned by the user with first name and last name = "john doe". To return an exact result you must use the ownerIds query string. */
+        owners?: string;
+        /** Owner GUIDs to get specific videos owner by these users. Example: ownerIds=abc, xyz */
+        ownerIds?: string;
         status?: LiteralString<'active' | 'inactive'>;
         fromPublishedDate?: string;
         toPublishedDate?: string;
@@ -756,6 +762,8 @@ declare namespace Video {
         recommendedFor?: string;
         sortField?: SortFieldEnum;
         sortDirection?: Rev.SortDirection;
+        /** if true only HLS videos are returned */
+        hasHls?: boolean;
         /**
          * If channelId provided, videos in that particular channel are returned. User should have rights to the channel
          */
@@ -764,6 +772,8 @@ declare namespace Video {
          * Filter the results based on the channels and categories the Principal is subscribed OR apply the recommendation logic which boosts search results based on recent viewing history using up to the last 10 videos viewed by a user.
          */
         filter?: SearchFilterEnum;
+        /** Number of videos to get (default is 50) */
+        count?: number;
         /**
          * search for videos matching specific custom field values.
          * Object in the format {My_Custom_Field_Name: "MyCustomFieldValue"}
@@ -2238,7 +2248,7 @@ declare namespace Webcast {
         eventTitle: string;
         startDate: string;
         endDate: string;
-        eventStatus: LiteralString<'Completed' | 'Scheduled' | 'Starting' | 'InProgress' | 'Broadcasting' | 'Deleted' | 'Recording' | 'RecordingStarting' | 'RecordingStopping' | 'VideoSourceStarting'>;
+        status: LiteralString<'Completed' | 'Scheduled' | 'Starting' | 'InProgress' | 'Broadcasting' | 'Deleted' | 'Recording' | 'RecordingStarting' | 'RecordingStopping' | 'VideoSourceStarting'>;
         slideUrl: string;
         isPreProduction: boolean;
     }
@@ -3009,6 +3019,7 @@ declare class PostEventReportRequest extends SearchRequest<Webcast.PostEventSess
         eventId: string;
         runNumber?: number;
     }, options?: Rev.SearchOptions<Webcast.PostEventSession>);
+    private _assertResponseOk;
     /**
      * get the aggregate statistics only, instead of actual session data.
      * @returns {Webcast.PostEventSummary}

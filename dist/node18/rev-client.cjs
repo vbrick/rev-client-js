@@ -2547,14 +2547,28 @@ var PostEventReportRequest = class extends SearchRequest {
       totalKey: "totalSessions",
       hitsKey: "sessions",
       request: async (endpoint, query2, options2) => {
-        const response = await rev.get(endpoint, query2, options2);
-        const summary = getSummaryFromResponse2(response, "sessions");
-        Object.assign(this.summary, summary);
-        return response;
+        const response = await rev.request("GET", endpoint, query2, {
+          ...options2,
+          responseType: "json",
+          throwHttpErrors: false
+        });
+        await this._assertResponseOk(response);
+        Object.assign(this.summary, getSummaryFromResponse2(response.body, "sessions"));
+        return response.body;
       }
     };
     super(rev, searchDefinition, runQuery, options);
     this.summary = {};
+  }
+  async _assertResponseOk({ response, statusCode, body }) {
+    if (response.ok) {
+      return body;
+    }
+    if (statusCode == 400 && body?.errorDescription) {
+      throw new RevError(response, { details: body.errorDescription });
+    }
+    const error = !!body || response.bodyUsed ? new RevError(response, body) : await RevError.create(response);
+    throw error;
   }
   /**
    * get the aggregate statistics only, instead of actual session data.
@@ -2612,7 +2626,8 @@ function webcastAPIFactory(rev) {
     },
     async pollResults(eventId, runNumber) {
       const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
-      const { polls } = await rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: "json" });
+      const rawResponse = await rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: "text" });
+      const { polls = [] } = rawResponse ? JSON.parse(rawResponse) : {};
       return polls;
     },
     async comments(eventId, runNumber) {
@@ -3444,7 +3459,11 @@ var RevClient = class {
     let body = response.body;
     switch (responseType) {
       case "json":
-        body = await response.json();
+        if (`${responseHeaders.get("content-length")}` === "0") {
+          body = null;
+        } else {
+          body = await response.json();
+        }
         break;
       case "text":
         body = await response.text();
