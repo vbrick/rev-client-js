@@ -391,7 +391,7 @@ export namespace Webcast {
         eventTitle: string;
         startDate: string;
         endDate: string;
-        eventStatus: LiteralString<'Completed' | 'Scheduled' | 'Starting' | 'InProgress' | 'Broadcasting' | 'Deleted' | 'Recording' | 'RecordingStarting' | 'RecordingStopping' | 'VideoSourceStarting'>;
+        status: LiteralString<'Completed' | 'Scheduled' | 'Starting' | 'InProgress' | 'Broadcasting' | 'Deleted' | 'Recording' | 'RecordingStarting' | 'RecordingStopping' | 'VideoSourceStarting'>;
         slideUrl: string;
         isPreProduction: boolean;
     }

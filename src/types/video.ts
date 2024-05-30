@@ -56,6 +56,8 @@ export namespace Video {
         whenModified: string;
         whenPublished: string;
         commentCount: number;
+        hasHls: boolean;
+        thumbnailSheets: string;
         score: number;
     }
     export interface UploadMetadata {
@@ -355,6 +357,10 @@ export namespace Video {
         uploaders?: string;
         /** list of uploader IDs separated by commas */
         uploaderIds?: string;
+        /** Include the first name and last name of the owner. Note that partial matches may be returned. Example: owners="john doe" is going to retrieve all videos owned by the user with first name and last name = "john doe". To return an exact result you must use the ownerIds query string. */
+        owners?: string;
+        /** Owner GUIDs to get specific videos owner by these users. Example: ownerIds=abc, xyz */
+        ownerIds?: string;
         status?: LiteralString<'active' | 'inactive'>;
         fromPublishedDate?: string;
         toPublishedDate?: string;
@@ -385,6 +391,9 @@ export namespace Video {
         sortField?: SortFieldEnum;
         sortDirection?: Rev.SortDirection;
 
+        /** if true only HLS videos are returned */
+        hasHls?: boolean;
+
         /**
          * If channelId provided, videos in that particular channel are returned. User should have rights to the channel
          */
@@ -394,6 +403,9 @@ export namespace Video {
          * Filter the results based on the channels and categories the Principal is subscribed OR apply the recommendation logic which boosts search results based on recent viewing history using up to the last 10 videos viewed by a user.
          */
         filter?: SearchFilterEnum;
+
+        /** Number of videos to get (default is 50) */
+        count?: number;
 
         /**
          * search for videos matching specific custom field values.
