@@ -11,13 +11,13 @@ export namespace Video {
     export type SourceType = LiteralString<'REV' | 'WEBEX' | 'API' | 'VIDEO CONFERENCE' | 'WebexLiveStream' | 'LiveEnrichment'>
     export type VideoType = LiteralString<"Live" | "Vod">;
 
-    export type SortFieldEnum = LiteralString<"duration" | "lastViewed" | "ownerName" | "title" | "uploaderName" | "viewCount" | "whenUploaded" | "_score">
+    export type SortFieldEnum = LiteralString<"title" | "_score" | "recommended" | "whenUploaded" | "whenPublished" | "whenModified" | "lastViewed" | "ownerName" | "uploaderName" | "duration" | "viewCount" | "averageRating" | "commentCount">
 
     export type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
 
     export type SearchFilterEnum = LiteralString<"myRecommendations" | "mySubscriptions">;
 
-    export type MetadataGenerationField = LiteralString<"description" | "title" | "tags" | "all">;
+    export type MetadataGenerationField = LiteralString<"description" | "title" | "tags" | "all" | "chapters">;
 
     export type MetadataGenerationStatus = LiteralString<"NotStarted" | "InProgress" | "Success" | "Failed">;
 
