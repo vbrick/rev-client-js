@@ -384,8 +384,7 @@ var PagedRequest = class {
       onError,
       signal
     } = this.options;
-    if (signal?.aborted)
-      this.done = true;
+    if (signal?.aborted) this.done = true;
     if (this.done) {
       return {
         current: this.current,
@@ -480,8 +479,7 @@ var PagedRequest = class {
         items
       } = await this.nextPage();
       for await (let hit of items) {
-        if (signal?.aborted)
-          break;
+        if (signal?.aborted) break;
         yield hit;
       }
     } while (!this.done);
@@ -820,8 +818,7 @@ var AuditRequest = class extends PagedRequest {
 function auditAPIFactory(rev, optRateLimits) {
   const requestsPerMinute = normalizeRateLimitOptions(optRateLimits)["auditEndpoint" /* AuditEndpoints */];
   function makeOptTransform() {
-    if (!requestsPerMinute)
-      return (opts) => opts;
+    if (!requestsPerMinute) return (opts) => opts;
     const lock = makeQueue("auditEndpoint" /* AuditEndpoints */, requestsPerMinute);
     return (opts = {}) => ({
       ...opts,
@@ -2348,6 +2345,9 @@ function videoAPIFactory(rev) {
     ...videoDownloadAPI(rev),
     ...videoReportAPI(rev),
     ...videoExternalAccessAPI(rev),
+    /**
+     * @deprecated Use edit() API instead
+     */
     async trim(videoId, removedSegments) {
       await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
       return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);
@@ -2355,6 +2355,10 @@ function videoAPIFactory(rev) {
     async convertDualStreamToSwitched(videoId) {
       await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
       return rev.put(`/api/v2/videos/${videoId}/convert-dual-streams-to-switched-stream`);
+    },
+    async edit(videoId, keepRanges, options) {
+      await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
+      return rev.post(`/api/v2/videos/${videoId}/edit`, keepRanges, options);
     },
     async patch(videoId, operations, options) {
       await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
@@ -2890,6 +2894,7 @@ var SessionKeepAlive = class {
     return this.controller && !this.controller.signal.aborted;
   }
 };
+_credentials;
 var SessionBase = class {
   constructor(rev, credentials, keepAliveOptions, rateLimits) {
     this.expires = /* @__PURE__ */ new Date();
@@ -3025,7 +3030,6 @@ var SessionBase = class {
     return !!this._rateLimits;
   }
 };
-_credentials;
 var OAuthSession = class extends SessionBase {
   async _login() {
     const { oauthConfig, authCode } = this[_credentials];

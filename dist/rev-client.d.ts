@@ -402,10 +402,10 @@ declare namespace Video {
     type ExpiryRule = LiteralString<'None' | 'DaysAfterUpload' | 'DaysWithoutViews'>;
     type SourceType = LiteralString<'REV' | 'WEBEX' | 'API' | 'VIDEO CONFERENCE' | 'WebexLiveStream' | 'LiveEnrichment'>;
     type VideoType = LiteralString<"Live" | "Vod">;
-    type SortFieldEnum = LiteralString<"duration" | "lastViewed" | "ownerName" | "title" | "uploaderName" | "viewCount" | "whenUploaded" | "_score">;
+    type SortFieldEnum = LiteralString<"title" | "_score" | "recommended" | "whenUploaded" | "whenPublished" | "whenModified" | "lastViewed" | "ownerName" | "uploaderName" | "duration" | "viewCount" | "averageRating" | "commentCount">;
     type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
     type SearchFilterEnum = LiteralString<"myRecommendations" | "mySubscriptions">;
-    type MetadataGenerationField = LiteralString<"description" | "title" | "tags" | "all">;
+    type MetadataGenerationField = LiteralString<"description" | "title" | "tags" | "all" | "chapters">;
     type MetadataGenerationStatus = LiteralString<"NotStarted" | "InProgress" | "Success" | "Failed">;
     interface LinkedUrl {
         Url: string;
@@ -998,6 +998,16 @@ declare namespace Video {
          */
         signal?: AbortSignal;
     }
+    interface ClipRequest {
+        /**
+         * Start time of the video clip in timespan format (e.g. <code>00:00:00</code>). Minutes and seconds should be from 0-59.
+         */
+        start: string;
+        /**
+         * End time of the video clip in timespan format (e.g. <code>00:00:00</code>). Minutes and seconds should be from 0-59.
+         */
+        end: string;
+    }
 }
 interface Transcription {
     downloadUrl: string;
@@ -1147,7 +1157,7 @@ declare namespace Admin {
             fullName: string;
             username: string;
         };
-        usage: string;
+        usage: LiteralString<'Transcription' | 'Translation' | 'UserTagging' | 'MetadataGeneration'>;
         credits: number;
         languages: string[];
         when: string;
@@ -2321,6 +2331,7 @@ interface Zone {
         midBitrate: boolean;
         lowBitrate: boolean;
     };
+    fallbackToSource: boolean;
 }
 declare namespace Zone {
     interface CreateRequest {
@@ -2361,6 +2372,10 @@ declare namespace Zone {
             midBitrate: boolean;
             lowBitrate: boolean;
         };
+        /**
+         * Allow viewers, if distribution modalities fail, to fallback to Source (if available) for unicast playback."
+         */
+        fallbackToSource?: boolean;
     }
     interface TargetDevice {
         /**
@@ -2893,11 +2908,15 @@ type VideoSearchDetailedItem = Video.SearchHit & (Video.Details | {
     error?: Error;
 });
 declare function videoAPIFactory(rev: RevClient): {
+    /**
+     * @deprecated Use edit() API instead
+     */
     trim(videoId: string, removedSegments: Array<{
         start: string;
         end: string;
     }>): Promise<any>;
     convertDualStreamToSwitched(videoId: string): Promise<void>;
+    edit(videoId: string, keepRanges: Video.ClipRequest[], options?: Rev.RequestOptions): Promise<any>;
     patch(videoId: string, operations: Rev.PatchOperation[], options?: Rev.RequestOptions): Promise<void>;
     generateMetadata(videoId: string, fields?: Video.MetadataGenerationField[], options?: Rev.RequestOptions): Promise<void>;
     generateMetadataStatus(videoId: string, options?: Rev.RequestOptions): Promise<Video.MetadataGenerationStatus>;
