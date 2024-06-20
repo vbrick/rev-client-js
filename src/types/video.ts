@@ -645,6 +645,17 @@ export namespace Video {
          */
         signal?: AbortSignal;
     }
+
+    export interface ClipRequest {
+        /**
+         * Start time of the video clip in timespan format (e.g. <code>00:00:00</code>). Minutes and seconds should be from 0-59.
+         */
+        start: string,
+        /**
+         * End time of the video clip in timespan format (e.g. <code>00:00:00</code>). Minutes and seconds should be from 0-59.
+         */
+        end: string
+    }
 }
 
 export interface Transcription {
