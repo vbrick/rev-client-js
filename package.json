@@ -1,6 +1,6 @@
 {
   "name": "@vbrick/rev-client",
-  "version": "0.21.1",
+  "version": "0.21.3",
   "description": "Vbrick Rev API client for browser and server",
   "type": "module",
   "main": "dist/node/rev-client.cjs",

@@ -180,6 +180,9 @@ export default function videoAPIFactory(rev: RevClient) {
         ...videoDownloadAPI(rev),
         ...videoReportAPI(rev),
         ...videoExternalAccessAPI(rev),
+        /**
+         * @deprecated Use edit() API instead
+         */
         async trim(videoId: string, removedSegments: Array<{ start: string, end: string }>) {
             await rev.session.queueRequest(RateLimitEnum.UploadVideo);
             return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);
@@ -187,6 +190,10 @@ export default function videoAPIFactory(rev: RevClient) {
         async convertDualStreamToSwitched(videoId: string) {
             await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
             return rev.put<void>(`/api/v2/videos/${videoId}/convert-dual-streams-to-switched-stream`);
+        },
+        async edit(videoId: string, keepRanges: Video.ClipRequest[], options?: Rev.RequestOptions) {
+            await rev.session.queueRequest(RateLimitEnum.UploadVideo);
+            return rev.post(`/api/v2/videos/${videoId}/edit`, keepRanges, options);
         },
         async patch(videoId: string, operations: Rev.PatchOperation[], options?: Rev.RequestOptions) {
             await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);

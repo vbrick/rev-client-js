@@ -402,10 +402,10 @@ declare namespace Video {
     type ExpiryRule = LiteralString<'None' | 'DaysAfterUpload' | 'DaysWithoutViews'>;
     type SourceType = LiteralString<'REV' | 'WEBEX' | 'API' | 'VIDEO CONFERENCE' | 'WebexLiveStream' | 'LiveEnrichment'>;
     type VideoType = LiteralString<"Live" | "Vod">;
-    type SortFieldEnum = LiteralString<"duration" | "lastViewed" | "ownerName" | "title" | "uploaderName" | "viewCount" | "whenUploaded" | "_score">;
+    type SortFieldEnum = LiteralString<"title" | "_score" | "recommended" | "whenUploaded" | "whenPublished" | "whenModified" | "lastViewed" | "ownerName" | "uploaderName" | "duration" | "viewCount" | "averageRating" | "commentCount">;
     type StatusEnum = LiteralString<"NotUploaded" | "Uploading" | "UploadingFinished" | "NotDownloaded" | "Downloading" | "DownloadingFinished" | "DownloadFailed" | "Canceled" | "UploadFailed" | "Processing" | "ProcessingFailed" | "ReadyButProcessingFailed" | "RecordingFailed" | "Ready">;
     type SearchFilterEnum = LiteralString<"myRecommendations" | "mySubscriptions">;
-    type MetadataGenerationField = LiteralString<"description" | "title" | "tags" | "all">;
+    type MetadataGenerationField = LiteralString<"description" | "title" | "tags" | "all" | "chapters">;
     type MetadataGenerationStatus = LiteralString<"NotStarted" | "InProgress" | "Success" | "Failed">;
     interface LinkedUrl {
         Url: string;
@@ -444,6 +444,8 @@ declare namespace Video {
         whenModified: string;
         whenPublished: string;
         commentCount: number;
+        hasHls: boolean;
+        thumbnailSheets: string;
         score: number;
     }
     interface UploadMetadata {
@@ -732,6 +734,10 @@ declare namespace Video {
         uploaders?: string;
         /** list of uploader IDs separated by commas */
         uploaderIds?: string;
+        /** Include the first name and last name of the owner. Note that partial matches may be returned. Example: owners="john doe" is going to retrieve all videos owned by the user with first name and last name = "john doe". To return an exact result you must use the ownerIds query string. */
+        owners?: string;
+        /** Owner GUIDs to get specific videos owner by these users. Example: ownerIds=abc, xyz */
+        ownerIds?: string;
         status?: LiteralString<'active' | 'inactive'>;
         fromPublishedDate?: string;
         toPublishedDate?: string;
@@ -756,6 +762,8 @@ declare namespace Video {
         recommendedFor?: string;
         sortField?: SortFieldEnum;
         sortDirection?: Rev.SortDirection;
+        /** if true only HLS videos are returned */
+        hasHls?: boolean;
         /**
          * If channelId provided, videos in that particular channel are returned. User should have rights to the channel
          */
@@ -764,6 +772,8 @@ declare namespace Video {
          * Filter the results based on the channels and categories the Principal is subscribed OR apply the recommendation logic which boosts search results based on recent viewing history using up to the last 10 videos viewed by a user.
          */
         filter?: SearchFilterEnum;
+        /** Number of videos to get (default is 50) */
+        count?: number;
         /**
          * search for videos matching specific custom field values.
          * Object in the format {My_Custom_Field_Name: "MyCustomFieldValue"}
@@ -988,6 +998,16 @@ declare namespace Video {
          */
         signal?: AbortSignal;
     }
+    interface ClipRequest {
+        /**
+         * Start time of the video clip in timespan format (e.g. <code>00:00:00</code>). Minutes and seconds should be from 0-59.
+         */
+        start: string;
+        /**
+         * End time of the video clip in timespan format (e.g. <code>00:00:00</code>). Minutes and seconds should be from 0-59.
+         */
+        end: string;
+    }
 }
 interface Transcription {
     downloadUrl: string;
@@ -1137,7 +1157,7 @@ declare namespace Admin {
             fullName: string;
             username: string;
         };
-        usage: string;
+        usage: LiteralString<'Transcription' | 'Translation' | 'UserTagging' | 'MetadataGeneration'>;
         credits: number;
         languages: string[];
         when: string;
@@ -2238,7 +2258,7 @@ declare namespace Webcast {
         eventTitle: string;
         startDate: string;
         endDate: string;
-        eventStatus: LiteralString<'Completed' | 'Scheduled' | 'Starting' | 'InProgress' | 'Broadcasting' | 'Deleted' | 'Recording' | 'RecordingStarting' | 'RecordingStopping' | 'VideoSourceStarting'>;
+        status: LiteralString<'Completed' | 'Scheduled' | 'Starting' | 'InProgress' | 'Broadcasting' | 'Deleted' | 'Recording' | 'RecordingStarting' | 'RecordingStopping' | 'VideoSourceStarting'>;
         slideUrl: string;
         isPreProduction: boolean;
     }
@@ -2311,6 +2331,7 @@ interface Zone {
         midBitrate: boolean;
         lowBitrate: boolean;
     };
+    fallbackToSource: boolean;
 }
 declare namespace Zone {
     interface CreateRequest {
@@ -2351,6 +2372,10 @@ declare namespace Zone {
             midBitrate: boolean;
             lowBitrate: boolean;
         };
+        /**
+         * Allow viewers, if distribution modalities fail, to fallback to Source (if available) for unicast playback."
+         */
+        fallbackToSource?: boolean;
     }
     interface TargetDevice {
         /**
@@ -2883,11 +2908,15 @@ type VideoSearchDetailedItem = Video.SearchHit & (Video.Details | {
     error?: Error;
 });
 declare function videoAPIFactory(rev: RevClient): {
+    /**
+     * @deprecated Use edit() API instead
+     */
     trim(videoId: string, removedSegments: Array<{
         start: string;
         end: string;
     }>): Promise<any>;
     convertDualStreamToSwitched(videoId: string): Promise<void>;
+    edit(videoId: string, keepRanges: Video.ClipRequest[], options?: Rev.RequestOptions): Promise<any>;
     patch(videoId: string, operations: Rev.PatchOperation[], options?: Rev.RequestOptions): Promise<void>;
     generateMetadata(videoId: string, fields?: Video.MetadataGenerationField[], options?: Rev.RequestOptions): Promise<void>;
     generateMetadataStatus(videoId: string, options?: Rev.RequestOptions): Promise<Video.MetadataGenerationStatus>;
@@ -3009,6 +3038,7 @@ declare class PostEventReportRequest extends SearchRequest<Webcast.PostEventSess
         eventId: string;
         runNumber?: number;
     }, options?: Rev.SearchOptions<Webcast.PostEventSession>);
+    private _assertResponseOk;
     /**
      * get the aggregate statistics only, instead of actual session data.
      * @returns {Webcast.PostEventSummary}

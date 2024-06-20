@@ -387,8 +387,7 @@ var PagedRequest = class {
       onError,
       signal
     } = this.options;
-    if (signal?.aborted)
-      this.done = true;
+    if (signal?.aborted) this.done = true;
     if (this.done) {
       return {
         current: this.current,
@@ -483,8 +482,7 @@ var PagedRequest = class {
         items
       } = await this.nextPage();
       for await (let hit of items) {
-        if (signal?.aborted)
-          break;
+        if (signal?.aborted) break;
         yield hit;
       }
     } while (!this.done);
@@ -823,8 +821,7 @@ var AuditRequest = class extends PagedRequest {
 function auditAPIFactory(rev, optRateLimits) {
   const requestsPerMinute = normalizeRateLimitOptions(optRateLimits)["auditEndpoint" /* AuditEndpoints */];
   function makeOptTransform() {
-    if (!requestsPerMinute)
-      return (opts) => opts;
+    if (!requestsPerMinute) return (opts) => opts;
     const lock = makeQueue("auditEndpoint" /* AuditEndpoints */, requestsPerMinute);
     return (opts = {}) => ({
       ...opts,
@@ -2351,6 +2348,9 @@ function videoAPIFactory(rev) {
     ...videoDownloadAPI(rev),
     ...videoReportAPI(rev),
     ...videoExternalAccessAPI(rev),
+    /**
+     * @deprecated Use edit() API instead
+     */
     async trim(videoId, removedSegments) {
       await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
       return rev.post(`/api/v2/videos/${videoId}/trim`, removedSegments);
@@ -2358,6 +2358,10 @@ function videoAPIFactory(rev) {
     async convertDualStreamToSwitched(videoId) {
       await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
       return rev.put(`/api/v2/videos/${videoId}/convert-dual-streams-to-switched-stream`);
+    },
+    async edit(videoId, keepRanges, options) {
+      await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
+      return rev.post(`/api/v2/videos/${videoId}/edit`, keepRanges, options);
     },
     async patch(videoId, operations, options) {
       await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
@@ -2507,14 +2511,28 @@ var PostEventReportRequest = class extends SearchRequest {
       totalKey: "totalSessions",
       hitsKey: "sessions",
       request: async (endpoint, query2, options2) => {
-        const response = await rev.get(endpoint, query2, options2);
-        const summary = getSummaryFromResponse2(response, "sessions");
-        Object.assign(this.summary, summary);
-        return response;
+        const response = await rev.request("GET", endpoint, query2, {
+          ...options2,
+          responseType: "json",
+          throwHttpErrors: false
+        });
+        await this._assertResponseOk(response);
+        Object.assign(this.summary, getSummaryFromResponse2(response.body, "sessions"));
+        return response.body;
       }
     };
     super(rev, searchDefinition, runQuery, options);
     this.summary = {};
+  }
+  async _assertResponseOk({ response, statusCode, body }) {
+    if (response.ok) {
+      return body;
+    }
+    if (statusCode == 400 && body?.errorDescription) {
+      throw new RevError(response, { details: body.errorDescription });
+    }
+    const error = !!body || response.bodyUsed ? new RevError(response, body) : await RevError.create(response);
+    throw error;
   }
   /**
    * get the aggregate statistics only, instead of actual session data.
@@ -2572,7 +2590,8 @@ function webcastAPIFactory(rev) {
     },
     async pollResults(eventId, runNumber) {
       const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
-      const { polls } = await rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: "json" });
+      const rawResponse = await rev.get(`/api/v2/scheduled-events/${eventId}/poll-results`, query, { responseType: "text" });
+      const { polls = [] } = rawResponse ? JSON.parse(rawResponse) : {};
       return polls;
     },
     async comments(eventId, runNumber) {
@@ -2878,6 +2897,7 @@ var SessionKeepAlive = class {
     return this.controller && !this.controller.signal.aborted;
   }
 };
+_credentials;
 var SessionBase = class {
   constructor(rev, credentials, keepAliveOptions, rateLimits) {
     this.expires = /* @__PURE__ */ new Date();
@@ -3013,7 +3033,6 @@ var SessionBase = class {
     return !!this._rateLimits;
   }
 };
-_credentials;
 var OAuthSession = class extends SessionBase {
   async _login() {
     const { oauthConfig, authCode } = this[_credentials];
@@ -3404,7 +3423,11 @@ var RevClient = class {
     let body = response.body;
     switch (responseType) {
       case "json":
-        body = await response.json();
+        if (`${responseHeaders.get("content-length")}` === "0") {
+          body = null;
+        } else {
+          body = await response.json();
+        }
         break;
       case "text":
         body = await response.text();
@@ -3683,8 +3706,7 @@ Object.assign(interop_default, {
   parseFileUpload,
   prepareUploadHeaders,
   asPlatformStream(stream) {
-    if (!stream)
-      return stream;
+    if (!stream) return stream;
     return stream instanceof ReadableStream ? Readable.fromWeb(stream) : stream;
   },
   asWebStream(stream) {

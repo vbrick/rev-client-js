@@ -59,7 +59,7 @@ export namespace Admin {
             fullName: string;
             username: string;
         }
-        usage: string;
+        usage: LiteralString<'Transcription' | 'Translation' | 'UserTagging' | 'MetadataGeneration'>;
         credits: number;
         languages: string[];
         when: string;

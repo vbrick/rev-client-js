@@ -207,7 +207,12 @@ export class RevClient {
 
         switch (responseType) {
             case 'json':
-                body = await response.json();
+                // safety check for empty response
+                if (`${responseHeaders.get('content-length')}` === '0') {
+                    body = null;
+                } else {
+                    body = await response.json();
+                }
                 break;
             case 'text':
                 body = await response.text();
