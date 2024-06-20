@@ -1,3 +1,8 @@
+## 0.21.3
+
+* Add Rev 7.59 APIs
+* *typescript* - Add missing Video Search `SortField` enum values
+
 ## 0.21.2
 
 ### Bugfixes

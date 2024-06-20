@@ -30,6 +30,7 @@ export interface Zone {
         midBitrate: boolean;
         lowBitrate: boolean;
     }
+    fallbackToSource: boolean;
 }
 
 export namespace Zone {
@@ -64,6 +65,10 @@ export namespace Zone {
             midBitrate: boolean;
             lowBitrate: boolean;
         }
+        /**
+         * Allow viewers, if distribution modalities fail, to fallback to Source (if available) for unicast playback."
+         */
+        fallbackToSource?: boolean;
     }
     export interface TargetDevice {
         /**
