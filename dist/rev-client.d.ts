@@ -433,6 +433,7 @@ declare namespace Video {
             fullname: string;
             id: string;
             username: string;
+            profileImageUri?: string;
         };
         averageRating: number;
         ratingsCount: number;
@@ -752,7 +753,7 @@ declare namespace Video {
          * If the exactMatch flag is also set along with searchField, then the results are fetched for
          * an exact match on the provided searchField only.
          */
-        searchField?: string;
+        searchField?: LiteralString<'title' | 'tags' | 'categories' | 'uploader'>;
         includeTranscriptSnippets?: boolean;
         /**
          * Show recommended videos for the specified Username. Videos returned are based on the user’s
@@ -3052,10 +3053,10 @@ type RealtimeSession<T extends Webcast.RealtimeRequest | undefined> = T extends 
     attendeeDetails: 'Counts';
 } ? never : Webcast.RealtimeSession;
 declare function webcastAPIFactory(rev: RevClient): {
-    list(options?: Webcast.ListRequest): Promise<Webcast[]>;
+    list(options?: Webcast.ListRequest, requestOptions?: Rev.RequestOptions): Promise<Webcast[]>;
     search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): Rev.ISearchRequest<Webcast>;
     create(event: Webcast.CreateRequest): Promise<string>;
-    details(eventId: string): Promise<Webcast.Details>;
+    details(eventId: string, requestOptions?: Rev.RequestOptions): Promise<Webcast.Details>;
     edit(eventId: string, event: Webcast.CreateRequest): Promise<void>;
     delete(eventId: string): Promise<void>;
     editAccess(eventId: string, entities: Webcast.EditAttendeesRequest): Promise<void>;
@@ -3064,8 +3065,8 @@ declare function webcastAPIFactory(rev: RevClient): {
     questions(eventId: string, runNumber?: number): Promise<Webcast.Question[]>;
     pollResults(eventId: string, runNumber?: number): Promise<Webcast.PollResults[]>;
     comments(eventId: string, runNumber?: number): Promise<Webcast.Comment[]>;
-    status(eventId: string): Promise<Webcast.Status>;
-    isPublic(eventId: string): Promise<boolean>;
+    status(eventId: string, requestOptions?: Rev.RequestOptions): Promise<Webcast.Status>;
+    isPublic(eventId: string, requestOptions?: Rev.RequestOptions): Promise<boolean>;
     playbackUrls(eventId: string, { ip, userAgent }?: Webcast.PlaybackUrlRequest, options?: Rev.RequestOptions): Promise<Webcast.PlaybackUrlsResponse>;
     /**
      * @deprecated
