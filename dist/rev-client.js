@@ -2139,12 +2139,14 @@ function videoDownloadAPI(rev) {
     if (!(videoId || imageId)) {
       throw new TypeError("No video/image specified to download");
     }
-    if (!imageId) {
-      imageId = (await rev.get(`/api/v2/videos/${videoId}/playback-url`)).video.thumbnailUrl;
-    } else if (!imageId.endsWith(".jpg")) {
-      imageId = `${imageId}.jpg`;
+    let thumbnailUrl = "";
+    if (videoId) {
+      thumbnailUrl = `/api/v2/videos/${videoId}/thumbnail`;
+    } else if (imageId.startsWith("http")) {
+      thumbnailUrl = `${imageId}${!imageId.endsWith(".jpg") ? ".jpg" : ""}`;
+    } else {
+      thumbnailUrl = `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
     }
-    let thumbnailUrl = imageId.startsWith("http") ? imageId : `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
     const { body } = await rev.request("GET", thumbnailUrl, void 0, { responseType: "blob", ...options });
     return body;
   }
@@ -2545,8 +2547,8 @@ var PostEventReportRequest = class extends SearchRequest {
 // src/api/webcast.ts
 function webcastAPIFactory(rev) {
   const webcastAPI = {
-    async list(options = {}) {
-      return rev.get("/api/v2/scheduled-events", options, { responseType: "json" });
+    async list(options = {}, requestOptions) {
+      return rev.get("/api/v2/scheduled-events", options, { ...requestOptions, responseType: "json" });
     },
     search(query, options) {
       const searchDefinition = {
@@ -2562,8 +2564,8 @@ function webcastAPIFactory(rev) {
       const { eventId } = await rev.post(`/api/v2/scheduled-events`, event);
       return eventId;
     },
-    async details(eventId) {
-      return rev.get(`/api/v2/scheduled-events/${eventId}`);
+    async details(eventId, requestOptions) {
+      return rev.get(`/api/v2/scheduled-events/${eventId}`, void 0, requestOptions);
     },
     async edit(eventId, event) {
       return rev.put(`/api/v2/scheduled-events/${eventId}`, event);
@@ -2595,11 +2597,11 @@ function webcastAPIFactory(rev) {
       const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
       return rev.get(`/api/v2/scheduled-events/${eventId}/comments`, query, { responseType: "json" });
     },
-    async status(eventId) {
-      return rev.get(`/api/v2/scheduled-events/${eventId}/status`);
+    async status(eventId, requestOptions) {
+      return rev.get(`/api/v2/scheduled-events/${eventId}/status`, void 0, requestOptions);
     },
-    async isPublic(eventId) {
-      const response = await rev.request("GET", `/api/v2/scheduled-events/${eventId}/is-public`, void 0, { throwHttpErrors: false, responseType: "json" });
+    async isPublic(eventId, requestOptions) {
+      const response = await rev.request("GET", `/api/v2/scheduled-events/${eventId}/is-public`, void 0, { ...requestOptions, throwHttpErrors: false, responseType: "json" });
       return response.statusCode !== 401 && response.body?.isPublic;
     },
     async playbackUrls(eventId, { ip, userAgent } = {}, options) {

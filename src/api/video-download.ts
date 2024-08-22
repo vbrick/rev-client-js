@@ -69,17 +69,18 @@ export function videoDownloadAPI(rev: RevClient) {
             throw new TypeError('No video/image specified to download');
         }
 
-        if (!imageId) {
+        let thumbnailUrl: string = '';
+        
+        if (videoId) {
+            thumbnailUrl = `/api/v2/videos/${videoId}/thumbnail`;
             // allow getting from api if only know the video ID
-            imageId = (await rev.get<{video: Video.Playback}>(`/api/v2/videos/${videoId}/playback-url`)).video.thumbnailUrl;
-        } else if (!imageId.endsWith('.jpg')) {
-            // make sure id has ending file extension
-            imageId = `${imageId}.jpg`;
+            // imageId = (await rev.get<{video: Video.Playback}>(`/api/v2/videos/${videoId}/playback-url`)).video.thumbnailUrl;
+        } else if (imageId.startsWith('http')) {
+            // thumbnail URI
+            thumbnailUrl = `${imageId}${!imageId.endsWith('.jpg') ? '.jpg' : ''}`;
+        } else {
+            thumbnailUrl = `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
         }
-
-        let thumbnailUrl: string = imageId.startsWith('http')
-            ? imageId
-            : `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
 
         const { body } = await rev.request<T>('GET', thumbnailUrl, undefined, { responseType: 'blob', ...options });
         return body;

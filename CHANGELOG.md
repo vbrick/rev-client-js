@@ -1,3 +1,8 @@
+## 0.21.4
+
+* Optimize downloading thumbnail when selecting by Video Id *(`rev.video.downloadThumbnail({ videoId })`)*
+* Add optional request options `options` parameter to `webcast.list()`, `webcast.details()` and `webcast.status()`
+
 ## 0.21.3
 
 * Add Rev 7.59 APIs

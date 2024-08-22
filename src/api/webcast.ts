@@ -14,8 +14,8 @@ type RealtimeSession<T extends Webcast.RealtimeRequest | undefined> = T extends 
 
 export default function webcastAPIFactory(rev: RevClient) {
     const webcastAPI = {
-        async list(options: Webcast.ListRequest = { }): Promise<Webcast[]> {
-            return rev.get('/api/v2/scheduled-events', options, { responseType: 'json' });
+        async list(options: Webcast.ListRequest = { }, requestOptions?: Rev.RequestOptions): Promise<Webcast[]> {
+            return rev.get('/api/v2/scheduled-events', options, { ...requestOptions, responseType: 'json' });
         },
         search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): Rev.ISearchRequest<Webcast> {
             const searchDefinition: Rev.SearchDefinition<Webcast> = {
@@ -31,8 +31,8 @@ export default function webcastAPIFactory(rev: RevClient) {
             const { eventId } = await rev.post(`/api/v2/scheduled-events`, event);
             return eventId;
         },
-        async details(eventId: string): Promise<Webcast.Details> {
-            return rev.get(`/api/v2/scheduled-events/${eventId}`);
+        async details(eventId: string, requestOptions?: Rev.RequestOptions): Promise<Webcast.Details> {
+            return rev.get(`/api/v2/scheduled-events/${eventId}`, undefined, requestOptions);
         },
         async edit(eventId: string, event: Webcast.CreateRequest): Promise<void> {
             return rev.put(`/api/v2/scheduled-events/${eventId}`, event);
@@ -74,11 +74,11 @@ export default function webcastAPIFactory(rev: RevClient) {
             const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
             return rev.get(`/api/v2/scheduled-events/${eventId}/comments`, query, { responseType: 'json' });
         },
-        async status(eventId: string): Promise<Webcast.Status> {
-            return rev.get(`/api/v2/scheduled-events/${eventId}/status`);
+        async status(eventId: string, requestOptions?: Rev.RequestOptions): Promise<Webcast.Status> {
+            return rev.get(`/api/v2/scheduled-events/${eventId}/status`, undefined, requestOptions);
         },
-        async isPublic(eventId: string): Promise<boolean> {
-            const response = await rev.request('GET', `/api/v2/scheduled-events/${eventId}/is-public`, undefined, { throwHttpErrors: false, responseType: 'json' });
+        async isPublic(eventId: string, requestOptions?: Rev.RequestOptions): Promise<boolean> {
+            const response = await rev.request('GET', `/api/v2/scheduled-events/${eventId}/is-public`, undefined, { ...requestOptions, throwHttpErrors: false, responseType: 'json' });
             return response.statusCode !== 401 && response.body?.isPublic;
         },
         async playbackUrls(eventId: string, {ip, userAgent}: Webcast.PlaybackUrlRequest = { }, options?: Rev.RequestOptions): Promise<Webcast.PlaybackUrlsResponse> {

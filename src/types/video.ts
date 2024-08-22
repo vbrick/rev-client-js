@@ -48,6 +48,7 @@ export namespace Video {
             fullname: string;
             id: string;
             username: string;
+            profileImageUri?: string;
         };
         averageRating: number;
         ratingsCount: number;
@@ -377,7 +378,7 @@ export namespace Video {
          * If the exactMatch flag is also set along with searchField, then the results are fetched for
          * an exact match on the provided searchField only.
          */
-        searchField?: string;
+        searchField?: LiteralString<'title' | 'tags' | 'categories' | 'uploader'>;
 
         includeTranscriptSnippets?: boolean;
 
