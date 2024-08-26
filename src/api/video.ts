@@ -51,7 +51,7 @@ export default function videoAPIFactory(rev: RevClient) {
             await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
             await rev.patch(`/api/v2/videos/${videoId}`, payload);
         },
-        async delete(videoId: string, options: Rev.RequestOptions): Promise<void> {
+        async delete(videoId: string, options?: Rev.RequestOptions): Promise<void> {
             await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
             await rev.delete(`/api/v2/videos/${videoId}`, undefined, options);
             // TIP: If delete returns a 401 then video has likely already been deleted
@@ -252,7 +252,7 @@ export default function videoAPIFactory(rev: RevClient) {
          * @param videoId
          * @param options
          */
-        async waitTranscode(videoId: string, options: Video.WaitTranscodeOptions, requestOptions?: Rev.RequestOptions): Promise<Video.StatusResponse> {
+        async waitTranscode(videoId: string, options: Video.WaitTranscodeOptions = {}, requestOptions?: Rev.RequestOptions): Promise<Video.StatusResponse> {
             const {
                 pollIntervalSeconds = 30,
                 timeoutMinutes = 240,
