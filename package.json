@@ -45,19 +45,17 @@
   "license": "MIT",
   "repository": "github:vbrick/rev-client-js",
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   },
   "dependencies": {
-    "fetch-blob": "^3.1.2",
-    "form-data": "^3.0.1",
-    "node-abort-controller": "^3.0.0",
-    "node-fetch": "^2.6.1"
+    "fetch-blob": "^4.0.0",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
-    "@types/node": "^18.16.0",
+    "@types/node": "^22.5.0",
     "@types/node-fetch": "^2.5.12",
     "tslib": "^2.6.2",
-    "tsup": "^8.0.1",
-    "typescript": "^5.3.2"
+    "tsup": "^8.2.4",
+    "typescript": "^5.5.4"
   }
 }
