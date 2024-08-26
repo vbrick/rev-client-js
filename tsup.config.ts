@@ -30,7 +30,7 @@ export default defineConfig((options) => {
             dts: true
         },
         {
-            ...fileEntry('src/index-node.ts', pkg.module),
+            ...fileEntry('src/index-nodefetch.mts', pkg.exports['./node-fetch'].node.import),
             format: 'esm',
             platform: 'node',
             ...commonConfig
@@ -42,13 +42,13 @@ export default defineConfig((options) => {
             ...commonConfig
         },
         {
-            ...fileEntry('src/index-node18.ts', pkg.exports['./native-fetch'].node.import),
+            ...fileEntry('src/index-node-native.ts', pkg.exports['./native-fetch'].node.import),
             format: 'esm',
             platform: 'node',
             ...commonConfig
         },
         {
-            ...fileEntry('src/index-node18.ts', pkg.exports['./native-fetch'].node.require),
+            ...fileEntry('src/index-node-native.ts', pkg.exports['./native-fetch'].node.require),
             format: 'cjs',
             platform: 'node',
             ...commonConfig
