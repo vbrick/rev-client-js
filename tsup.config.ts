@@ -1,4 +1,5 @@
 //@ts-check
+import fs from 'node:fs/promises';
 import { Options, defineConfig } from 'tsup';
 import pkg from './package.json';
 import path from 'node:path';
@@ -15,10 +16,13 @@ function fileEntry(source: string, filepath: string): Partial<Options> {
 const commonConfig: Options = {
     splitting: false,
     sourcemap: true,
-    clean: true,
     dts: false,
+    clean: false,
     skipNodeModulesBundle: true
 }
+
+console.log('clearing dist directory');
+await fs.rm('./dist', { recursive: true, force: true });
 
 export default defineConfig((options) => {
     const cfg: Options[] = [
