@@ -1,11 +1,3 @@
-import { isBlobLike } from './is-utils';
-import type { RevClient } from '../rev-client';
-import type { Rev } from '../types';
-
-export interface FileUploadPayloadInternal {
-    file: Rev.FileUploadType;
-    options: Rev.UploadFileOptions;
-}
 
 export const mimeTypes = {
     '.7z': 'application/x-7z-compressed',
@@ -62,15 +54,7 @@ export function getExtensionForMime(contentType: string, defaultExtension = '.mp
 
 }
 
-function sanitizeFileUpload(payload: FileUploadPayloadInternal, defaultContentType?: string) {
-    let {
-        file,
-        options: {
-            filename = 'upload',
-            contentType = ''
-        }
-    } = payload;
-
+export function sanitizeUploadOptions(filename = 'upload', contentType = '', defaultContentType?: string) {
     // sanitize content type
     if (contentType === 'application/octet-stream') {
         contentType = '';
@@ -87,76 +71,7 @@ function sanitizeFileUpload(payload: FileUploadPayloadInternal, defaultContentTy
     if (!contentType) {
         contentType = getMimeForExtension(ext, defaultContentType);
     }
-    if (isBlobLike(file) && file.type !== contentType) {
-        payload.file = file.slice(0, file.size, contentType);
-    }
-    Object.assign(payload.options, {
-        filename,
-        contentType
-    });
-    return payload;
+
+    return { filename, contentType };
 }
 
-export function appendJSONToForm(form: FormData, fieldName: string, data: any) {
-    form.append(fieldName, JSON.stringify(data));
-}
-
-/**
- * This method is included for isometric support of uploading files in node.js and browser.
- * @param form FormData instance
- * @param fieldName name of field to add to form
- * @param file the file. Can be Blob or File on browser. On node.js it can be anything the 'form-data' package will accept
- * @param options optional filename, contentType and contentLength of upload. Otherwise it will try to guess based on input
- */
-export async function appendFileToForm(form: FormData, fieldName: string, file: Rev.FileUploadType, options: Rev.UploadFileOptions = { }): Promise<Rev.UploadFileOptions> {
-    const opts: Rev.UploadFileOptions = {
-        filename: 'upload',
-        contentType: '',
-        ...options
-    };
-    let payload = await polyfills.parseFileUpload(file, opts);
-    payload = sanitizeFileUpload(payload);
-    await polyfills.appendFileToForm(form, fieldName, payload);
-    return payload.options;
-}
-
-async function prepareFileUploadHeaders(form: FormData, headers: Headers, useChunkedTransfer?: boolean) {
-    await polyfills.prepareUploadHeaders(form, headers, useChunkedTransfer);
-}
-
-/**
- * helper to upload multipart forms with files attached.
- * This is to work around issues with node.js's FormData implementation
- * @param rev Rev Client
- * @param method
- * @param endpoint
- * @param form
- * @param useChunkedTransfer
- * @param options
- * @returns
- */
-export async function uploadMultipart(
-    rev: RevClient,
-    method: Rev.HTTPMethod,
-    endpoint: string,
-    form: FormData,
-    useChunkedTransfer: boolean | Rev.UploadFileOptions = false,
-    options: Rev.RequestOptions = { }
-) {
-    const {
-        headers: optHeaders
-    } = options;
-
-    useChunkedTransfer = typeof useChunkedTransfer === 'boolean'
-        ? useChunkedTransfer
-        : !!useChunkedTransfer?.useChunkedTransfer;
-
-    // coerce to Headers object, may be undefined
-    const headers = new polyfills.Headers(optHeaders);
-    // switches to transfer encoding upload if necessary
-    await prepareFileUploadHeaders(form, headers, useChunkedTransfer);
-
-    options.headers = headers;
-    const { body } = await rev.request(method, endpoint, form, options);
-    return body;
-}

@@ -1,8 +1,8 @@
+import polyfills from '../interop/polyfills';
 import type { RevClient } from '../rev-client';
 import { Rev, Transcription, Video } from '../types';
-import { appendFileToForm, appendJSONToForm, uploadMultipart } from '../utils/file-utils';
-import polyfills from '../interop';
 import { RateLimitEnum } from '../utils';
+import { appendFileToForm, appendJSONToForm, uploadMultipart } from '../utils/multipart-utils';
 
 function splitOptions(options: Rev.UploadFileOptions) {
     const {
