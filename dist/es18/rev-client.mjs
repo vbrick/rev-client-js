@@ -1,3 +1,79 @@
+var __typeError = (msg) => {
+  throw TypeError(msg);
+};
+var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
+var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
+var __privateAdd = (obj, member, value) => member.has(obj) ? __typeError("Cannot add the same private member more than once") : member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
+var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
+
+// src/utils/file-utils.ts
+var mimeTypes = {
+  ".7z": "application/x-7z-compressed",
+  ".asf": "video/x-ms-asf",
+  ".avi": "video/x-msvideo",
+  ".csv": "text/csv",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".f4v": "video/x-f4v",
+  ".flv": "video/x-flv",
+  ".gif": "image/gif",
+  ".jpg": "image/jpeg",
+  ".m4a": "audio/mp4",
+  ".m4v": "video/x-m4v",
+  ".mkv": "video/x-matroska",
+  ".mov": "video/quicktime",
+  ".mp3": "audio/mpeg",
+  ".mp4": "video/mp4",
+  ".mpg": "video/mpeg",
+  ".pdf": "application/pdf",
+  ".png": "image/png",
+  ".ppt": "application/vnd.ms-powerpoint",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".rar": "application/x-rar-compressed",
+  ".srt": "application/x-subrip",
+  ".svg": "image/svg+xml",
+  ".swf": "application/x-shockwave-flash",
+  ".ts": "video/mp2t",
+  ".txt": "text/plain",
+  ".wmv": "video/x-ms-wmv",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".zip": "application/zip",
+  ".mks": "video/x-matroska",
+  ".mts": "model/vnd.mts",
+  ".vtt": "text/vtt",
+  ".wma": "audio/x-ms-wma"
+};
+function getMimeForExtension(extension = "", defaultType = "video/mp4") {
+  extension = extension.toLowerCase();
+  if (extension && extension in mimeTypes) {
+    return mimeTypes[extension];
+  }
+  return defaultType;
+}
+function getExtensionForMime(contentType, defaultExtension = ".mp4") {
+  const match = contentType && Object.entries(mimeTypes).find(([ext, mime]) => contentType.startsWith(mime));
+  return match ? match[0] : defaultExtension;
+}
+function sanitizeUploadOptions(filename = "upload", contentType = "", defaultContentType) {
+  if (contentType === "application/octet-stream") {
+    contentType = "";
+  }
+  if (/charset/.test(contentType)) {
+    contentType = contentType.replace(/;?.*charset.*$/, "");
+  }
+  let name = filename.replace(/\.[^\.]+$/, "");
+  let ext = filename.replace(name, "");
+  if (!ext) {
+    ext = getExtensionForMime(contentType);
+  }
+  filename = `${name}${ext}`;
+  if (!contentType) {
+    contentType = getMimeForExtension(ext, defaultContentType);
+  }
+  return { filename, contentType };
+}
+
 // src/utils/is-utils.ts
 var { toString: _toString } = Object.prototype;
 function isPlainObject(val) {
@@ -10,14 +86,74 @@ function isPlainObject(val) {
 function isBlobLike(val) {
   return typeof val?.stream === "function";
 }
-function isReadable(val) {
-  return typeof val[Symbol.asyncIterator] === "function";
-}
 function titleCase(val) {
   return `${val[0]}${val.slice(1)}`;
 }
 
-// src/interop/index.ts
+// src/utils/multipart-utils.ts
+var uploadParser = {
+  async string(value, options) {
+    if (!/^data|blob|file/.test(value)) {
+      throw new TypeError("Only Blob / DateURI URLs are supported");
+    }
+    const file = await (await polyfills_default.fetch(value)).blob();
+    return uploadParser.blob(file, options);
+  },
+  async stream(value, options) {
+    throw new TypeError("Only Blob / Files are supported for file uploads. Pass a File/Blob object");
+  },
+  async blob(value, options) {
+    let {
+      filename = value.name ?? "upload",
+      contentType = value.type ?? "",
+      defaultContentType
+    } = options;
+    const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
+    if (value.type !== sanitized.contentType && typeof value.slice === "function") {
+      value = new File([value], sanitized.filename, { type: sanitized.contentType });
+    }
+    return {
+      file: value,
+      options: {
+        ...options,
+        ...value.size && { contentLength: value.size },
+        ...sanitized
+      }
+    };
+  },
+  async parse(value, options) {
+    if (typeof value === "string") {
+      return uploadParser.string(value, options);
+    }
+    if (!isBlobLike(value)) {
+      throw new TypeError("Only Blob / Files are supported for file uploads. Pass a File/Blob object");
+    }
+    return uploadParser.blob(value, options);
+  }
+};
+function appendJSONToForm(form, fieldName, data) {
+  form.append(fieldName, JSON.stringify(data));
+}
+async function appendFileToForm(form, fieldName, input, uploadOptions = {}) {
+  const {
+    file,
+    options
+  } = await polyfills_default.uploadParser.parse(input, uploadOptions);
+  form.append(fieldName, file, options.filename);
+  return options;
+}
+async function uploadMultipart(rev, method, endpoint, form, uploadOptions, options = {}) {
+  const {
+    headers: optHeaders
+  } = options;
+  const headers = new polyfills_default.Headers(optHeaders);
+  options.headers = headers;
+  const data = polyfills_default.beforeFileUploadRequest(form, headers, uploadOptions, options);
+  const { body } = await rev.request(method, endpoint, data, options);
+  return body;
+}
+
+// src/interop/polyfills.ts
 function randomValues(byteLength) {
   const values = crypto.getRandomValues(new Uint8Array(byteLength / 2));
   return Array.from(values).map((c) => c.toString(16).padStart(2, "0")).join("");
@@ -40,66 +176,24 @@ async function hmacSign(message, secret) {
   const signed = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(message));
   return btoa(String.fromCharCode(...new Uint8Array(signed)));
 }
-var interop_default = {
+var polyfills = {
   AbortController: globalThis.AbortController,
   AbortSignal: globalThis.AbortSignal,
   createAbortError(message) {
     return new DOMException(message, "AbortError");
   },
-  fetch: (...args) => globalThis.fetch(...args),
+  fetch: globalThis.fetch,
   FormData: globalThis.FormData,
+  File: globalThis.File,
   Headers: globalThis.Headers,
   Request: globalThis.Request,
   Response: globalThis.Response,
+  uploadParser,
   randomValues,
   sha256Hash,
   hmacSign,
-  /**
-   *
-   * @param file
-   * @param filename
-   * @param contentType
-   * @returns
-   */
-  async parseFileUpload(file, options) {
-    let {
-      filename,
-      contentType,
-      contentLength
-    } = options;
-    if (isBlobLike(file)) {
-      const { type, name, size } = file;
-      if (type && !contentType) {
-        contentType = type;
-      }
-      if (name && !filename) {
-        filename = name;
-      }
-      if (size && !contentLength) {
-        contentLength = size;
-      }
-      return {
-        file,
-        options: {
-          ...options,
-          filename,
-          contentType,
-          contentLength
-        }
-      };
-    }
-    throw new TypeError("Only Blob / Files are supported for file uploads. Pass a File/Blob object");
-  },
-  appendFileToForm(form, fieldName, payload) {
-    const {
-      file,
-      options: {
-        filename
-      }
-    } = payload;
-    form.append(fieldName, file, filename);
-  },
-  async prepareUploadHeaders(form, headers, useChunkedTransfer) {
+  beforeFileUploadRequest(form, headers, uploadOptions, options) {
+    return form;
   },
   asPlatformStream(stream) {
     return stream;
@@ -108,6 +202,36 @@ var interop_default = {
     return stream;
   }
 };
+var polyfills_default = polyfills;
+var isPendingInitialize = false;
+var initializePromise = void 0;
+var pendingInitialize = [];
+function shouldInitialize() {
+  return !!isPendingInitialize;
+}
+function onInitialize() {
+  if (!isPendingInitialize) {
+    return;
+  }
+  initializePromise || (initializePromise = (async () => {
+    while (pendingInitialize.length > 0) {
+      const pending = pendingInitialize.shift();
+      if (typeof pending !== "function") continue;
+      try {
+        const overrides = await pending(polyfills);
+        Object.assign(polyfills, overrides);
+      } catch (error) {
+      }
+    }
+    isPendingInitialize = false;
+    initializePromise = void 0;
+  })());
+  return initializePromise;
+}
+function setPolyfills(overrideCallback) {
+  pendingInitialize.push(overrideCallback);
+  isPendingInitialize = true;
+}
 
 // src/utils/rate-limit.ts
 var ONE_MINUTE = 60 * 1e3;
@@ -185,7 +309,7 @@ function rateLimit(fn2, options = {}) {
     }
     for (const [timeout, reject] of queue.entries()) {
       clearTimeout(timeout);
-      reject(interop_default.createAbortError(message));
+      reject(polyfills_default.createAbortError(message));
     }
     queue.clear();
   };
@@ -926,8 +1050,8 @@ function auditAPIFactory(rev, optRateLimits) {
 
 // src/utils/merge-headers.ts
 function mergeHeaders(source, other) {
-  const merged = new interop_default.Headers(source);
-  new interop_default.Headers(other).forEach((value, key) => merged.set(key, value));
+  const merged = new polyfills_default.Headers(source);
+  new polyfills_default.Headers(other).forEach((value, key) => merged.set(key, value));
   return merged;
 }
 
@@ -944,12 +1068,12 @@ function getOAuth2AuthorizationUrl(config, code_challenge, state) {
   }).toString();
   return url.toString();
 }
-async function getOAuth2PKCEVerifier(codeVerifier = interop_default.randomValues(48)) {
-  const codeChallenge = await interop_default.sha256Hash(codeVerifier);
+async function getOAuth2PKCEVerifier(codeVerifier = polyfills_default.randomValues(48)) {
+  const codeChallenge = await polyfills_default.sha256Hash(codeVerifier);
   return { codeVerifier, codeChallenge };
 }
 async function buildLegacyOAuthQuery(config, oauthSecret, state = "1") {
-  const { hmacSign: hmacSign3 } = interop_default;
+  const { hmacSign: hmacSign3 } = polyfills_default;
   const RESPONSE_TYPE = "code";
   const {
     oauthApiKey: apiKey,
@@ -1563,135 +1687,35 @@ function recordingAPIFactory(rev) {
   return recordingAPI;
 }
 
-// src/utils/file-utils.ts
-var mimeTypes = {
-  ".7z": "application/x-7z-compressed",
-  ".asf": "video/x-ms-asf",
-  ".avi": "video/x-msvideo",
-  ".csv": "text/csv",
-  ".doc": "application/msword",
-  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".f4v": "video/x-f4v",
-  ".flv": "video/x-flv",
-  ".gif": "image/gif",
-  ".jpg": "image/jpeg",
-  ".m4a": "audio/mp4",
-  ".m4v": "video/x-m4v",
-  ".mkv": "video/x-matroska",
-  ".mov": "video/quicktime",
-  ".mp3": "audio/mpeg",
-  ".mp4": "video/mp4",
-  ".mpg": "video/mpeg",
-  ".pdf": "application/pdf",
-  ".png": "image/png",
-  ".ppt": "application/vnd.ms-powerpoint",
-  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  ".rar": "application/x-rar-compressed",
-  ".srt": "application/x-subrip",
-  ".svg": "image/svg+xml",
-  ".swf": "application/x-shockwave-flash",
-  ".ts": "video/mp2t",
-  ".txt": "text/plain",
-  ".wmv": "video/x-ms-wmv",
-  ".xls": "application/vnd.ms-excel",
-  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ".zip": "application/zip",
-  ".mks": "video/x-matroska",
-  ".mts": "model/vnd.mts",
-  ".vtt": "text/vtt",
-  ".wma": "audio/x-ms-wma"
-};
-function getMimeForExtension(extension = "", defaultType = "video/mp4") {
-  extension = extension.toLowerCase();
-  if (extension && extension in mimeTypes) {
-    return mimeTypes[extension];
-  }
-  return defaultType;
-}
-function getExtensionForMime(contentType, defaultExtension = ".mp4") {
-  const match = contentType && Object.entries(mimeTypes).find(([ext, mime]) => contentType.startsWith(mime));
-  return match ? match[0] : defaultExtension;
-}
-function sanitizeFileUpload(payload, defaultContentType) {
-  let {
-    file,
-    options: {
-      filename = "upload",
-      contentType = ""
-    }
-  } = payload;
-  if (contentType === "application/octet-stream") {
-    contentType = "";
-  }
-  if (/charset/.test(contentType)) {
-    contentType = contentType.replace(/;?.*charset.*$/, "");
-  }
-  let name = filename.replace(/\.[^\.]+$/, "");
-  let ext = filename.replace(name, "");
-  if (!ext) {
-    ext = getExtensionForMime(contentType);
-  }
-  filename = `${name}${ext}`;
-  if (!contentType) {
-    contentType = getMimeForExtension(ext, defaultContentType);
-  }
-  if (isBlobLike(file) && file.type !== contentType) {
-    payload.file = file.slice(0, file.size, contentType);
-  }
-  Object.assign(payload.options, {
-    filename,
-    contentType
-  });
-  return payload;
-}
-function appendJSONToForm(form, fieldName, data) {
-  form.append(fieldName, JSON.stringify(data));
-}
-async function appendFileToForm(form, fieldName, file, options = {}) {
-  const opts = {
-    filename: "upload",
-    contentType: "",
-    ...options
-  };
-  let payload = await interop_default.parseFileUpload(file, opts);
-  payload = sanitizeFileUpload(payload);
-  await interop_default.appendFileToForm(form, fieldName, payload);
-  return payload.options;
-}
-async function prepareFileUploadHeaders(form, headers, useChunkedTransfer) {
-  await interop_default.prepareUploadHeaders(form, headers, useChunkedTransfer);
-}
-async function uploadMultipart(rev, method, endpoint, form, useChunkedTransfer = false, options = {}) {
-  const {
-    headers: optHeaders
-  } = options;
-  useChunkedTransfer = typeof useChunkedTransfer === "boolean" ? useChunkedTransfer : !!useChunkedTransfer?.useChunkedTransfer;
-  const headers = new interop_default.Headers(optHeaders);
-  await prepareFileUploadHeaders(form, headers, useChunkedTransfer);
-  options.headers = headers;
-  const { body } = await rev.request(method, endpoint, form, options);
-  return body;
-}
-
 // src/api/upload.ts
-function splitOptions(options) {
+function splitOptions(options, defaultType) {
   const {
-    signal,
-    ...uploadOptions
+    filename,
+    contentType,
+    contentLength,
+    useChunkedTransfer,
+    defaultContentType = defaultType,
+    ...requestOptions
   } = options;
   return {
-    requestOptions: signal ? { signal } : {},
-    uploadOptions
+    requestOptions,
+    uploadOptions: {
+      filename,
+      contentType,
+      contentLength,
+      useChunkedTransfer,
+      defaultContentType
+    }
   };
 }
 function uploadAPIFactory(rev) {
-  const { FormData: FormData2 } = interop_default;
+  const { FormData: FormData2 } = polyfills_default;
   const uploadAPI = {
     /**
      * Upload a video, and returns the resulting video ID
      */
     async video(file, metadata = { uploader: rev.session.username ?? "" }, options = {}) {
-      const { uploadOptions, requestOptions } = splitOptions(options);
+      const { uploadOptions, requestOptions } = splitOptions(options, "video/mp4");
       const form = new FormData2();
       if (!metadata.uploader) {
         const defaultUsername = rev.session.username;
@@ -1709,7 +1733,7 @@ function uploadAPIFactory(rev) {
       return videoId;
     },
     async replaceVideo(videoId, file, options = {}) {
-      const { uploadOptions, requestOptions } = splitOptions(options);
+      const { uploadOptions, requestOptions } = splitOptions(options, "video/mp4");
       const form = new FormData2();
       const filePayload = await appendFileToForm(form, "VideoFile", file, uploadOptions);
       rev.log("info", `Replacing ${videoId} with ${filePayload.filename} (${filePayload.contentType})`);
@@ -1717,7 +1741,7 @@ function uploadAPIFactory(rev) {
       await uploadMultipart(rev, "PUT", `/api/v2/uploads/videos/${videoId}`, form, filePayload, requestOptions);
     },
     async transcription(videoId, file, language = "en", options = {}) {
-      const { uploadOptions, requestOptions } = splitOptions(options);
+      const { uploadOptions, requestOptions } = splitOptions(options, "text/plain");
       const form = new FormData2();
       const lang = language.toLowerCase();
       const filePayload = await appendFileToForm(form, "File", file, uploadOptions);
@@ -1752,7 +1776,7 @@ function uploadAPIFactory(rev) {
      * @param options  additional upload + request options
      */
     async chapters(videoId, chapters, action = "replace", options = {}) {
-      const { uploadOptions, requestOptions } = splitOptions(options);
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/png");
       const form = new FormData2();
       const metadata = {
         chapters: []
@@ -1780,18 +1804,18 @@ function uploadAPIFactory(rev) {
       await uploadMultipart(rev, method, `/api/v2/uploads/chapters/${videoId}`, form, uploadOptions, requestOptions);
     },
     async thumbnail(videoId, file, options = {}) {
-      const { uploadOptions, requestOptions } = splitOptions(options);
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
       const form = new FormData2();
       const filePayload = await appendFileToForm(form, "ThumbnailFile", file, uploadOptions);
       rev.log("info", `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
     },
     async presentationChapters(videoId, file, options = {}) {
-      const { uploadOptions, requestOptions } = splitOptions(options);
+      const { uploadOptions, requestOptions } = splitOptions(options, "application/vnd.ms-powerpoint");
       const form = new FormData2();
-      const filePayload = await appendFileToForm(form, "ThumbnailFile", file, uploadOptions);
-      rev.log("info", `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
-      await uploadMultipart(rev, "POST", `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
+      const filePayload = await appendFileToForm(form, "PresentationFile", file, uploadOptions);
+      rev.log("info", `Uploading presentation for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/video-presentations/${videoId}`, form, filePayload, requestOptions);
     }
   };
   return uploadAPI;
@@ -2422,7 +2446,7 @@ function videoAPIFactory(rev) {
      * @param videoId
      * @param options
      */
-    async waitTranscode(videoId, options, requestOptions) {
+    async waitTranscode(videoId, options = {}, requestOptions) {
       const {
         pollIntervalSeconds = 30,
         timeoutMinutes = 240,
@@ -2889,7 +2913,7 @@ var SessionKeepAlive = class {
     this.error = void 0;
     this._isExtending = false;
     const oldController = this.controller;
-    this.controller = new interop_default.AbortController();
+    this.controller = new polyfills_default.AbortController();
     if (oldController) {
       oldController.abort();
     }
@@ -3337,6 +3361,7 @@ var RevClient = class {
    * make a REST request
    */
   async request(method, endpoint, data = void 0, options = {}) {
+    if (shouldInitialize()) await onInitialize();
     const url = new URL(endpoint, this.url);
     if (url.origin !== this.url) {
       throw new TypeError(`Invalid endpoint - must be relative to ${this.url}`);
@@ -3347,7 +3372,7 @@ var RevClient = class {
       throwHttpErrors = true,
       ...requestOpts
     } = options;
-    const headers = new interop_default.Headers(optHeaders);
+    const headers = new polyfills_default.Headers(optHeaders);
     if (this.session.token && !headers.has("Authorization")) {
       headers.set("Authorization", `VBrick ${this.session.token}`);
     }
@@ -3366,7 +3391,7 @@ var RevClient = class {
       if (["POST", "PUT", "PATCH"].includes(normalizedMethod)) {
         if (typeof data === "string") {
           fetchOptions.body = data;
-        } else if (data instanceof interop_default.FormData) {
+        } else if (data instanceof polyfills_default.FormData) {
           shouldSetAsJSON = false;
           fetchOptions.body = data;
         } else if (isPlainObject(data) || Array.isArray(data)) {
@@ -3402,7 +3427,7 @@ var RevClient = class {
           break;
       }
     }
-    const response = await interop_default.fetch(`${url}`, {
+    const response = await polyfills_default.fetch(`${url}`, {
       ...fetchOptions,
       method,
       headers
@@ -3440,10 +3465,10 @@ var RevClient = class {
       case "stream":
         switch (this._streamPreference) {
           case "webstream":
-            body = interop_default.asWebStream(response.body);
+            body = polyfills_default.asWebStream(response.body);
             break;
           case "nativestream":
-            body = interop_default.asPlatformStream(response.body);
+            body = polyfills_default.asPlatformStream(response.body);
             break;
           default:
             body = response.body;
@@ -3451,10 +3476,10 @@ var RevClient = class {
         body = response.body;
         break;
       case "webstream":
-        body = interop_default.asWebStream(response.body);
+        body = polyfills_default.asWebStream(response.body);
         break;
       case "nativestream":
-        body = interop_default.asPlatformStream(response.body);
+        body = polyfills_default.asPlatformStream(response.body);
         break;
       default:
         body = await decodeBody(response, headers.get("Accept"));
@@ -3545,13 +3570,104 @@ var RevClient = class {
   }
 };
 
-// src/interop/node18-polyfills.ts
-import fs from "node:fs";
-import path from "node:path";
+// src/index.ts
+var utils = {
+  rateLimit: rate_limit_default,
+  getExtensionForMime,
+  getMimeForExtension,
+  setPolyfills
+};
+
+// src/interop/node-polyfills.ts
+import { FormDataEncoder } from "form-data-encoder";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import { Readable } from "node:stream";
 import { ReadableStream } from "node:stream/web";
-import { createHmac, randomBytes, createHash } from "node:crypto";
-async function getLengthFromStream(source) {
+
+// src/interop/node-multipart-utils.ts
+import { createReadStream, promises as fs } from "node:fs";
+import path from "node:path";
+var uploadParser2 = {
+  async string(value, options) {
+    const input = createReadStream(value);
+    return uploadParser2.stream(input, {
+      filename: path.basename(value),
+      ...options
+    });
+  },
+  async blob(value, options) {
+    let {
+      filename = getFilename(value),
+      contentType,
+      contentLength,
+      useChunkedTransfer = false,
+      defaultContentType
+    } = options;
+    const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
+    if (value.type !== sanitized.contentType && typeof value.slice === "function") {
+      value = new File([value], sanitized.filename, { type: sanitized.contentType });
+    }
+    return {
+      file: value,
+      options: {
+        ...options,
+        ...value.size && { contentLength: value.size },
+        ...sanitized
+      }
+    };
+  },
+  async stream(value, options, defaultContentType) {
+    let {
+      filename = getFilename(value),
+      contentType,
+      contentLength,
+      useChunkedTransfer = false
+    } = options;
+    const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
+    if (!useChunkedTransfer) {
+      contentLength || (contentLength = await getLengthFromStream(value));
+    }
+    const file = new FileFromStream(value, sanitized.filename, {
+      type: sanitized.contentType,
+      size: contentLength
+    });
+    return {
+      file,
+      options: {
+        ...options,
+        contentLength,
+        ...sanitized
+      }
+    };
+  },
+  async parse(value, options) {
+    if (typeof value === "string") {
+      return uploadParser2.string(value, options);
+    }
+    if (isBlobLike(value) && !value[Symbol.asyncIterator]) {
+      return uploadParser2.blob(value, options);
+    }
+    return uploadParser2.stream(value, options);
+  }
+};
+var _a, _stream;
+_a = Symbol.toStringTag;
+var FileFromStream = class {
+  constructor(stream, fileName = "", options) {
+    __privateAdd(this, _stream);
+    this[_a] = "File";
+    __privateSet(this, _stream, stream);
+    this.name = fileName;
+    this.type = options?.type ?? "";
+    this.size = options?.size ?? NaN;
+    this.lastModified = options?.lastModified ?? Date.now();
+  }
+  stream() {
+    return __privateGet(this, _stream);
+  }
+};
+_stream = new WeakMap();
+async function getLengthFromStream(source, timeoutSeconds = 15) {
   const {
     length,
     contentLength,
@@ -3571,86 +3687,37 @@ async function getLengthFromStream(source) {
     }
   }
   if (filepath) {
-    const TIMEOUT_MS = 15 * 1e3;
-    let timer;
-    const timeout = new Promise((done) => {
-      timer = setTimeout(done, TIMEOUT_MS, {});
-    });
-    try {
-      const stat = await Promise.race([fs.promises.stat(filepath), timeout]);
-      if (stat?.size) {
-        return stat.size;
-      }
-    } catch (err) {
-    } finally {
-      clearTimeout(timer);
-    }
+    return statFile(filepath, timeoutSeconds);
   }
 }
-async function parseFileUpload(file, options) {
-  let {
-    filename,
-    contentType,
-    contentLength,
-    useChunkedTransfer
-  } = options;
-  const shouldUpdateLength = !(contentLength || useChunkedTransfer);
+async function statFile(filepath, timeoutSeconds = 15) {
+  let timer;
+  const timeout = new Promise((done) => {
+    timer = setTimeout(done, timeoutSeconds * 1e3, {});
+  });
+  try {
+    const stat = await Promise.race([
+      fs.stat(filepath),
+      timeout
+    ]);
+    return stat?.size;
+  } catch (err) {
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function getFilename(file) {
   if (typeof file === "string") {
-    if (!filename) {
-      filename = path.basename(file);
-    }
-    file = fs.createReadStream(file);
-    if (shouldUpdateLength) {
-      contentLength = await getLengthFromStream(file);
-    }
-  } else if (isBlobLike(file)) {
-    const { type, name, size } = file;
-    if (type && !contentType) {
-      contentType = type;
-    }
-    if (name && !filename) {
-      filename = name;
-    }
-    if (shouldUpdateLength) {
-      contentLength = size;
-    }
-  } else if (isReadable(file)) {
-    if (!filename) {
-      const { path: _path, filename: _filename, name: _name } = file;
-      const streamPath = _path || _filename || _name;
-      if (streamPath && typeof streamPath === "string") {
-        filename = path.basename(streamPath);
-      }
-    }
-    if (shouldUpdateLength) {
-      contentLength = await getLengthFromStream(file);
-    }
+    return path.basename(file);
   }
-  return {
-    file,
-    options: {
-      ...options,
-      filename,
-      contentType,
-      contentLength
-    }
-  };
-}
-async function appendFileToForm2(form, fieldName, payload) {
-  const {
-    file,
-    options: {
-      filename
-    }
-  } = payload;
-  form.append(fieldName, file, filename);
-}
-async function prepareUploadHeaders(form, headers, useChunkedTransfer = false) {
-  if (useChunkedTransfer) {
-    headers.set("transfer-encoding", "chunked");
-    headers.delete("content-length");
+  const { path: _path, filename, name } = file;
+  const streamPath = _path || filename || name;
+  if (streamPath && typeof streamPath === "string") {
+    return path.basename(streamPath);
   }
 }
+
+// src/interop/node-polyfills.ts
 function randomValues2(byteLength) {
   return randomBytes(byteLength).toString("base64url");
 }
@@ -3677,44 +3744,46 @@ var AbortError = class extends Error {
     return this.constructor.name;
   }
 };
-Object.assign(interop_default, {
-  AbortController,
-  AbortSignal,
-  createAbortError(message) {
-    return new AbortError(message);
-  },
-  fetch: (...args) => fetch(...args),
-  FormData,
-  Headers,
-  Request,
-  Response,
-  randomValues: randomValues2,
-  sha256Hash: sha256Hash2,
-  hmacSign: hmacSign2,
-  appendFileToForm: appendFileToForm2,
-  parseFileUpload,
-  prepareUploadHeaders,
-  asPlatformStream(stream) {
-    if (!stream) return stream;
-    return stream instanceof ReadableStream ? Readable.fromWeb(stream) : stream;
-  },
-  asWebStream(stream) {
-    return !stream || stream instanceof ReadableStream ? stream : Readable.toWeb(Readable.from(stream));
-  }
-});
-
-// src/index-node18.ts
-var utils = {
-  rateLimit: rate_limit_default,
-  getExtensionForMime,
-  getMimeForExtension
+var node_polyfills_default = (polyfills2) => {
+  Object.assign(polyfills2, {
+    createAbortError(message) {
+      return new AbortError(message);
+    },
+    FormData,
+    randomValues: randomValues2,
+    sha256Hash: sha256Hash2,
+    hmacSign: hmacSign2,
+    uploadParser: uploadParser2,
+    beforeFileUploadRequest(form, headers, uploadOptions, options) {
+      const encoder = new FormDataEncoder(form);
+      Object.assign(options, {
+        body: encoder,
+        // needed for undici error thrown when body is stream
+        // https://fetch.spec.whatwg.org/#dom-requestinit-duplex
+        duplex: "half"
+      });
+      for (let [key, value] of Object.entries(encoder.headers)) {
+        headers.set(key, value);
+      }
+      headers.delete("transfer-encoding");
+      return void 0;
+    },
+    asPlatformStream(stream) {
+      if (!stream) return stream;
+      return stream instanceof ReadableStream ? Readable.fromWeb(stream) : stream;
+    },
+    asWebStream(stream) {
+      return !stream || stream instanceof ReadableStream ? stream : Readable.toWeb(Readable.from(stream));
+    }
+  });
 };
-var index_node18_default = RevClient;
+
+// src/index-node-native.ts
+setPolyfills(node_polyfills_default);
 export {
   RevClient,
   RevError,
   ScrollError,
-  index_node18_default as default,
   utils
 };
 //# sourceMappingURL=rev-client.mjs.map
