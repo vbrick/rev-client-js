@@ -10,7 +10,6 @@ import { isBlobLike, isReadable } from '../utils';
 import type { Rev } from '../types/rev';
 import type { FileUploadPayloadInternal } from '../utils/file-utils';
 import { AbortSignal, AbortController } from 'node-abort-controller';
-import polyfills from '.';
 
 async function getLengthFromStream(source: Record<string, any>) {
     const {
@@ -145,6 +144,7 @@ async function prepareUploadHeaders(form: FormData, headers: Headers, useChunked
         // form.getLengthSync = () => null;
     }
 }
+import {RevPolyfills} from './polyfills';
 
 function randomValues(byteLength: number) {
     return randomBytes(byteLength).toString('base64url');

@@ -1,4 +1,3 @@
-import polyfills from '../interop';
 import { isBlobLike } from './is-utils';
 import type { RevClient } from '../rev-client';
 import type { Rev } from '../types';
