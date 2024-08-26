@@ -36,7 +36,7 @@ export default defineConfig((options) => {
             ...commonConfig
         },
         {
-            ...fileEntry('src/index-node.ts', pkg.main),
+            ...fileEntry('src/index-nodefetch.cts', pkg.exports['./node-fetch'].node.require),
             format: 'cjs',
             platform: 'node',
             ...commonConfig
