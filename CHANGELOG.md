@@ -1,3 +1,22 @@
+## 0.22.0
+
+### Features
+
+* Added `util.setPolyfills` to allow overriding the `fetch` implementation used by this library.
+* Added `@vbrick/rev-client/node-fetch` entry point to explicly use the `node-fetch` polyfill (which is still used by default)
+
+### Breaking Changes
+
+* Require Node.js 18 or above
+* Changed how node.js polyfills are injected into the code. There's a slight chance this could change treeshaking behavior, particularly if still using commonjs `require` instead of ESM `import`.
+* Major version bump of `node-fetch` and `fetch-blob`. Removed `AbortController` and FormData polyfills
+* The parsing/streaming behavior of multipart upload inputs (like `video.upload()` ) has changed slightly, to avoid fully-loading large files into memory when possible. This only applies with non-`Blob` inputs *(filepath strings or `ReadableStream` inputs)*.
+
+### Bugfixes
+
+* fix `upload.presentationChapters` to point to correct entrypoint
+* minor typescript types updates
+
 ## 0.21.4
 
 * Optimize downloading thumbnail when selecting by Video Id *(`rev.video.downloadThumbnail({ videoId })`)*

@@ -17,13 +17,20 @@ npm install @vbrick/rev-client
 ## Compatibility
 
 * **Browser** - This library is in ESM module format - it assumes use of an evergreen browser that has `fetch`, `AbortController`, etc.
-* **node.js** - Node.js 16 or above required. It will work with commonjs (`require`) or ES Module (`import`) projects. It uses fetch polyfills (`node-fetch`) unless you import using the `@vbrick/rev-client/native-fetch` named export.
+* **node.js** - Node.js 18 or above required. This package includes commonjs (`require`) and ES Module (`import`) versions. By default it uses the (`node-fetch`) polyfill unless you import using the `@vbrick/rev-client/native-fetch` named export (which uses native `fetch`).
 * **deno** - Should be compatible, though testing is limited. You'll need `--allow-net` permissions at minimum.
 
-### Browsers and CORS support**
+### Browsers and CORS support
 By default CORS (Cross Origin Resource Sharing) is **disabled** for Rev Cloud tenants. This means this library will not work out of the box in the browser. You should open a ticket with [Vbrick Support](https://portal.vbrick.com/open-a-case/) if this feature isn't yet configured.
 
 To verify if CORS is enabled for your account check the headers response from `https://YOUR_REV_TENANT_URL/api/v2/accounts/branding-settings` - it doesn't require authentication.
+
+### Node.js Proxy support
+If you need to use this library behind a proxy *(and you're using Node.js)* then the proxy method to use depends on which `fetch` library you're using.
+
+* If you use the `node-fetch` polyfill *(`@vbrick/rev-client` or `@vbrick/rev-client/node-fetch`)* then you should use a proxy that sets the `https.Agent` (like `global-agent`).
+* If you use the native fetch (which is based on `undici`) then you'll need a proxy implementation that sets the [undici global agent dispatcher](https://undici.nodejs.org/#/docs/api/ProxyAgent?id=example-basic-proxy-request-with-global-agent-dispatcher)
+* Alternatively, you can override to use you're own fetch compatible library by using `utils.setPolyfills()`
 
 ***On-Prem note:** this library targets the latest version of Rev. Some API endpoints may not be available or work as expected in older versions of Rev On-Prem.*
 
@@ -659,6 +666,30 @@ Get the expected extension for a mime-type supported by Rev for upload. If none 
 #### `utils.getMimeForExtension(extension?, defaultType?)`
 
 Get the expected mime-type for the specified extension (`.ext`). If none found it will return the `defaultType` *(or `video/mp4` if none specified)*
+
+#### `utils.setPolyfills(callback: (polyfills) => (void | Promise<void>))`
+
+Allows overriding the underlying network primitives used by this library, in particular `fetch`. This function expects a callback that is called before the first network request is made, to allow lazy load of any dependencies.
+
+##### Example
+```js
+import {RevClient, utils} from '@vbrick/rev-client';
+
+utils.setPolyfills(async (polyfills) => {
+	console.log('Overriding polyfills');
+
+	// dynamic import, which works in ESM or commonjs modules
+	const {fetch} = await import('undici');
+	Object.assign(polyfills, {
+		fetch
+	});
+});
+
+const rev = new RevClient(...args);
+
+await rev.connect(); // setpolyfills triggered here
+
+```
 
 ### Error Classes
 
