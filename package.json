@@ -26,6 +26,15 @@
       },
       "default": "./dist/rev-client.js"
     },
+    "./node-fetch": {
+      "types": "./dist/rev-client.d.ts",
+      "node": {
+        "types": "./dist/rev-client.d.ts",
+        "import": "./dist/es/rev-client.mjs",
+        "require": "./dist/node/rev-client.cjs"
+      },
+      "default": "./dist/rev-client.js"
+    },
     "./iife": "./dist/rev-client.iife.js"
   },
   "files": [
