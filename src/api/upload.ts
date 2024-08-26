@@ -202,15 +202,15 @@ export default function uploadAPIFactory(rev: RevClient) {
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
         },
         async presentationChapters(videoId: string, file: Rev.FileUploadType, options: PresentationChaptersOptions = {}) {
-            const { uploadOptions, requestOptions } = splitOptions(options);
+            const { uploadOptions, requestOptions } = splitOptions(options, 'application/vnd.ms-powerpoint');
 
             const form = new FormData();
 
-            const filePayload = await appendFileToForm(form, 'ThumbnailFile', file, uploadOptions);
+            const filePayload = await appendFileToForm(form, 'PresentationFile', file, uploadOptions);
 
-            rev.log('info', `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+            rev.log('info', `Uploading presentation for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
 
-            await uploadMultipart(rev, 'POST', `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
+            await uploadMultipart(rev, 'POST', `/api/v2/uploads/video-presentations/${videoId}`, form, filePayload, requestOptions);
         }
     };
 
