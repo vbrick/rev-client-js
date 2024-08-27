@@ -464,8 +464,17 @@ declare namespace Video {
         tags?: string[];
         /**  */
         isActive?: boolean;
+        /**
+         * @default {false}
+         */
         enableRatings?: boolean;
+        /**
+         * @default {false}
+         */
         enableDownloads?: boolean;
+        /**
+         * @default {false}
+         */
         enableComments?: boolean;
         enableExternalApplicationAccess?: boolean;
         enableExternalViewersAccess?: boolean;
@@ -501,12 +510,33 @@ declare namespace Video {
          */
         viewerIdEnabled?: boolean;
         /**
+         * When chapter images exist, the video playback can be enabled to show or hide the images by default.
+         */
+        enableAutoShowChapterImages?: boolean;
+        /**
          * Retain the total views count from an outside system as an optional param.
-
          */
         legacyViewCount?: number;
+        /**
+         * Transcribe the video once the upload is complete.
+         */
+        postUploadActions?: {
+            /**
+             * Language code. View Supported Languages for source languages in Technical Requirements.
+             */
+            transcribeLanguageId: string;
+            /**
+             * Creates AI-generated metadata for a given video based on the type specified. You must specify the field type you want to generate (description/title/tags/chapters).
+             * This feature requires English transcription and must also be enabled for your Rev account.
+             */
+            metadataGenerationFields?: Array<LiteralString<'title' | 'description' | 'tags' | 'chapters'>>;
+        };
     }
-    type UpdateRequest = Pick<Video.UploadMetadata, 'title' | 'description' | 'categories' | 'tags' | 'isActive' | 'publishDate' | 'enableRatings' | 'enableDownloads' | 'enableComments' | 'enableExternalApplicationAccess' | 'enableExternalViewersAccess' | 'videoAccessControl' | 'accessControlEntities' | 'password' | 'customFields' | 'unlisted' | 'userTags' | 'owner' | 'viewerIdEnabled'> & {
+    type UpdateRequest = Omit<Video.UploadMetadata, 'uploader' | 'categoryIds' | 'doNotTranscode' | 'is360' | 'sourceType' | 'legacyViewCount' | 'postUploadActions'> & {
+        /**
+         * List of category IDs. If you use categoryIds and they do not exist/are incorrect, the request is rejected. The request is also rejected if you do not have contribute rights to a restricted category and you attempt to add/edit or otherwise modify it.
+         */
+        categories?: string;
         audioTracks?: Array<{
             track: number;
             languageId: string;
@@ -689,6 +719,7 @@ declare namespace Video {
         };
         hasAudioOnly: boolean;
         viewerIdEnabled: boolean;
+        enableAutoShowChapterImages: boolean;
     }
     interface PatchRequest {
         title?: string;
@@ -1964,6 +1995,9 @@ declare namespace Webcast {
         isSecureRtmp?: boolean;
         /** only valid for edit request - Specifies if the exiting RTMP based webcast URL and Key needs to be regenerated */
         regenerateRtmpUrlAndKey?: boolean;
+        /**
+         * If this is an MS Teams event then the URL to the MS Teams meeting.
+         */
         vcMicrosoftTeamsMeetingUrl?: string;
         /** This field is required to create/edit WebexLiveStream event. */
         videoSourceType?: VideoSourceType;
@@ -2031,6 +2065,13 @@ declare namespace Webcast {
             title: string;
             email: string;
         }>;
+        bannerDetails?: {
+            isEnabled: boolean;
+            /**
+             * Maximum allowed banners are five
+             */
+            banners: Array<Banner.Request>;
+        };
         viewerIdEnabled?: boolean;
         /**
          * Default=false. If accessControl is set to Public and 'EDIT PUBLIC REG. PAGE CONSENT VERBIAGE' is enabled on the account. When true, you can customize the consent verbiage for public attendees.
@@ -2110,6 +2151,10 @@ declare namespace Webcast {
         customFields?: Admin.CustomField[];
         emailToPreRegistrants?: boolean;
         attendeeJoinMethod: LiteralString<'Anonymous' | 'Registration'>;
+        bannerDetails?: {
+            isEnabled: boolean;
+            banners: Banner[];
+        };
         viewerIdEnabled: boolean;
         externalPresenters: Array<{
             name: string;
@@ -2302,6 +2347,21 @@ declare namespace GuestRegistration {
         sortDirection?: Rev.SortDirection;
         size?: number;
     }
+}
+interface Banner {
+    id: string;
+    /** Provides a description of the banner for the attendee. */
+    name: string;
+    /** The message that displays in the banner. */
+    message: string;
+    /** The link/URL that opens when clicked in the banner. */
+    link?: string;
+    /** Only pushMethod == Manual type banners are enabled/disabled. At end banners appear when the webcast ends. */
+    isEnabled?: boolean;
+    pushMethod: LiteralString<'Manual' | 'AtEnd'>;
+}
+declare namespace Banner {
+    type Request = Omit<Banner, 'id'>;
 }
 
 interface Zone {
@@ -3103,6 +3163,11 @@ declare function webcastAPIFactory(rev: RevClient): {
     updateGuestRegistration(eventId: string, registrationId: string, registration: GuestRegistration.Request): Promise<void>;
     patchGuestRegistration(eventId: string, registrationId: string, registration: Partial<GuestRegistration.Request>): Promise<void>;
     deleteGuestRegistration(eventId: string, registrationId: string): Promise<void>;
+    listBanners(eventId: string): Promise<Banner[]>;
+    addBanner(eventId: string, banner: Banner.Request): Promise<Banner>;
+    setBannerStatus(eventId: string, bannerId: string, isEnabled: boolean): Promise<void>;
+    updateBanner(eventId: string, banner: Banner): Promise<Banner>;
+    deleteBanner(eventId: string, bannerId: string): Promise<void>;
 };
 
 declare function zonesAPIFactory(rev: RevClient): {

@@ -2758,6 +2758,23 @@ function webcastAPIFactory(rev) {
     },
     deleteGuestRegistration(eventId, registrationId) {
       return rev.delete(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
+    },
+    async listBanners(eventId) {
+      const { banners } = await rev.get(`/api/v2/scheduled-events/${eventId}/banners`);
+      return banners || [];
+    },
+    addBanner(eventId, banner) {
+      return rev.post(`/api/v2/scheduled-events/${eventId}/banner`, banner);
+    },
+    setBannerStatus(eventId, bannerId, isEnabled) {
+      return rev.put(`/api/v2/scheduled-events/${eventId}/banner/${bannerId}/status`, { isEnabled });
+    },
+    updateBanner(eventId, banner) {
+      const { id, ...payload } = banner;
+      return rev.put(`/api/v2/scheduled-events/${eventId}/banner/${id}`, payload);
+    },
+    deleteBanner(eventId, bannerId) {
+      return rev.delete(`/api/v2/scheduled-events/${eventId}/banner/${bannerId}`);
     }
   };
   return webcastAPI;
