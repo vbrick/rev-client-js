@@ -78,6 +78,9 @@ export namespace Webcast {
         isSecureRtmp?: boolean;
         /** only valid for edit request - Specifies if the exiting RTMP based webcast URL and Key needs to be regenerated */
         regenerateRtmpUrlAndKey?: boolean;
+        /**
+         * If this is an MS Teams event then the URL to the MS Teams meeting.
+         */
         vcMicrosoftTeamsMeetingUrl?: string;
         /** This field is required to create/edit WebexLiveStream event. */
         videoSourceType?: VideoSourceType;
@@ -150,6 +153,14 @@ export namespace Webcast {
          */
         presenterIds?: string[];
         externalPresenters?: Array<{ name: string, title: string, email: string }>;
+
+        bannerDetails?: {
+            isEnabled: boolean;
+            /**
+             * Maximum allowed banners are five
+             */
+            banners: Array<Banner.Request>
+        }
         viewerIdEnabled?: boolean;
 
         /**
@@ -232,6 +243,10 @@ export namespace Webcast {
         customFields?: Admin.CustomField[];
         emailToPreRegistrants?: boolean;
         attendeeJoinMethod: LiteralString<'Anonymous' | 'Registration'>;
+        bannerDetails?: {
+            isEnabled: boolean;
+            banners: Banner[];
+        }
         viewerIdEnabled: boolean;
         externalPresenters: Array<{
             name: string;
@@ -431,4 +446,20 @@ export namespace GuestRegistration {
         sortDirection?: Rev.SortDirection,
         size?: number
     }
+}
+
+export interface Banner {
+    id: string;
+    /** Provides a description of the banner for the attendee. */
+    name: string;
+    /** The message that displays in the banner. */
+    message: string;
+    /** The link/URL that opens when clicked in the banner. */
+    link?: string;
+    /** Only pushMethod == Manual type banners are enabled/disabled. At end banners appear when the webcast ends. */
+    isEnabled?: boolean;
+    pushMethod: LiteralString<'Manual' | 'AtEnd'>;
+}
+export namespace Banner {
+    export type Request = Omit<Banner, 'id'>;
 }

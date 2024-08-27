@@ -2,6 +2,7 @@
 
 ### Features
 
+* Rev 7.60 features, including Webcast Banner endpoints
 * Added `util.setPolyfills` to allow overriding the `fetch` implementation used by this library.
 * Added `@vbrick/rev-client/node-fetch` entry point to explicly use the `node-fetch` polyfill (which is still used by default)
 
