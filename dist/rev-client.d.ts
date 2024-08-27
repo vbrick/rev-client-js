@@ -359,7 +359,7 @@ declare namespace Rev {
     }
     type SortDirection = LiteralString<'asc' | 'desc'>;
     type FileUploadType = string | File | Blob | AsyncIterable<any>;
-    interface UploadFileOptions {
+    interface UploadFileOptions extends Rev.RequestOptions {
         /** specify filename of video as reported to Rev */
         filename?: string;
         /** specify content type of video */
@@ -368,8 +368,8 @@ declare namespace Rev {
         contentLength?: number;
         /** node-only - bypass dealing with content length and just upload as transfer-encoding: chunked */
         useChunkedTransfer?: boolean;
-        /** An AbortSignal to set request's signal. */
-        signal?: AbortSignal | null;
+        /** Default content type to use if cannot be determined from input blob/filename */
+        defaultContentType?: string;
     }
 }
 
@@ -464,8 +464,17 @@ declare namespace Video {
         tags?: string[];
         /**  */
         isActive?: boolean;
+        /**
+         * @default {false}
+         */
         enableRatings?: boolean;
+        /**
+         * @default {false}
+         */
         enableDownloads?: boolean;
+        /**
+         * @default {false}
+         */
         enableComments?: boolean;
         enableExternalApplicationAccess?: boolean;
         enableExternalViewersAccess?: boolean;
@@ -501,12 +510,33 @@ declare namespace Video {
          */
         viewerIdEnabled?: boolean;
         /**
+         * When chapter images exist, the video playback can be enabled to show or hide the images by default.
+         */
+        enableAutoShowChapterImages?: boolean;
+        /**
          * Retain the total views count from an outside system as an optional param.
-
          */
         legacyViewCount?: number;
+        /**
+         * Transcribe the video once the upload is complete.
+         */
+        postUploadActions?: {
+            /**
+             * Language code. View Supported Languages for source languages in Technical Requirements.
+             */
+            transcribeLanguageId: string;
+            /**
+             * Creates AI-generated metadata for a given video based on the type specified. You must specify the field type you want to generate (description/title/tags/chapters).
+             * This feature requires English transcription and must also be enabled for your Rev account.
+             */
+            metadataGenerationFields?: Array<LiteralString<'title' | 'description' | 'tags' | 'chapters'>>;
+        };
     }
-    type UpdateRequest = Pick<Video.UploadMetadata, 'title' | 'description' | 'categories' | 'tags' | 'isActive' | 'publishDate' | 'enableRatings' | 'enableDownloads' | 'enableComments' | 'enableExternalApplicationAccess' | 'enableExternalViewersAccess' | 'videoAccessControl' | 'accessControlEntities' | 'password' | 'customFields' | 'unlisted' | 'userTags' | 'owner' | 'viewerIdEnabled'> & {
+    type UpdateRequest = Omit<Video.UploadMetadata, 'uploader' | 'categoryIds' | 'doNotTranscode' | 'is360' | 'sourceType' | 'legacyViewCount' | 'postUploadActions'> & {
+        /**
+         * List of category IDs. If you use categoryIds and they do not exist/are incorrect, the request is rejected. The request is also rejected if you do not have contribute rights to a restricted category and you attempt to add/edit or otherwise modify it.
+         */
+        categories?: string;
         audioTracks?: Array<{
             track: number;
             languageId: string;
@@ -689,6 +719,7 @@ declare namespace Video {
         };
         hasAudioOnly: boolean;
         viewerIdEnabled: boolean;
+        enableAutoShowChapterImages: boolean;
     }
     interface PatchRequest {
         title?: string;
@@ -937,7 +968,9 @@ declare namespace Video {
             title?: string;
             imageFile?: Rev.FileUploadType;
             /** set filename/contenttype or other options for appended file */
-            uploadOptions?: Rev.UploadFileOptions;
+            uploadOptions?: Rev.UploadFileOptions & {
+                contentType?: 'image/gif' | 'image/jpeg' | 'image/png';
+            };
         }
     }
     interface SupplementalFile {
@@ -1962,6 +1995,9 @@ declare namespace Webcast {
         isSecureRtmp?: boolean;
         /** only valid for edit request - Specifies if the exiting RTMP based webcast URL and Key needs to be regenerated */
         regenerateRtmpUrlAndKey?: boolean;
+        /**
+         * If this is an MS Teams event then the URL to the MS Teams meeting.
+         */
         vcMicrosoftTeamsMeetingUrl?: string;
         /** This field is required to create/edit WebexLiveStream event. */
         videoSourceType?: VideoSourceType;
@@ -2029,6 +2065,13 @@ declare namespace Webcast {
             title: string;
             email: string;
         }>;
+        bannerDetails?: {
+            isEnabled: boolean;
+            /**
+             * Maximum allowed banners are five
+             */
+            banners: Array<Banner.Request>;
+        };
         viewerIdEnabled?: boolean;
         /**
          * Default=false. If accessControl is set to Public and 'EDIT PUBLIC REG. PAGE CONSENT VERBIAGE' is enabled on the account. When true, you can customize the consent verbiage for public attendees.
@@ -2108,6 +2151,10 @@ declare namespace Webcast {
         customFields?: Admin.CustomField[];
         emailToPreRegistrants?: boolean;
         attendeeJoinMethod: LiteralString<'Anonymous' | 'Registration'>;
+        bannerDetails?: {
+            isEnabled: boolean;
+            banners: Banner[];
+        };
         viewerIdEnabled: boolean;
         externalPresenters: Array<{
             name: string;
@@ -2300,6 +2347,21 @@ declare namespace GuestRegistration {
         sortDirection?: Rev.SortDirection;
         size?: number;
     }
+}
+interface Banner {
+    id: string;
+    /** Provides a description of the banner for the attendee. */
+    name: string;
+    /** The message that displays in the banner. */
+    message: string;
+    /** The link/URL that opens when clicked in the banner. */
+    link?: string;
+    /** Only pushMethod == Manual type banners are enabled/disabled. At end banners appear when the webcast ends. */
+    isEnabled?: boolean;
+    pushMethod: LiteralString<'Manual' | 'AtEnd'>;
+}
+declare namespace Banner {
+    type Request = Omit<Banner, 'id'>;
 }
 
 interface Zone {
@@ -2703,7 +2765,7 @@ declare function groupAPIFactory(rev: RevClient): {
         error?: Error;
     }>): SearchRequest<User & {
         userId: string;
-        error?: Error | undefined;
+        error?: Error;
     }>;
 };
 
@@ -2764,7 +2826,7 @@ type PresentationChaptersOptions = Rev.RequestOptions & Rev.UploadFileOptions & 
 type TranscriptionOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
     contentType?: 'text/plain' | 'application/x-subrip';
 };
-type ChaptersOptions = Rev.RequestOptions & Omit<Rev.UploadFileOptions, 'filename' | 'contentLength'> & {
+type SupplementalOptions = Rev.RequestOptions & Omit<Rev.UploadFileOptions, 'filename' | 'contentLength'> & {
     contentType?: 'application/x-7z-compressed' | 'text/csv' | 'application/msword' | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' | 'image/gif' | 'image/jpeg' | 'application/pdf' | 'image/png' | 'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation' | 'application/x-rar-compressed' | 'image/svg+xml' | 'text/plain' | 'application/vnd.ms-excel' | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' | 'application/zip';
 };
 declare function uploadAPIFactory(rev: RevClient): {
@@ -2774,7 +2836,7 @@ declare function uploadAPIFactory(rev: RevClient): {
     video(file: Rev.FileUploadType, metadata?: Video.UploadMetadata, options?: Rev.UploadFileOptions): Promise<string>;
     replaceVideo(videoId: string, file: Rev.FileUploadType, options?: Rev.UploadFileOptions): Promise<void>;
     transcription(videoId: string, file: Rev.FileUploadType, language?: Transcription.SupportedLanguage, options?: TranscriptionOptions): Promise<void>;
-    supplementalFile(videoId: string, file: Rev.FileUploadType, options?: Rev.RequestOptions & Rev.UploadFileOptions): Promise<void>;
+    supplementalFile(videoId: string, file: Rev.FileUploadType, options?: SupplementalOptions): Promise<void>;
     /**
      *
      * @param videoId id of video to add chapters to
@@ -2783,7 +2845,7 @@ declare function uploadAPIFactory(rev: RevClient): {
      *               append = PUT/add or edit without removing existing
      * @param options  additional upload + request options
      */
-    chapters(videoId: string, chapters: Video.Chapter.Request[], action?: 'append' | 'replace', options?: ChaptersOptions): Promise<void>;
+    chapters(videoId: string, chapters: Video.Chapter.Request[], action?: "append" | "replace", options?: Rev.RequestOptions): Promise<void>;
     thumbnail(videoId: string, file: Rev.FileUploadType, options?: Rev.RequestOptions & Rev.UploadFileOptions): Promise<void>;
     presentationChapters(videoId: string, file: Rev.FileUploadType, options?: PresentationChaptersOptions): Promise<void>;
 };
@@ -2802,8 +2864,8 @@ declare function userAPIFactory(rev: RevClient): {
     delete(userId: string): Promise<void>;
     details: {
         (userId: string, options?: User.DetailsOptions): Promise<User>;
-        (username: string, type: 'username'): Promise<User>;
-        (email: string, type: 'email'): Promise<User>;
+        (username: string, type: "username"): Promise<User>;
+        (email: string, type: "email"): Promise<User>;
     };
     /**
      * Use the Details API to get information about currently logged in user
@@ -2861,11 +2923,11 @@ declare function userAPIFactory(rev: RevClient): {
         categories: string[];
         channels: string[];
     }>;
-    subscribe(id: string, type: LiteralString<'Channel' | 'Category'>): Promise<void>;
+    subscribe(id: string, type: LiteralString<"Channel" | "Category">): Promise<void>;
     /**
      * Unsubscribe from specific channel or category.
      */
-    unsubscribe(id: string, type: LiteralString<'Channel' | 'Category'>): Promise<void>;
+    unsubscribe(id: string, type: LiteralString<"Channel" | "Category">): Promise<void>;
     getNotifications(unread?: boolean): Promise<{
         count: number;
         notifications: User.Notification[];
@@ -2879,10 +2941,10 @@ declare function userAPIFactory(rev: RevClient): {
 };
 
 declare function parseOptions(options: Video.VideoReportOptions): {
-    maxResults?: number | undefined;
+    maxResults?: number;
     onProgress?: ((items: Video.VideoReportEntry[], current: number, total?: number | undefined) => void) | undefined;
-    onError?: ((err: Error | ScrollError) => void) | undefined;
-    onScrollError?: ((err: ScrollError) => void) | undefined;
+    onError?: (err: Error | ScrollError) => void;
+    onScrollError?: (err: ScrollError) => void;
     signal?: AbortSignal | undefined;
     startDate: Date;
     endDate: Date;
@@ -2940,40 +3002,40 @@ declare function videoAPIFactory(rev: RevClient): {
      * @param videoId
      * @param options
      */
-    waitTranscode(videoId: string, options: Video.WaitTranscodeOptions, requestOptions?: Rev.RequestOptions): Promise<Video.StatusResponse>;
-    listExternalAccess(videoId: string, q?: string | undefined, options?: Rev.SearchOptions<ExternalAccess> | undefined): Rev.ISearchRequest<ExternalAccess>;
+    waitTranscode(videoId: string, options?: Video.WaitTranscodeOptions, requestOptions?: Rev.RequestOptions): Promise<Video.StatusResponse>;
+    listExternalAccess(videoId: string, q?: string, options?: Rev.SearchOptions<ExternalAccess>): Rev.ISearchRequest<ExternalAccess>;
     createExternalAccess(videoId: string, request: ExternalAccess.Request): Promise<void>;
     renewExternalAccess(videoId: string, request: Pick<ExternalAccess.Request, "emails" | "noEmail">): Promise<ExternalAccess.RenewResponse>;
     deleteExternalAccess(videoId: string, request: Pick<ExternalAccess.Request, "emails">): Promise<void>;
     revokeExternalAccess(videoId: string, request: Pick<ExternalAccess.Request, "emails">): Promise<void>;
     report: {
-        (options?: Video.VideoReportOptions | undefined): VideoReportRequest;
-        (videoId: string, options?: Video.VideoReportOptions | undefined): VideoReportRequest;
+        (options?: Video.VideoReportOptions): VideoReportRequest;
+        (videoId: string, options?: Video.VideoReportOptions): VideoReportRequest;
     };
     uniqueSessionsReport(videoId: string, options?: Video.UniqueSessionReportOptions): VideoReportRequest;
     summaryStatistics: {
-        (videoId: string, startDate?: undefined, endDate?: undefined, options?: Rev.RequestOptions | undefined): Promise<Video.SummaryStatistics>;
-        (videoId: string, startDate: string | Date, endDate?: undefined, options?: Rev.RequestOptions | undefined): Promise<Video.SummaryStatistics>;
-        (videoId: string, startDate: string | Date, endDate: string | Date, options?: Rev.RequestOptions | undefined): Promise<Video.SummaryStatistics>;
+        (videoId: string, startDate?: undefined, endDate?: undefined, options?: Rev.RequestOptions): Promise<Video.SummaryStatistics>;
+        (videoId: string, startDate: Date | string, endDate?: undefined, options?: Rev.RequestOptions): Promise<Video.SummaryStatistics>;
+        (videoId: string, startDate: Date | string, endDate: Date | string, options?: Rev.RequestOptions): Promise<Video.SummaryStatistics>;
     };
     download: <T = ReadableStream<any>>(videoId: string, options?: Rev.RequestOptions) => Promise<Rev.Response<T>>;
     downloadChapter: (chapter: Video.Chapter, options?: Rev.RequestOptions) => Promise<Blob>;
     downloadSupplemental: {
-        <T_1 = Blob>(file: Video.SupplementalFile, options?: Rev.RequestOptions | undefined): Promise<T_1>;
-        <T_2 = Blob>(videoId: string, fileId: string, options?: Rev.RequestOptions | undefined): Promise<T_2>;
+        <T = Blob>(file: Video.SupplementalFile, options?: Rev.RequestOptions): Promise<T>;
+        <T = Blob>(videoId: string, fileId: string, options?: Rev.RequestOptions): Promise<T>;
     };
     downloadThumbnail: {
-        <T_3 = Blob>(thumbnailUrl: string, options?: Rev.RequestOptions | undefined): Promise<T_3>;
-        <T_4 = Blob>(query: {
+        <T = Blob>(thumbnailUrl: string, options?: Rev.RequestOptions): Promise<T>;
+        <T = Blob>(query: {
             imageId: string;
-        }, options?: Rev.RequestOptions | undefined): Promise<T_4>;
-        <T_5 = Blob>(query: {
+        }, options?: Rev.RequestOptions): Promise<T>;
+        <T = Blob>(query: {
             videoId: string;
-        }, options?: Rev.RequestOptions | undefined): Promise<T_5>;
+        }, options?: Rev.RequestOptions): Promise<T>;
     };
     downloadTranscription: {
-        <T_6 = Blob>(transcription: Transcription, options?: Rev.RequestOptions | undefined): Promise<T_6>;
-        <T_7 = Blob>(videoId: string, language: string, options?: Rev.RequestOptions | undefined): Promise<T_7>;
+        <T = Blob>(transcription: Transcription, options?: Rev.RequestOptions): Promise<T>;
+        <T = Blob>(videoId: string, language: string, options?: Rev.RequestOptions): Promise<T>;
     };
     /**
      * This is an example of using the video Patch API to only update a single field
@@ -2986,8 +3048,8 @@ declare function videoAPIFactory(rev: RevClient): {
      * @param videoId - id of video to update
      * @param customField - the custom field object (with id and value)
      */
-    setCustomField(videoId: string, customField: Pick<Admin.CustomField, 'id' | 'value'>): Promise<void>;
-    delete(videoId: string, options: Rev.RequestOptions): Promise<void>;
+    setCustomField(videoId: string, customField: Pick<Admin.CustomField, "id" | "value">): Promise<void>;
+    delete(videoId: string, options?: Rev.RequestOptions): Promise<void>;
     /**
      * get processing status of a video
      * @param videoId
@@ -3101,6 +3163,11 @@ declare function webcastAPIFactory(rev: RevClient): {
     updateGuestRegistration(eventId: string, registrationId: string, registration: GuestRegistration.Request): Promise<void>;
     patchGuestRegistration(eventId: string, registrationId: string, registration: Partial<GuestRegistration.Request>): Promise<void>;
     deleteGuestRegistration(eventId: string, registrationId: string): Promise<void>;
+    listBanners(eventId: string): Promise<Banner[]>;
+    addBanner(eventId: string, banner: Banner.Request): Promise<Banner>;
+    setBannerStatus(eventId: string, bannerId: string, isEnabled: boolean): Promise<void>;
+    updateBanner(eventId: string, banner: Banner): Promise<Banner>;
+    deleteBanner(eventId: string, bannerId: string): Promise<void>;
 };
 
 declare function zonesAPIFactory(rev: RevClient): {
@@ -3266,10 +3333,155 @@ declare function rateLimit<T extends (...args: any) => any>(fn: T | RateLimitOpt
 declare function getMimeForExtension(extension?: string, defaultType?: string): string;
 declare function getExtensionForMime(contentType: string, defaultExtension?: string): string;
 
+/**
+ * used in OAuth - get random verifier string
+ * @param byteLength
+ */
+declare function randomValues(byteLength: number): string;
+/**
+ * sha256 hash function for oauth2 pkce
+ * @param value
+ * @returns
+ */
+declare function sha256Hash(value: string): Promise<string>;
+/**
+ * used to sign the verifier in OAuth workflow
+ */
+declare function hmacSign(message: string, secret: string): Promise<string>;
+declare const polyfills: {
+    AbortController: {
+        new (): AbortController;
+        prototype: AbortController;
+    };
+    AbortSignal: {
+        new (): AbortSignal;
+        prototype: AbortSignal;
+        abort(reason?: any): AbortSignal;
+        any(signals: AbortSignal[]): AbortSignal;
+        timeout(milliseconds: number): AbortSignal;
+    };
+    createAbortError(message: string): Error;
+    fetch: typeof fetch;
+    FormData: {
+        new (form?: HTMLFormElement, submitter?: HTMLElement | null): FormData;
+        prototype: FormData;
+    };
+    File: {
+        new (fileBits: BlobPart[], fileName: string, options?: FilePropertyBag): File;
+        prototype: File;
+    };
+    Headers: {
+        new (init?: HeadersInit): Headers;
+        prototype: Headers;
+    };
+    Request: {
+        new (input: RequestInfo | URL, init?: RequestInit): Request;
+        prototype: Request;
+    };
+    Response: {
+        new (body?: BodyInit | null, init?: ResponseInit): Response;
+        prototype: Response;
+        error(): Response;
+        json(data: any, init?: ResponseInit): Response;
+        redirect(url: string | URL, status?: number): Response;
+    };
+    uploadParser: {
+        string(value: string, options: Rev.UploadFileOptions): Promise<{
+            file: Blob | File;
+            options: {
+                filename: string;
+                contentType: string;
+                contentLength?: number;
+                useChunkedTransfer?: boolean;
+                defaultContentType?: string;
+                responseType?: Rev.ResponseType;
+                throwHttpErrors?: boolean;
+                body?: (BodyInit | null) | undefined;
+                cache?: RequestCache | undefined;
+                credentials?: RequestCredentials | undefined;
+                headers?: HeadersInit | undefined;
+                integrity?: string | undefined;
+                keepalive?: boolean | undefined;
+                method?: string | undefined;
+                mode?: RequestMode | undefined;
+                priority?: RequestPriority | undefined;
+                redirect?: RequestRedirect | undefined;
+                referrer?: string | undefined;
+                referrerPolicy?: ReferrerPolicy | undefined;
+                signal?: (AbortSignal | null) | undefined;
+                window?: null | undefined;
+            };
+        }>;
+        stream(value: AsyncIterable<Uint8Array>, options: Rev.UploadFileOptions): Promise<never>;
+        blob(value: Blob | File, options: Rev.UploadFileOptions): Promise<{
+            file: Blob | File;
+            options: {
+                filename: string;
+                contentType: string;
+                contentLength?: number;
+                useChunkedTransfer?: boolean;
+                defaultContentType?: string;
+                responseType?: Rev.ResponseType;
+                throwHttpErrors?: boolean;
+                body?: (BodyInit | null) | undefined;
+                cache?: RequestCache | undefined;
+                credentials?: RequestCredentials | undefined;
+                headers?: HeadersInit | undefined;
+                integrity?: string | undefined;
+                keepalive?: boolean | undefined;
+                method?: string | undefined;
+                mode?: RequestMode | undefined;
+                priority?: RequestPriority | undefined;
+                redirect?: RequestRedirect | undefined;
+                referrer?: string | undefined;
+                referrerPolicy?: ReferrerPolicy | undefined;
+                signal?: (AbortSignal | null) | undefined;
+                window?: null | undefined;
+            };
+        }>;
+        parse(value: Rev.FileUploadType, options: Rev.UploadFileOptions): Promise<{
+            file: Blob | File;
+            options: {
+                filename: string;
+                contentType: string;
+                contentLength?: number;
+                useChunkedTransfer?: boolean;
+                defaultContentType?: string;
+                responseType?: Rev.ResponseType;
+                throwHttpErrors?: boolean;
+                body?: (BodyInit | null) | undefined;
+                cache?: RequestCache | undefined;
+                credentials?: RequestCredentials | undefined;
+                headers?: HeadersInit | undefined;
+                integrity?: string | undefined;
+                keepalive?: boolean | undefined;
+                method?: string | undefined;
+                mode?: RequestMode | undefined;
+                priority?: RequestPriority | undefined;
+                redirect?: RequestRedirect | undefined;
+                referrer?: string | undefined;
+                referrerPolicy?: ReferrerPolicy | undefined;
+                signal?: (AbortSignal | null) | undefined;
+                window?: null | undefined;
+            };
+        }>;
+    };
+    randomValues: typeof randomValues;
+    sha256Hash: typeof sha256Hash;
+    hmacSign: typeof hmacSign;
+    beforeFileUploadRequest(form: FormData, headers: Headers, uploadOptions: Rev.UploadFileOptions, options: Rev.RequestOptions): FormData | undefined;
+    asPlatformStream<TIn = any, TOut = TIn>(stream: TIn): TOut;
+    asWebStream<TIn = any>(stream: TIn): ReadableStream;
+};
+
+type RevPolyfills = typeof polyfills;
+declare function setPolyfills(overrideCallback: (polyfills: RevPolyfills) => Promise<void> | void): void;
+
 declare const utils: {
     rateLimit: typeof rateLimit;
     getExtensionForMime: typeof getExtensionForMime;
     getMimeForExtension: typeof getMimeForExtension;
+    setPolyfills: typeof setPolyfills;
 };
 
 export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, ExternalAccess, Group, GuestRegistration, OAuth, Playlist, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, Transcription, User, Video, Webcast, Zone, RevClient as default, utils };

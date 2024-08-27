@@ -77,8 +77,17 @@ export namespace Video {
         /**  */
         isActive?: boolean;
 
+        /**
+         * @default {false}
+         */
         enableRatings?: boolean;
+        /**
+         * @default {false}
+         */
         enableDownloads?: boolean;
+        /**
+         * @default {false}
+         */
         enableComments?: boolean;
         enableExternalApplicationAccess?: boolean;
         enableExternalViewersAccess?: boolean;
@@ -124,12 +133,35 @@ export namespace Video {
         viewerIdEnabled?: boolean;
 
         /**
-         * Retain the total views count from an outside system as an optional param.
+         * When chapter images exist, the video playback can be enabled to show or hide the images by default.
+         */
+        enableAutoShowChapterImages?: boolean;
 
+        /**
+         * Retain the total views count from an outside system as an optional param.
          */
         legacyViewCount?: number;
+
+        /**
+         * Transcribe the video once the upload is complete.
+         */
+        postUploadActions?: {
+            /**
+             * Language code. View Supported Languages for source languages in Technical Requirements.
+             */
+            transcribeLanguageId: string;
+            /**
+             * Creates AI-generated metadata for a given video based on the type specified. You must specify the field type you want to generate (description/title/tags/chapters).
+             * This feature requires English transcription and must also be enabled for your Rev account.
+             */
+            metadataGenerationFields?: Array<LiteralString<'title' | 'description' | 'tags' | 'chapters'>>
+        }
     }
-    export type UpdateRequest = Pick<Video.UploadMetadata, 'title' | 'description' | 'categories' | 'tags' | 'isActive' | 'publishDate' | 'enableRatings' | 'enableDownloads' | 'enableComments' | 'enableExternalApplicationAccess' | 'enableExternalViewersAccess' | 'videoAccessControl' | 'accessControlEntities' | 'password' | 'customFields' | 'unlisted' | 'userTags' | 'owner' | 'viewerIdEnabled'> & {
+    export type UpdateRequest = Omit<Video.UploadMetadata, 'uploader' | 'categoryIds' | 'doNotTranscode' | 'is360' | 'sourceType' | 'legacyViewCount' | 'postUploadActions'> & {
+        /**
+         * List of category IDs. If you use categoryIds and they do not exist/are incorrect, the request is rejected. The request is also rejected if you do not have contribute rights to a restricted category and you attempt to add/edit or otherwise modify it.
+         */
+        categories?: string;
         audioTracks?: Array<{ track: number, languageId: string }>;
         expirationDate?: string;
         expirationAction?: Video.ExpirationAction;
@@ -307,7 +339,7 @@ export namespace Video {
         }
         hasAudioOnly: boolean;
         viewerIdEnabled: boolean;
-
+        enableAutoShowChapterImages: boolean;
 
     }
 
@@ -577,7 +609,11 @@ export namespace Video {
             title?: string;
             imageFile?: Rev.FileUploadType;
             /** set filename/contenttype or other options for appended file */
-            uploadOptions?: Rev.UploadFileOptions;
+            uploadOptions?: Rev.UploadFileOptions & {
+                contentType?: 'image/gif'
+                            | 'image/jpeg'
+                            | 'image/png'
+            };
         }
     }
 

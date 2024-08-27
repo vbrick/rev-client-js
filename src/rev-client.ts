@@ -1,7 +1,7 @@
 import { RevError } from './rev-error';
 import { RateLimitEnum, isPlainObject, retry } from './utils';
 import * as api from './api';
-import polyfills from './interop';
+import polyfills, {shouldInitialize, onInitialize} from './interop/polyfills';
 import { Rev } from './types';
 import { decodeBody } from './utils/request-utils';
 import { createSession } from './rev-session';
@@ -91,6 +91,9 @@ export class RevClient {
      * make a REST request
      */
     async request<T = any>(method: Rev.HTTPMethod, endpoint: string, data: any = undefined, options: Rev.RequestOptions = { }): Promise<Rev.Response<T>> {
+        // support for dynamically loading fetch polyfill
+        if (shouldInitialize()) await onInitialize();
+
         const url = new URL(endpoint, this.url);
         // ensure url matches Rev url, to avoid sending authorization header elsewhere
         if (url.origin !== this.url) {

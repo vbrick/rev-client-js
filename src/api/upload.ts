@@ -1,18 +1,28 @@
+import polyfills from '../interop/polyfills';
 import type { RevClient } from '../rev-client';
 import { Rev, Transcription, Video } from '../types';
-import { appendFileToForm, appendJSONToForm, uploadMultipart } from '../utils/file-utils';
-import polyfills from '../interop';
 import { RateLimitEnum } from '../utils';
+import { appendFileToForm, appendJSONToForm, uploadMultipart } from '../utils/multipart-utils';
 
-function splitOptions(options: Rev.UploadFileOptions) {
+function splitOptions(options: Rev.UploadFileOptions & Rev.RequestOptions, defaultType?: string) {
     const {
-        signal,
-        ...uploadOptions
+        filename,
+        contentType,
+        contentLength,
+        useChunkedTransfer,
+        defaultContentType = defaultType,
+        ...requestOptions
     } = options;
 
     return {
-        requestOptions: signal ? { signal } : {},
-        uploadOptions
+        requestOptions,
+        uploadOptions: {
+            filename,
+            contentType,
+            contentLength,
+            useChunkedTransfer,
+            defaultContentType
+        }
     };
 }
 
@@ -26,7 +36,7 @@ type TranscriptionOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
                 | 'application/x-subrip';
 };
 
-type ChaptersOptions = Rev.RequestOptions & Omit<Rev.UploadFileOptions, 'filename' | 'contentLength'> & {
+type SupplementalOptions = Rev.RequestOptions & Omit<Rev.UploadFileOptions, 'filename' | 'contentLength'> & {
     contentType?: 'application/x-7z-compressed'
                 | 'text/csv'
                 | 'application/msword'
@@ -59,7 +69,7 @@ export default function uploadAPIFactory(rev: RevClient) {
             metadata: Video.UploadMetadata = { uploader: rev.session.username ?? '' },
             options: Rev.UploadFileOptions = {}): Promise<string> {
 
-            const { uploadOptions, requestOptions } = splitOptions(options);
+            const { uploadOptions, requestOptions } = splitOptions(options, 'video/mp4');
 
             // prepare payload
             const form = new FormData();
@@ -89,7 +99,7 @@ export default function uploadAPIFactory(rev: RevClient) {
             return videoId;
         },
         async replaceVideo(videoId: string, file: Rev.FileUploadType, options: Rev.UploadFileOptions = {}): Promise<void> {
-            const { uploadOptions, requestOptions } = splitOptions(options);
+            const { uploadOptions, requestOptions } = splitOptions(options, 'video/mp4');
             const form = new FormData();
             const filePayload = await appendFileToForm(form, 'VideoFile', file, uploadOptions);
 
@@ -100,7 +110,7 @@ export default function uploadAPIFactory(rev: RevClient) {
             await uploadMultipart(rev, 'PUT', `/api/v2/uploads/videos/${videoId}`, form, filePayload, requestOptions);
         },
         async transcription(videoId: string, file: Rev.FileUploadType, language: Transcription.SupportedLanguage = 'en', options: TranscriptionOptions = { }): Promise<void> {
-            const { uploadOptions, requestOptions } = splitOptions(options);
+            const { uploadOptions, requestOptions } = splitOptions(options, 'text/plain');
 
             const form = new FormData();
             const lang = language.toLowerCase();
@@ -117,7 +127,7 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/transcription-files/${videoId}`, form, filePayload, requestOptions);
         },
-        async supplementalFile(videoId: string, file: Rev.FileUploadType, options: Rev.RequestOptions & Rev.UploadFileOptions = {}) {
+        async supplementalFile(videoId: string, file: Rev.FileUploadType, options: SupplementalOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options);
 
             const form = new FormData();
@@ -142,8 +152,8 @@ export default function uploadAPIFactory(rev: RevClient) {
          *               append = PUT/add or edit without removing existing
          * @param options  additional upload + request options
          */
-        async chapters(videoId: string, chapters: Video.Chapter.Request[], action: 'append' | 'replace' = 'replace', options: ChaptersOptions = {}) {
-            const { uploadOptions, requestOptions } = splitOptions(options);
+        async chapters(videoId: string, chapters: Video.Chapter.Request[], action: 'append' | 'replace' = 'replace', options: Rev.RequestOptions = {}) {
+            const { uploadOptions, requestOptions } = splitOptions(options, 'image/png');
 
             const form = new FormData();
 
@@ -181,7 +191,7 @@ export default function uploadAPIFactory(rev: RevClient) {
             await uploadMultipart(rev, method, `/api/v2/uploads/chapters/${videoId}`, form, uploadOptions, requestOptions);
         },
         async thumbnail(videoId: string, file: Rev.FileUploadType, options: Rev.RequestOptions & Rev.UploadFileOptions = {}) {
-            const { uploadOptions, requestOptions } = splitOptions(options);
+            const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
 
             const form = new FormData();
 
@@ -192,15 +202,15 @@ export default function uploadAPIFactory(rev: RevClient) {
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
         },
         async presentationChapters(videoId: string, file: Rev.FileUploadType, options: PresentationChaptersOptions = {}) {
-            const { uploadOptions, requestOptions } = splitOptions(options);
+            const { uploadOptions, requestOptions } = splitOptions(options, 'application/vnd.ms-powerpoint');
 
             const form = new FormData();
 
-            const filePayload = await appendFileToForm(form, 'ThumbnailFile', file, uploadOptions);
+            const filePayload = await appendFileToForm(form, 'PresentationFile', file, uploadOptions);
 
-            rev.log('info', `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+            rev.log('info', `Uploading presentation for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
 
-            await uploadMultipart(rev, 'POST', `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
+            await uploadMultipart(rev, 'POST', `/api/v2/uploads/video-presentations/${videoId}`, form, filePayload, requestOptions);
         }
     };
 
