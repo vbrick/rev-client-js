@@ -14,10 +14,11 @@ const LOCAL_PROTOCOLS = ['blob:', 'data:'];
 const FETCH_PROTOCOLS = ['http:', 'https:', ...LOCAL_PROTOCOLS];
 
 export const uploadParser = {
-    async string(value: string, options: Rev.UploadFileOptions) {
-        const isUrl = URL.canParse(value);
+    async string(value: string | URL, options: Rev.UploadFileOptions) {
         // file urls are supported by createReadStream, so make all inputs url
-        const url = isUrl
+        const url = value instanceof URL
+            ? value
+            : URL.canParse(value)
             ? new URL(value)
             : pathToFileURL(value);
 
@@ -38,7 +39,7 @@ export const uploadParser = {
         return uploadParser.stream(
             createReadStream(filepath),
             {
-                filename: path.basename(value),
+                filename: path.basename(`${value}`),
                 ...options
             }
         );
@@ -112,7 +113,7 @@ export const uploadParser = {
         });
     },
     async parse(value: Rev.FileUploadType, options: Rev.UploadFileOptions) {
-        if (typeof value === 'string') {
+        if (typeof value === 'string' || value instanceof URL) {
             return uploadParser.string(value, options);
         }
         if (value instanceof polyfills.Response) {

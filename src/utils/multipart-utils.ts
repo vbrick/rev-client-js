@@ -6,14 +6,18 @@ import { sanitizeUploadOptions } from './file-utils';
 import { isBlobLike } from './is-utils';
 
 export const uploadParser = {
-    async string(value: string, options: Rev.UploadFileOptions) {
-        if (!/^data|blob|file/.test(value)) {
+    async string(value: string | URL, options: Rev.UploadFileOptions) {
+        const url = value instanceof URL
+            ? value
+            : new URL(value, 'invalid://');
+
+        if (!/^data|blob|file/.test(url.protocol)) {
             throw new TypeError('Only Blob / DateURI URLs are supported');
         }
-        if (options.disableExternalResources && value.startsWith('file')) {
+        if (options.disableExternalResources && url.protocol === 'file:') {
             throw new Error('file: protocol not allowed');
         }
-        const file = await (await polyfills.fetch(value)).blob();
+        const file = await (await polyfills.fetch(url)).blob();
         return uploadParser.blob(file, options)
     },
     async stream(value: AsyncIterable<Uint8Array>, options: Rev.UploadFileOptions) {
@@ -61,7 +65,7 @@ export const uploadParser = {
         };
     },
     async parse(value: Rev.FileUploadType, options: Rev.UploadFileOptions) {
-        if (typeof value === 'string') {
+        if (typeof value === 'string' || value instanceof URL) {
             return uploadParser.string(value, options);
         }
         if (value instanceof polyfills.Response) {
