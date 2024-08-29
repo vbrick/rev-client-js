@@ -358,7 +358,7 @@ declare namespace Rev {
         done: boolean;
     }
     type SortDirection = LiteralString<'asc' | 'desc'>;
-    type FileUploadType = string | File | Blob | AsyncIterable<any>;
+    type FileUploadType = string | URL | File | Blob | Response<any> | AsyncIterable<any>;
     interface UploadFileOptions extends Rev.RequestOptions {
         /** specify filename of video as reported to Rev */
         filename?: string;
@@ -370,6 +370,12 @@ declare namespace Rev {
         useChunkedTransfer?: boolean;
         /** Default content type to use if cannot be determined from input blob/filename */
         defaultContentType?: string;
+        /**
+         * Block any loads of external resources (file paths/network fetch).
+         * If true then you must explicitly pass in Flie/Blob or ReadableStreams
+         * @default {false}
+         */
+        disableExternalResources?: boolean;
     }
 }
 
@@ -3386,7 +3392,7 @@ declare const polyfills: {
         redirect(url: string | URL, status?: number): Response;
     };
     uploadParser: {
-        string(value: string, options: Rev.UploadFileOptions): Promise<{
+        string(value: string | URL, options: Rev.UploadFileOptions): Promise<{
             file: Blob | File;
             options: {
                 filename: string;
@@ -3394,6 +3400,7 @@ declare const polyfills: {
                 contentLength?: number;
                 useChunkedTransfer?: boolean;
                 defaultContentType?: string;
+                disableExternalResources?: boolean;
                 responseType?: Rev.ResponseType;
                 throwHttpErrors?: boolean;
                 body?: (BodyInit | null) | undefined;
@@ -3412,7 +3419,60 @@ declare const polyfills: {
                 window?: null | undefined;
             };
         }>;
-        stream(value: AsyncIterable<Uint8Array>, options: Rev.UploadFileOptions): Promise<never>;
+        stream(value: AsyncIterable<Uint8Array>, options: Rev.UploadFileOptions): Promise<{
+            file: Blob | File;
+            options: {
+                filename: string;
+                contentType: string;
+                contentLength?: number;
+                useChunkedTransfer?: boolean;
+                defaultContentType?: string;
+                disableExternalResources?: boolean;
+                responseType?: Rev.ResponseType;
+                throwHttpErrors?: boolean;
+                body?: (BodyInit | null) | undefined;
+                cache?: RequestCache | undefined;
+                credentials?: RequestCredentials | undefined;
+                headers?: HeadersInit | undefined;
+                integrity?: string | undefined;
+                keepalive?: boolean | undefined;
+                method?: string | undefined;
+                mode?: RequestMode | undefined;
+                priority?: RequestPriority | undefined;
+                redirect?: RequestRedirect | undefined;
+                referrer?: string | undefined;
+                referrerPolicy?: ReferrerPolicy | undefined;
+                signal?: (AbortSignal | null) | undefined;
+                window?: null | undefined;
+            };
+        }>;
+        response(response: Response, options: Rev.UploadFileOptions): Promise<{
+            file: Blob | File;
+            options: {
+                filename: string;
+                contentType: string;
+                contentLength?: number;
+                useChunkedTransfer?: boolean;
+                defaultContentType?: string;
+                disableExternalResources?: boolean;
+                responseType?: Rev.ResponseType;
+                throwHttpErrors?: boolean;
+                body?: (BodyInit | null) | undefined;
+                cache?: RequestCache | undefined;
+                credentials?: RequestCredentials | undefined;
+                headers?: HeadersInit | undefined;
+                integrity?: string | undefined;
+                keepalive?: boolean | undefined;
+                method?: string | undefined;
+                mode?: RequestMode | undefined;
+                priority?: RequestPriority | undefined;
+                redirect?: RequestRedirect | undefined;
+                referrer?: string | undefined;
+                referrerPolicy?: ReferrerPolicy | undefined;
+                signal?: (AbortSignal | null) | undefined;
+                window?: null | undefined;
+            };
+        }>;
         blob(value: Blob | File, options: Rev.UploadFileOptions): Promise<{
             file: Blob | File;
             options: {
@@ -3421,6 +3481,7 @@ declare const polyfills: {
                 contentLength?: number;
                 useChunkedTransfer?: boolean;
                 defaultContentType?: string;
+                disableExternalResources?: boolean;
                 responseType?: Rev.ResponseType;
                 throwHttpErrors?: boolean;
                 body?: (BodyInit | null) | undefined;
@@ -3447,6 +3508,7 @@ declare const polyfills: {
                 contentLength?: number;
                 useChunkedTransfer?: boolean;
                 defaultContentType?: string;
+                disableExternalResources?: boolean;
                 responseType?: Rev.ResponseType;
                 throwHttpErrors?: boolean;
                 body?: (BodyInit | null) | undefined;

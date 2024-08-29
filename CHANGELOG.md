@@ -1,3 +1,10 @@
+## 0.22.1
+
+### Features
+
+* Uploads now support more input types (see README.md)
+* Upload options includes a `disableExternalResources` flag to avoid loading URLs or filepaths.
+
 ## 0.22.0
 
 ### Features

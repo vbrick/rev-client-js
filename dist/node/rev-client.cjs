@@ -131,14 +131,36 @@ function titleCase(val) {
 // src/utils/multipart-utils.ts
 var uploadParser = {
   async string(value, options) {
-    if (!/^data|blob|file/.test(value)) {
+    const url = value instanceof URL ? value : new URL(value, "invalid://");
+    if (!/^data|blob|file/.test(url.protocol)) {
       throw new TypeError("Only Blob / DateURI URLs are supported");
     }
-    const file = await (await polyfills_default.fetch(value)).blob();
+    if (options.disableExternalResources && url.protocol === "file:") {
+      throw new Error("file: protocol not allowed");
+    }
+    const file = await (await polyfills_default.fetch(url)).blob();
     return uploadParser.blob(file, options);
   },
   async stream(value, options) {
-    throw new TypeError("Only Blob / Files are supported for file uploads. Pass a File/Blob object");
+    const { contentType } = options;
+    if (!(value instanceof ReadableStream)) {
+      throw new TypeError("Only Blob / Files are supported for file uploads. Pass a File/Blob object");
+    }
+    const response = new Response(value, {
+      headers: contentType ? { "content-type": contentType } : {}
+    });
+    return uploadParser.response(response, options);
+  },
+  async response(response, options) {
+    const { body, headers } = response;
+    if (!response.ok || !body) {
+      const err = await RevError.create(response);
+      throw err;
+    }
+    return uploadParser.blob(
+      await response.blob(),
+      options
+    );
   },
   async blob(value, options) {
     let {
@@ -160,8 +182,11 @@ var uploadParser = {
     };
   },
   async parse(value, options) {
-    if (typeof value === "string") {
+    if (typeof value === "string" || value instanceof URL) {
       return uploadParser.string(value, options);
+    }
+    if (value instanceof polyfills_default.Response) {
+      return uploadParser.response(value, options);
     }
     if (!isBlobLike(value)) {
       throw new TypeError("Only Blob / Files are supported for file uploads. Pass a File/Blob object");
@@ -3642,13 +3667,29 @@ var import_web = require("stream/web");
 // src/interop/node-multipart-utils.ts
 var import_node_fs = require("fs");
 var import_node_path = __toESM(require("path"), 1);
+var import_node_url = require("url");
+var LOCAL_PROTOCOLS = ["blob:", "data:"];
+var FETCH_PROTOCOLS = ["http:", "https:", ...LOCAL_PROTOCOLS];
 var uploadParser2 = {
   async string(value, options) {
-    const input = (0, import_node_fs.createReadStream)(value);
-    return uploadParser2.stream(input, {
-      filename: import_node_path.default.basename(value),
-      ...options
-    });
+    const url = value instanceof URL ? value : URL.canParse(value) ? new URL(value) : (0, import_node_url.pathToFileURL)(value);
+    if (options.disableExternalResources && !LOCAL_PROTOCOLS.includes(url.protocol)) {
+      throw new Error(`${url.protocol} protocol not allowed`);
+    }
+    if (FETCH_PROTOCOLS.includes(url.protocol)) {
+      return uploadParser2.response(
+        await polyfills_default.fetch(url, options),
+        options
+      );
+    }
+    const filepath = url.protocol === "file:" ? url : value;
+    return uploadParser2.stream(
+      (0, import_node_fs.createReadStream)(filepath),
+      {
+        filename: import_node_path.default.basename(`${value}`),
+        ...options
+      }
+    );
   },
   async blob(value, options) {
     let {
@@ -3695,9 +3736,26 @@ var uploadParser2 = {
       }
     };
   },
+  async response(response, options) {
+    const { body, headers } = response;
+    if (!response.ok || !body) {
+      const err = await RevError.create(response);
+      throw err;
+    }
+    const contentLength = parseInt(headers.get("content-length") || "") || void 0;
+    const contentType = headers.get("content-type");
+    return uploadParser2.stream(body, {
+      ...options,
+      ...contentType && { contentType },
+      ...contentLength ? { contentLength } : { useChunkedTransfer: true }
+    });
+  },
   async parse(value, options) {
-    if (typeof value === "string") {
+    if (typeof value === "string" || value instanceof URL) {
       return uploadParser2.string(value, options);
+    }
+    if (value instanceof polyfills_default.Response) {
+      return uploadParser2.response(value, options);
     }
     if (isBlobLike(value) && !value[Symbol.asyncIterator]) {
       return uploadParser2.blob(value, options);
