@@ -219,5 +219,11 @@ export namespace Rev {
         useChunkedTransfer?: boolean;
         /** Default content type to use if cannot be determined from input blob/filename */
         defaultContentType?: string;
+        /**
+         * Block any loads of external resources (file paths/network fetch).
+         * If true then you must explicitly pass in Flie/Blob or ReadableStreams
+         * @default {false}
+         */
+        disableExternalResources?: boolean;
     }
 }

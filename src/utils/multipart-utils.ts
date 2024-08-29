@@ -10,6 +10,9 @@ export const uploadParser = {
         if (!/^data|blob|file/.test(value)) {
             throw new TypeError('Only Blob / DateURI URLs are supported');
         }
+        if (options.disableExternalResources && value.startsWith('file')) {
+            throw new Error('file: protocol not allowed');
+        }
         const file = await (await polyfills.fetch(value)).blob();
         return uploadParser.blob(file, options)
     },

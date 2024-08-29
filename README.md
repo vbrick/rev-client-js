@@ -429,13 +429,27 @@ Wrapper around the Use the [Get User Location Service](https://revdocs.vbrick.co
 
 All upload functions take in a `file` argument and an `options` argument.
 
-* `file`:  `string`, `stream.Readable` or `Blob` if using node.js. `File` if browser. If `string` *(and using node.js)* then treat as a file path and load the file from disk.
+* `file`: The actual upload data. The possible input options are: 
+
+| Type | Browser | Node | Notes |
+| ---- | ------- | ---- | ----- |
+| `File` / `Blob` | ✔ | ✔ | |
+| `"data:"` / `"blob:"` urls | Passed to `fetch()` | ✔ | Treated like a `Blob` |
+| `"file:"` urls | Passed to `fetch()` | Read using `fs.createReadStream()` | **Follows browser/user agent fetch() security policy** |
+| `"http:"` / `"https:"` urls | ❌ | ✔ | On node.js these are passed to `fetch()`, so could load remote resources |
+| relative/absolute path (`string`) | ❌ | Read using `fs.createReadStream()` | **Follows filesystem permissions** |
+| Web Stream (`Readable Stream`), fetch `Response` | converted to `Blob` | ✔ | On browsers entire stream is read into memory. For node.js the stream is piped |
+| Node.js Streams *(including `http.IncomingResponse`)* | N/A | ✔ | Piped through to request. |
+
 * `options`:
   * Any `fetch` options *(most importantly `signal` for passing in an `AbortSignal`)*
   * `filename?`: `string` - the filename used in the `Content-Disposition` field header.
   * `contentType?`: `string` - the content type of the file
   * `contentLength?`: `number` - the known content length of the file. This is rarely needed, but can be used if passing along a HTTP Stream
   * `useChunkedTransfer?`: `boolean` - tell upload to not calculate a content length automatically, and just send as `Transfer-Encoding: chunked`
+  * `disableExternalResources?`: `boolean` - if `true` then reject any `string` argument that would read from the network/disk *(only `blob:` or `data:` URLs allowed)*. Default is `false` for backwards compatibility
+
+**SECURITY REMINDER** - Passing in strings has the chance to trigger a remote request, and on node.js/deno/bun could read arbitrary files on the disk. Be sure to sanitize your inputs. Optionally, use the `options.disableExternalResources` to only allow `data:` and `blob:` URLs.
 
 **Note:** Rev expects the file extension and content-type to agree. This library will attempt to automatically fix the filename/content-type as needed.
 

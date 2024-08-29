@@ -21,6 +21,10 @@ export const uploadParser = {
             ? new URL(value)
             : pathToFileURL(value);
 
+        if (options.disableExternalResources && !LOCAL_PROTOCOLS.includes(url.protocol)) {
+            throw new Error(`${url.protocol} protocol not allowed`);
+        }
+
         if (FETCH_PROTOCOLS.includes(url.protocol)) {
             return uploadParser.response(
                 await polyfills.fetch(url, options),
