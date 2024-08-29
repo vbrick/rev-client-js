@@ -6,14 +6,31 @@ import { ReadableStream } from "node:stream/web";
 import { Rev } from "../types/rev";
 import { isBlobLike } from "../utils";
 import { sanitizeUploadOptions } from "../utils/file-utils";
+import { pathToFileURL } from "node:url";
+import polyfills from "./polyfills";
+import { RevError } from "../rev-error";
+
+const LOCAL_PROTOCOLS = ['blob:', 'data:'];
+const FETCH_PROTOCOLS = ['http:', 'https:', ...LOCAL_PROTOCOLS];
 
 export const uploadParser = {
     async string(value: string, options: Rev.UploadFileOptions) {
-        const input = createReadStream(value);
-        return uploadParser.stream(input, {
-            filename: path.basename(value),
-            ...options
-        });
+        const isUrl = URL.canParse(value);
+        // file urls are supported by createReadStream, so make all inputs url
+        const url = isUrl
+            ? new URL(value)
+            : pathToFileURL(value);
+
+        const filepath = url.protocol === 'file:' ? url : value;
+
+        // use FS reader to read files
+        return uploadParser.stream(
+            createReadStream(filepath),
+            {
+                filename: path.basename(value),
+                ...options
+            }
+        );
     },
     async blob(value: Blob | File, options: Rev.UploadFileOptions) {
         let {
