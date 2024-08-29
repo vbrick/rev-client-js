@@ -1,5 +1,6 @@
-import type {RevClient} from '..';
 import polyfills from '../interop/polyfills';
+import type { RevClient } from '../rev-client';
+import { RevError } from '../rev-error';
 import type { Rev } from '../types';
 import { sanitizeUploadOptions } from './file-utils';
 import { isBlobLike } from './is-utils';
@@ -13,8 +14,27 @@ export const uploadParser = {
         return uploadParser.blob(file, options)
     },
     async stream(value: AsyncIterable<Uint8Array>, options: Rev.UploadFileOptions) {
+        const {contentType} = options;
+        // allow web streams only
+        if (!(value instanceof ReadableStream)) {
+            throw new TypeError('Only Blob / Files are supported for file uploads. Pass a File/Blob object');
+        }
         // FormData doesn't support readable streams unfortunately, so read to blob
-        throw new TypeError('Only Blob / Files are supported for file uploads. Pass a File/Blob object');
+        const response = new Response(value, {
+            headers: contentType ? { 'content-type': contentType } : {}
+        });
+        return uploadParser.response(response, options);
+    },
+    async response(response: Response, options: Rev.UploadFileOptions) {
+        const { body, headers } = response;
+        if (!response.ok || !body) {
+            const err = await RevError.create(response);
+            throw err;
+        }
+        return uploadParser.blob(
+            await response.blob(),
+            options
+        );
     },
     async blob(value: Blob | File, options: Rev.UploadFileOptions) {
         let {
@@ -40,6 +60,9 @@ export const uploadParser = {
     async parse(value: Rev.FileUploadType, options: Rev.UploadFileOptions) {
         if (typeof value === 'string') {
             return uploadParser.string(value, options);
+        }
+        if (value instanceof polyfills.Response) {
+            return uploadParser.response(value, options);
         }
         if (!isBlobLike(value)) {
             throw new TypeError('Only Blob / Files are supported for file uploads. Pass a File/Blob object');
