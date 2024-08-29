@@ -21,6 +21,13 @@ export const uploadParser = {
             ? new URL(value)
             : pathToFileURL(value);
 
+        if (FETCH_PROTOCOLS.includes(url.protocol)) {
+            return uploadParser.response(
+                await polyfills.fetch(url, options),
+                options
+            );
+        }
+
         const filepath = url.protocol === 'file:' ? url : value;
 
         // use FS reader to read files
@@ -55,7 +62,7 @@ export const uploadParser = {
             }
         };
     },
-    async stream(value: AsyncIterable<Uint8Array>, options: Rev.UploadFileOptions, defaultContentType?: string) {
+    async stream(value: AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>, options: Rev.UploadFileOptions, defaultContentType?: string) {
         let {
             filename = getFilename(value),
             contentType,
@@ -83,9 +90,29 @@ export const uploadParser = {
             }
         };
     },
+    async response(response: Response, options: Rev.UploadFileOptions) {
+        const { body, headers } = response;
+        if (!response.ok || !body) {
+            const err = await RevError.create(response);
+            throw err;
+        }
+        const contentLength = parseInt(headers.get('content-length') || '') || undefined;
+        const contentType = headers.get('content-type');
+        return uploadParser.stream(body as ReadableStream<Uint8Array>, {
+            ...options,
+            ...contentType && { contentType },
+            ...(contentLength
+                ? { contentLength }
+                : { useChunkedTransfer: true }
+            )
+        });
+    },
     async parse(value: Rev.FileUploadType, options: Rev.UploadFileOptions) {
         if (typeof value === 'string') {
             return uploadParser.string(value, options);
+        }
+        if (value instanceof polyfills.Response) {
+            return uploadParser.response(value, options);
         }
         if (isBlobLike(value) && !(value as any)[Symbol.asyncIterator]) {
             return uploadParser.blob(value, options);
@@ -120,7 +147,7 @@ async function getLengthFromStream(source: Record<string, any>, timeoutSeconds =
     const {
         length,
         contentLength,
-        headers = { },
+        headers = {},
         path: filepath
     } = source;
 
@@ -148,7 +175,7 @@ export async function statFile(filepath: string, timeoutSeconds = 15) {
     // sanity check timeout
     let timer;
     const timeout = new Promise<Stats>(done => {
-        timer = setTimeout(done, timeoutSeconds * 1000, { });
+        timer = setTimeout(done, timeoutSeconds * 1000, {});
     });
 
     try {
