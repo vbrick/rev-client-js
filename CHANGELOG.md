@@ -1,4 +1,9 @@
-## 0.22.1
+## 0.22.2
+
+### Bugfixes
+
+* Bugfix for multipart uploads with remote http resources - use `transfer-encoding: chunked` if incoming stream is compressed.
+* Transcription Uploads - extra checks to be sure that uploads have valid filenames/mimetypes
 
 ### Features
 
