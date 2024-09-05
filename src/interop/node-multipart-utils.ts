@@ -67,11 +67,12 @@ export const uploadParser = {
             }
         };
     },
-    async stream(value: AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>, options: Rev.UploadFileOptions, defaultContentType?: string) {
+    async stream(value: AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>, options: Rev.UploadFileOptions) {
         let {
             filename = getFilename(value),
             contentType,
             contentLength,
+            defaultContentType,
             useChunkedTransfer = false
         } = options;
 
@@ -104,8 +105,8 @@ export const uploadParser = {
         const contentLength = parseInt(headers.get('content-length') || '') || undefined;
         const contentType = headers.get('content-type');
         return uploadParser.stream(body as ReadableStream<Uint8Array>, {
-            ...options,
             ...contentType && { contentType },
+            ...options,
             ...(contentLength
                 ? { contentLength }
                 : { useChunkedTransfer: true }

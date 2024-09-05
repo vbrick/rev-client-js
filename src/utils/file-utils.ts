@@ -65,12 +65,16 @@ export function sanitizeUploadOptions(filename = 'upload', contentType = '', def
     let name = filename.replace(/\.[^\.]+$/, '');
     let ext = filename.replace(name, '');
     if (!ext) {
-        ext = getExtensionForMime(contentType);
+        ext = getExtensionForMime(contentType || defaultContentType || '');
     }
+
     filename = `${name}${ext}`;
-    if (!contentType) {
+
+    // extra check for transcription filetype
+    if (!contentType || ['.vtt', '.srt'].includes(ext)) {
         contentType = getMimeForExtension(ext, defaultContentType);
     }
+
 
     return { filename, contentType };
 }

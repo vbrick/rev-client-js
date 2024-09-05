@@ -110,10 +110,15 @@ export default function uploadAPIFactory(rev: RevClient) {
             await uploadMultipart(rev, 'PUT', `/api/v2/uploads/videos/${videoId}`, form, filePayload, requestOptions);
         },
         async transcription(videoId: string, file: Rev.FileUploadType, language: Transcription.SupportedLanguage = 'en', options: TranscriptionOptions = { }): Promise<void> {
-            const { uploadOptions, requestOptions } = splitOptions(options, 'text/plain');
+            const { uploadOptions, requestOptions } = splitOptions(options, 'application/x-subrip');
 
             const form = new FormData();
             const lang = language.toLowerCase();
+
+            // uploads will fail if files end with the txt file extension, so make sure it's set to a valid value
+            if (uploadOptions.contentType === 'text/plain' || uploadOptions.filename?.endsWith('txt')) {
+                uploadOptions.filename = `${uploadOptions.filename || 'upload'}.srt`;
+            }
 
             const filePayload = await appendFileToForm(form, 'File', file, uploadOptions);
             const metadata = {
