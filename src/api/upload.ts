@@ -1,6 +1,7 @@
 import polyfills from '../interop/polyfills';
 import type { RevClient } from '../rev-client';
 import { Rev, Transcription, Video } from '../types';
+import { LiteralString } from '../types/rev';
 import { RateLimitEnum } from '../utils';
 import { appendFileToForm, appendJSONToForm, uploadMultipart } from '../utils/multipart-utils';
 
@@ -27,17 +28,18 @@ function splitOptions(options: Rev.UploadFileOptions & Rev.RequestOptions, defau
 }
 
 type PresentationChaptersOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
-    contentType?: 'application/vnd.ms-powerpoint'
-                | 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    contentType?: LiteralString<'application/vnd.ms-powerpoint'
+                | 'application/vnd.openxmlformats-officedocument.presentationml.presentation'>;
 };
 
 type TranscriptionOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
-    contentType?: 'text/plain'
-                | 'application/x-subrip';
+    contentType?: LiteralString<'text/plain'
+                | 'text/vtt'
+                | 'application/x-subrip'>;
 };
 
 type SupplementalOptions = Rev.RequestOptions & Omit<Rev.UploadFileOptions, 'filename' | 'contentLength'> & {
-    contentType?: 'application/x-7z-compressed'
+    contentType?: LiteralString<'application/x-7z-compressed'
                 | 'text/csv'
                 | 'application/msword'
                 | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -52,7 +54,7 @@ type SupplementalOptions = Rev.RequestOptions & Omit<Rev.UploadFileOptions, 'fil
                 | 'text/plain'
                 | 'application/vnd.ms-excel'
                 | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                | 'application/zip'
+                | 'application/zip'>
 };
 
 export default function uploadAPIFactory(rev: RevClient) {
