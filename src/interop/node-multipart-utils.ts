@@ -102,10 +102,10 @@ export const uploadParser = {
             const err = await RevError.create(response);
             throw err;
         }
-        let contentLength: undefined | number = undefined;
-        const isGzip = headers.get('content-encoding')?.toLowerCase()?.startsWith('gzip');
-        if (!isGzip) {
-            contentLength = parseInt(headers.get('content-length') || '') || undefined;
+        let {contentLength} = options;
+        // ignore length of compressed inputs
+        if (!headers.get('content-encoding')) {
+            contentLength ||= parseInt(headers.get('content-length') || '') || undefined;
         }
         
         const contentType = headers.get('content-type');
