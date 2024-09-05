@@ -2827,13 +2827,13 @@ declare function recordingAPIFactory(rev: RevClient): {
 };
 
 type PresentationChaptersOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
-    contentType?: 'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+    contentType?: LiteralString<'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation'>;
 };
 type TranscriptionOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
-    contentType?: 'text/plain' | 'application/x-subrip';
+    contentType?: LiteralString<'text/plain' | 'text/vtt' | 'application/x-subrip'>;
 };
 type SupplementalOptions = Rev.RequestOptions & Omit<Rev.UploadFileOptions, 'filename' | 'contentLength'> & {
-    contentType?: 'application/x-7z-compressed' | 'text/csv' | 'application/msword' | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' | 'image/gif' | 'image/jpeg' | 'application/pdf' | 'image/png' | 'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation' | 'application/x-rar-compressed' | 'image/svg+xml' | 'text/plain' | 'application/vnd.ms-excel' | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' | 'application/zip';
+    contentType?: LiteralString<'application/x-7z-compressed' | 'text/csv' | 'application/msword' | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' | 'image/gif' | 'image/jpeg' | 'application/pdf' | 'image/png' | 'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation' | 'application/x-rar-compressed' | 'image/svg+xml' | 'text/plain' | 'application/vnd.ms-excel' | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' | 'application/zip'>;
 };
 declare function uploadAPIFactory(rev: RevClient): {
     /**

@@ -57,10 +57,10 @@ function sanitizeUploadOptions(filename = "upload", contentType = "", defaultCon
   let name = filename.replace(/\.[^\.]+$/, "");
   let ext = filename.replace(name, "");
   if (!ext) {
-    ext = getExtensionForMime(contentType);
+    ext = getExtensionForMime(contentType || defaultContentType || "");
   }
   filename = `${name}${ext}`;
-  if (!contentType) {
+  if (!contentType || [".vtt", ".srt"].includes(ext)) {
     contentType = getMimeForExtension(ext, defaultContentType);
   }
   return { filename, contentType };
@@ -1758,9 +1758,12 @@ function uploadAPIFactory(rev) {
       await uploadMultipart(rev, "PUT", `/api/v2/uploads/videos/${videoId}`, form, filePayload, requestOptions);
     },
     async transcription(videoId, file, language = "en", options = {}) {
-      const { uploadOptions, requestOptions } = splitOptions(options, "text/plain");
+      const { uploadOptions, requestOptions } = splitOptions(options, "application/x-subrip");
       const form = new FormData();
       const lang = language.toLowerCase();
+      if (uploadOptions.contentType === "text/plain" || uploadOptions.filename?.endsWith("txt")) {
+        uploadOptions.filename = `${uploadOptions.filename || "upload"}.srt`;
+      }
       const filePayload = await appendFileToForm(form, "File", file, uploadOptions);
       const metadata = {
         files: [

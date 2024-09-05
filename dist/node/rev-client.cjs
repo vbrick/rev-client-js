@@ -103,10 +103,10 @@ function sanitizeUploadOptions(filename = "upload", contentType = "", defaultCon
   let name = filename.replace(/\.[^\.]+$/, "");
   let ext = filename.replace(name, "");
   if (!ext) {
-    ext = getExtensionForMime(contentType);
+    ext = getExtensionForMime(contentType || defaultContentType || "");
   }
   filename = `${name}${ext}`;
-  if (!contentType) {
+  if (!contentType || [".vtt", ".srt"].includes(ext)) {
     contentType = getMimeForExtension(ext, defaultContentType);
   }
   return { filename, contentType };
@@ -1804,9 +1804,12 @@ function uploadAPIFactory(rev) {
       await uploadMultipart(rev, "PUT", `/api/v2/uploads/videos/${videoId}`, form, filePayload, requestOptions);
     },
     async transcription(videoId, file, language = "en", options = {}) {
-      const { uploadOptions, requestOptions } = splitOptions(options, "text/plain");
+      const { uploadOptions, requestOptions } = splitOptions(options, "application/x-subrip");
       const form = new FormData2();
       const lang = language.toLowerCase();
+      if (uploadOptions.contentType === "text/plain" || uploadOptions.filename?.endsWith("txt")) {
+        uploadOptions.filename = `${uploadOptions.filename || "upload"}.srt`;
+      }
       const filePayload = await appendFileToForm(form, "File", file, uploadOptions);
       const metadata = {
         files: [
@@ -3712,11 +3715,12 @@ var uploadParser2 = {
       }
     };
   },
-  async stream(value, options, defaultContentType) {
+  async stream(value, options) {
     let {
       filename = getFilename(value),
       contentType,
       contentLength,
+      defaultContentType,
       useChunkedTransfer = false
     } = options;
     const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
@@ -3742,11 +3746,14 @@ var uploadParser2 = {
       const err = await RevError.create(response);
       throw err;
     }
-    const contentLength = parseInt(headers.get("content-length") || "") || void 0;
+    let { contentLength } = options;
+    if (!headers.get("content-encoding")) {
+      contentLength || (contentLength = parseInt(headers.get("content-length") || "") || void 0);
+    }
     const contentType = headers.get("content-type");
     return uploadParser2.stream(body, {
-      ...options,
       ...contentType && { contentType },
+      ...options,
       ...contentLength ? { contentLength } : { useChunkedTransfer: true }
     });
   },
