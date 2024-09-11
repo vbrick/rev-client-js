@@ -17,13 +17,20 @@ npm install @vbrick/rev-client
 ## Compatibility
 
 * **Browser** - This library is in ESM module format - it assumes use of an evergreen browser that has `fetch`, `AbortController`, etc.
-* **node.js** - Node.js 16 or above required. It will work with commonjs (`require`) or ES Module (`import`) projects. It uses fetch polyfills (`node-fetch`) unless you import using the `@vbrick/rev-client/native-fetch` named export.
+* **node.js** - Node.js 18 or above required. This package includes commonjs (`require`) and ES Module (`import`) versions. By default it uses the (`node-fetch`) polyfill unless you import using the `@vbrick/rev-client/native-fetch` named export (which uses native `fetch`).
 * **deno** - Should be compatible, though testing is limited. You'll need `--allow-net` permissions at minimum.
 
-### Browsers and CORS support**
+### Browsers and CORS support
 By default CORS (Cross Origin Resource Sharing) is **disabled** for Rev Cloud tenants. This means this library will not work out of the box in the browser. You should open a ticket with [Vbrick Support](https://portal.vbrick.com/open-a-case/) if this feature isn't yet configured.
 
 To verify if CORS is enabled for your account check the headers response from `https://YOUR_REV_TENANT_URL/api/v2/accounts/branding-settings` - it doesn't require authentication.
+
+### Node.js Proxy support
+If you need to use this library behind a proxy *(and you're using Node.js)* then the proxy method to use depends on which `fetch` library you're using.
+
+* If you use the `node-fetch` polyfill *(`@vbrick/rev-client` or `@vbrick/rev-client/node-fetch`)* then you should use a proxy that sets the `https.Agent` (like `global-agent`).
+* If you use the native fetch (which is based on `undici`) then you'll need a proxy implementation that sets the [undici global agent dispatcher](https://undici.nodejs.org/#/docs/api/ProxyAgent?id=example-basic-proxy-request-with-global-agent-dispatcher)
+* Alternatively, you can override to use you're own fetch compatible library by using `utils.setPolyfills()`
 
 ***On-Prem note:** this library targets the latest version of Rev. Some API endpoints may not be available or work as expected in older versions of Rev On-Prem.*
 
@@ -422,13 +429,27 @@ Wrapper around the Use the [Get User Location Service](https://revdocs.vbrick.co
 
 All upload functions take in a `file` argument and an `options` argument.
 
-* `file`:  `string`, `stream.Readable` or `Blob` if using node.js. `File` if browser. If `string` *(and using node.js)* then treat as a file path and load the file from disk.
+* `file`: The actual upload data. The possible input options are: 
+
+| Type | Browser | Node | Notes |
+| ---- | ------- | ---- | ----- |
+| `File` / `Blob` | ✔ | ✔ | |
+| `"data:"` / `"blob:"` urls | Passed to `fetch()` | ✔ | Treated like a `Blob` |
+| `"file:"` urls | Passed to `fetch()` | Read using `fs.createReadStream()` | **Follows browser/user agent fetch() security policy** |
+| `"http:"` / `"https:"` urls | ❌ | ✔ | On node.js these are passed to `fetch()`, so could load remote resources |
+| relative/absolute path (`string`) | ❌ | Read using `fs.createReadStream()` | **Follows filesystem permissions** |
+| Web Stream (`Readable Stream`), fetch `Response` | converted to `Blob` | ✔ | On browsers entire stream is read into memory. For node.js the stream is piped |
+| Node.js Streams *(including `http.IncomingResponse`)* | N/A | ✔ | Piped through to request. |
+
 * `options`:
   * Any `fetch` options *(most importantly `signal` for passing in an `AbortSignal`)*
   * `filename?`: `string` - the filename used in the `Content-Disposition` field header.
   * `contentType?`: `string` - the content type of the file
   * `contentLength?`: `number` - the known content length of the file. This is rarely needed, but can be used if passing along a HTTP Stream
   * `useChunkedTransfer?`: `boolean` - tell upload to not calculate a content length automatically, and just send as `Transfer-Encoding: chunked`
+  * `disableExternalResources?`: `boolean` - if `true` then reject any `string` argument that would read from the network/disk *(only `blob:` or `data:` URLs allowed)*. Default is `false` for backwards compatibility
+
+**SECURITY REMINDER** - Passing in strings has the chance to trigger a remote request, and on node.js/deno/bun could read arbitrary files on the disk. Be sure to sanitize your inputs. Optionally, use the `options.disableExternalResources` to only allow `data:` and `blob:` URLs.
 
 **Note:** Rev expects the file extension and content-type to agree. This library will attempt to automatically fix the filename/content-type as needed.
 
@@ -659,6 +680,30 @@ Get the expected extension for a mime-type supported by Rev for upload. If none 
 #### `utils.getMimeForExtension(extension?, defaultType?)`
 
 Get the expected mime-type for the specified extension (`.ext`). If none found it will return the `defaultType` *(or `video/mp4` if none specified)*
+
+#### `utils.setPolyfills(callback: (polyfills) => (void | Promise<void>))`
+
+Allows overriding the underlying network primitives used by this library, in particular `fetch`. This function expects a callback that is called before the first network request is made, to allow lazy load of any dependencies.
+
+##### Example
+```js
+import {RevClient, utils} from '@vbrick/rev-client';
+
+utils.setPolyfills(async (polyfills) => {
+	console.log('Overriding polyfills');
+
+	// dynamic import, which works in ESM or commonjs modules
+	const {fetch} = await import('undici');
+	Object.assign(polyfills, {
+		fetch
+	});
+});
+
+const rev = new RevClient(...args);
+
+await rev.connect(); // setpolyfills triggered here
+
+```
 
 ### Error Classes
 

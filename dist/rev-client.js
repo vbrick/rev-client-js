@@ -1,3 +1,71 @@
+// src/utils/file-utils.ts
+var mimeTypes = {
+  ".7z": "application/x-7z-compressed",
+  ".asf": "video/x-ms-asf",
+  ".avi": "video/x-msvideo",
+  ".csv": "text/csv",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".f4v": "video/x-f4v",
+  ".flv": "video/x-flv",
+  ".gif": "image/gif",
+  ".jpg": "image/jpeg",
+  ".m4a": "audio/mp4",
+  ".m4v": "video/x-m4v",
+  ".mkv": "video/x-matroska",
+  ".mov": "video/quicktime",
+  ".mp3": "audio/mpeg",
+  ".mp4": "video/mp4",
+  ".mpg": "video/mpeg",
+  ".pdf": "application/pdf",
+  ".png": "image/png",
+  ".ppt": "application/vnd.ms-powerpoint",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".rar": "application/x-rar-compressed",
+  ".srt": "application/x-subrip",
+  ".svg": "image/svg+xml",
+  ".swf": "application/x-shockwave-flash",
+  ".ts": "video/mp2t",
+  ".txt": "text/plain",
+  ".wmv": "video/x-ms-wmv",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".zip": "application/zip",
+  ".mks": "video/x-matroska",
+  ".mts": "model/vnd.mts",
+  ".vtt": "text/vtt",
+  ".wma": "audio/x-ms-wma"
+};
+function getMimeForExtension(extension = "", defaultType = "video/mp4") {
+  extension = extension.toLowerCase();
+  if (extension && extension in mimeTypes) {
+    return mimeTypes[extension];
+  }
+  return defaultType;
+}
+function getExtensionForMime(contentType, defaultExtension = ".mp4") {
+  const match = contentType && Object.entries(mimeTypes).find(([ext, mime]) => contentType.startsWith(mime));
+  return match ? match[0] : defaultExtension;
+}
+function sanitizeUploadOptions(filename = "upload", contentType = "", defaultContentType) {
+  if (contentType === "application/octet-stream") {
+    contentType = "";
+  }
+  if (/charset/.test(contentType)) {
+    contentType = contentType.replace(/;?.*charset.*$/, "");
+  }
+  let name = filename.replace(/\.[^\.]+$/, "");
+  let ext = filename.replace(name, "");
+  if (!ext) {
+    ext = getExtensionForMime(contentType || defaultContentType || "");
+  }
+  filename = `${name}${ext}`;
+  if (!contentType || [".vtt", ".srt"].includes(ext)) {
+    contentType = getMimeForExtension(ext, defaultContentType);
+  }
+  return { filename, contentType };
+}
+
 // src/utils/is-utils.ts
 var { toString: _toString } = Object.prototype;
 function isPlainObject(val) {
@@ -14,7 +82,95 @@ function titleCase(val) {
   return `${val[0]}${val.slice(1)}`;
 }
 
-// src/interop/index.ts
+// src/utils/multipart-utils.ts
+var uploadParser = {
+  async string(value, options) {
+    const url = value instanceof URL ? value : new URL(value, "invalid://");
+    if (!/^data|blob|file/.test(url.protocol)) {
+      throw new TypeError("Only Blob / DateURI URLs are supported");
+    }
+    if (options.disableExternalResources && url.protocol === "file:") {
+      throw new Error("file: protocol not allowed");
+    }
+    const file = await (await polyfills_default.fetch(url)).blob();
+    return uploadParser.blob(file, options);
+  },
+  async stream(value, options) {
+    const { contentType } = options;
+    if (!(value instanceof ReadableStream)) {
+      throw new TypeError("Only Blob / Files are supported for file uploads. Pass a File/Blob object");
+    }
+    const response = new Response(value, {
+      headers: contentType ? { "content-type": contentType } : {}
+    });
+    return uploadParser.response(response, options);
+  },
+  async response(response, options) {
+    const { body, headers } = response;
+    if (!response.ok || !body) {
+      const err = await RevError.create(response);
+      throw err;
+    }
+    return uploadParser.blob(
+      await response.blob(),
+      options
+    );
+  },
+  async blob(value, options) {
+    let {
+      filename = value.name ?? "upload",
+      contentType = value.type ?? "",
+      defaultContentType
+    } = options;
+    const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
+    if (value.type !== sanitized.contentType && typeof value.slice === "function") {
+      value = new File([value], sanitized.filename, { type: sanitized.contentType });
+    }
+    return {
+      file: value,
+      options: {
+        ...options,
+        ...value.size && { contentLength: value.size },
+        ...sanitized
+      }
+    };
+  },
+  async parse(value, options) {
+    if (typeof value === "string" || value instanceof URL) {
+      return uploadParser.string(value, options);
+    }
+    if (value instanceof polyfills_default.Response) {
+      return uploadParser.response(value, options);
+    }
+    if (!isBlobLike(value)) {
+      throw new TypeError("Only Blob / Files are supported for file uploads. Pass a File/Blob object");
+    }
+    return uploadParser.blob(value, options);
+  }
+};
+function appendJSONToForm(form, fieldName, data) {
+  form.append(fieldName, JSON.stringify(data));
+}
+async function appendFileToForm(form, fieldName, input, uploadOptions = {}) {
+  const {
+    file,
+    options
+  } = await polyfills_default.uploadParser.parse(input, uploadOptions);
+  form.append(fieldName, file, options.filename);
+  return options;
+}
+async function uploadMultipart(rev, method, endpoint, form, uploadOptions, options = {}) {
+  const {
+    headers: optHeaders
+  } = options;
+  const headers = new polyfills_default.Headers(optHeaders);
+  options.headers = headers;
+  const data = polyfills_default.beforeFileUploadRequest(form, headers, uploadOptions, options);
+  const { body } = await rev.request(method, endpoint, data, options);
+  return body;
+}
+
+// src/interop/polyfills.ts
 function randomValues(byteLength) {
   const values = crypto.getRandomValues(new Uint8Array(byteLength / 2));
   return Array.from(values).map((c) => c.toString(16).padStart(2, "0")).join("");
@@ -37,66 +193,24 @@ async function hmacSign(message, secret) {
   const signed = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(message));
   return btoa(String.fromCharCode(...new Uint8Array(signed)));
 }
-var interop_default = {
+var polyfills = {
   AbortController: globalThis.AbortController,
   AbortSignal: globalThis.AbortSignal,
   createAbortError(message) {
     return new DOMException(message, "AbortError");
   },
-  fetch: (...args) => globalThis.fetch(...args),
+  fetch: globalThis.fetch,
   FormData: globalThis.FormData,
+  File: globalThis.File,
   Headers: globalThis.Headers,
   Request: globalThis.Request,
   Response: globalThis.Response,
+  uploadParser,
   randomValues,
   sha256Hash,
   hmacSign,
-  /**
-   *
-   * @param file
-   * @param filename
-   * @param contentType
-   * @returns
-   */
-  async parseFileUpload(file, options) {
-    let {
-      filename,
-      contentType,
-      contentLength
-    } = options;
-    if (isBlobLike(file)) {
-      const { type, name, size } = file;
-      if (type && !contentType) {
-        contentType = type;
-      }
-      if (name && !filename) {
-        filename = name;
-      }
-      if (size && !contentLength) {
-        contentLength = size;
-      }
-      return {
-        file,
-        options: {
-          ...options,
-          filename,
-          contentType,
-          contentLength
-        }
-      };
-    }
-    throw new TypeError("Only Blob / Files are supported for file uploads. Pass a File/Blob object");
-  },
-  appendFileToForm(form, fieldName, payload) {
-    const {
-      file,
-      options: {
-        filename
-      }
-    } = payload;
-    form.append(fieldName, file, filename);
-  },
-  async prepareUploadHeaders(form, headers, useChunkedTransfer) {
+  beforeFileUploadRequest(form, headers, uploadOptions, options) {
+    return form;
   },
   asPlatformStream(stream) {
     return stream;
@@ -105,6 +219,36 @@ var interop_default = {
     return stream;
   }
 };
+var polyfills_default = polyfills;
+var isPendingInitialize = false;
+var initializePromise = void 0;
+var pendingInitialize = [];
+function shouldInitialize() {
+  return !!isPendingInitialize;
+}
+function onInitialize() {
+  if (!isPendingInitialize) {
+    return;
+  }
+  initializePromise || (initializePromise = (async () => {
+    while (pendingInitialize.length > 0) {
+      const pending = pendingInitialize.shift();
+      if (typeof pending !== "function") continue;
+      try {
+        const overrides = await pending(polyfills);
+        Object.assign(polyfills, overrides);
+      } catch (error) {
+      }
+    }
+    isPendingInitialize = false;
+    initializePromise = void 0;
+  })());
+  return initializePromise;
+}
+function setPolyfills(overrideCallback) {
+  pendingInitialize.push(overrideCallback);
+  isPendingInitialize = true;
+}
 
 // src/utils/rate-limit.ts
 var ONE_MINUTE = 60 * 1e3;
@@ -182,7 +326,7 @@ function rateLimit(fn2, options = {}) {
     }
     for (const [timeout, reject] of queue.entries()) {
       clearTimeout(timeout);
-      reject(interop_default.createAbortError(message));
+      reject(polyfills_default.createAbortError(message));
     }
     queue.clear();
   };
@@ -923,8 +1067,8 @@ function auditAPIFactory(rev, optRateLimits) {
 
 // src/utils/merge-headers.ts
 function mergeHeaders(source, other) {
-  const merged = new interop_default.Headers(source);
-  new interop_default.Headers(other).forEach((value, key) => merged.set(key, value));
+  const merged = new polyfills_default.Headers(source);
+  new polyfills_default.Headers(other).forEach((value, key) => merged.set(key, value));
   return merged;
 }
 
@@ -941,12 +1085,12 @@ function getOAuth2AuthorizationUrl(config, code_challenge, state) {
   }).toString();
   return url.toString();
 }
-async function getOAuth2PKCEVerifier(codeVerifier = interop_default.randomValues(48)) {
-  const codeChallenge = await interop_default.sha256Hash(codeVerifier);
+async function getOAuth2PKCEVerifier(codeVerifier = polyfills_default.randomValues(48)) {
+  const codeChallenge = await polyfills_default.sha256Hash(codeVerifier);
   return { codeVerifier, codeChallenge };
 }
 async function buildLegacyOAuthQuery(config, oauthSecret, state = "1") {
-  const { hmacSign: hmacSign2 } = interop_default;
+  const { hmacSign: hmacSign2 } = polyfills_default;
   const RESPONSE_TYPE = "code";
   const {
     oauthApiKey: apiKey,
@@ -1560,135 +1704,35 @@ function recordingAPIFactory(rev) {
   return recordingAPI;
 }
 
-// src/utils/file-utils.ts
-var mimeTypes = {
-  ".7z": "application/x-7z-compressed",
-  ".asf": "video/x-ms-asf",
-  ".avi": "video/x-msvideo",
-  ".csv": "text/csv",
-  ".doc": "application/msword",
-  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".f4v": "video/x-f4v",
-  ".flv": "video/x-flv",
-  ".gif": "image/gif",
-  ".jpg": "image/jpeg",
-  ".m4a": "audio/mp4",
-  ".m4v": "video/x-m4v",
-  ".mkv": "video/x-matroska",
-  ".mov": "video/quicktime",
-  ".mp3": "audio/mpeg",
-  ".mp4": "video/mp4",
-  ".mpg": "video/mpeg",
-  ".pdf": "application/pdf",
-  ".png": "image/png",
-  ".ppt": "application/vnd.ms-powerpoint",
-  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  ".rar": "application/x-rar-compressed",
-  ".srt": "application/x-subrip",
-  ".svg": "image/svg+xml",
-  ".swf": "application/x-shockwave-flash",
-  ".ts": "video/mp2t",
-  ".txt": "text/plain",
-  ".wmv": "video/x-ms-wmv",
-  ".xls": "application/vnd.ms-excel",
-  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ".zip": "application/zip",
-  ".mks": "video/x-matroska",
-  ".mts": "model/vnd.mts",
-  ".vtt": "text/vtt",
-  ".wma": "audio/x-ms-wma"
-};
-function getMimeForExtension(extension = "", defaultType = "video/mp4") {
-  extension = extension.toLowerCase();
-  if (extension && extension in mimeTypes) {
-    return mimeTypes[extension];
-  }
-  return defaultType;
-}
-function getExtensionForMime(contentType, defaultExtension = ".mp4") {
-  const match = contentType && Object.entries(mimeTypes).find(([ext, mime]) => contentType.startsWith(mime));
-  return match ? match[0] : defaultExtension;
-}
-function sanitizeFileUpload(payload, defaultContentType) {
-  let {
-    file,
-    options: {
-      filename = "upload",
-      contentType = ""
-    }
-  } = payload;
-  if (contentType === "application/octet-stream") {
-    contentType = "";
-  }
-  if (/charset/.test(contentType)) {
-    contentType = contentType.replace(/;?.*charset.*$/, "");
-  }
-  let name = filename.replace(/\.[^\.]+$/, "");
-  let ext = filename.replace(name, "");
-  if (!ext) {
-    ext = getExtensionForMime(contentType);
-  }
-  filename = `${name}${ext}`;
-  if (!contentType) {
-    contentType = getMimeForExtension(ext, defaultContentType);
-  }
-  if (isBlobLike(file) && file.type !== contentType) {
-    payload.file = file.slice(0, file.size, contentType);
-  }
-  Object.assign(payload.options, {
-    filename,
-    contentType
-  });
-  return payload;
-}
-function appendJSONToForm(form, fieldName, data) {
-  form.append(fieldName, JSON.stringify(data));
-}
-async function appendFileToForm(form, fieldName, file, options = {}) {
-  const opts = {
-    filename: "upload",
-    contentType: "",
-    ...options
-  };
-  let payload = await interop_default.parseFileUpload(file, opts);
-  payload = sanitizeFileUpload(payload);
-  await interop_default.appendFileToForm(form, fieldName, payload);
-  return payload.options;
-}
-async function prepareFileUploadHeaders(form, headers, useChunkedTransfer) {
-  await interop_default.prepareUploadHeaders(form, headers, useChunkedTransfer);
-}
-async function uploadMultipart(rev, method, endpoint, form, useChunkedTransfer = false, options = {}) {
-  const {
-    headers: optHeaders
-  } = options;
-  useChunkedTransfer = typeof useChunkedTransfer === "boolean" ? useChunkedTransfer : !!useChunkedTransfer?.useChunkedTransfer;
-  const headers = new interop_default.Headers(optHeaders);
-  await prepareFileUploadHeaders(form, headers, useChunkedTransfer);
-  options.headers = headers;
-  const { body } = await rev.request(method, endpoint, form, options);
-  return body;
-}
-
 // src/api/upload.ts
-function splitOptions(options) {
+function splitOptions(options, defaultType) {
   const {
-    signal,
-    ...uploadOptions
+    filename,
+    contentType,
+    contentLength,
+    useChunkedTransfer,
+    defaultContentType = defaultType,
+    ...requestOptions
   } = options;
   return {
-    requestOptions: signal ? { signal } : {},
-    uploadOptions
+    requestOptions,
+    uploadOptions: {
+      filename,
+      contentType,
+      contentLength,
+      useChunkedTransfer,
+      defaultContentType
+    }
   };
 }
 function uploadAPIFactory(rev) {
-  const { FormData } = interop_default;
+  const { FormData } = polyfills_default;
   const uploadAPI = {
     /**
      * Upload a video, and returns the resulting video ID
      */
     async video(file, metadata = { uploader: rev.session.username ?? "" }, options = {}) {
-      const { uploadOptions, requestOptions } = splitOptions(options);
+      const { uploadOptions, requestOptions } = splitOptions(options, "video/mp4");
       const form = new FormData();
       if (!metadata.uploader) {
         const defaultUsername = rev.session.username;
@@ -1706,7 +1750,7 @@ function uploadAPIFactory(rev) {
       return videoId;
     },
     async replaceVideo(videoId, file, options = {}) {
-      const { uploadOptions, requestOptions } = splitOptions(options);
+      const { uploadOptions, requestOptions } = splitOptions(options, "video/mp4");
       const form = new FormData();
       const filePayload = await appendFileToForm(form, "VideoFile", file, uploadOptions);
       rev.log("info", `Replacing ${videoId} with ${filePayload.filename} (${filePayload.contentType})`);
@@ -1714,9 +1758,12 @@ function uploadAPIFactory(rev) {
       await uploadMultipart(rev, "PUT", `/api/v2/uploads/videos/${videoId}`, form, filePayload, requestOptions);
     },
     async transcription(videoId, file, language = "en", options = {}) {
-      const { uploadOptions, requestOptions } = splitOptions(options);
+      const { uploadOptions, requestOptions } = splitOptions(options, "application/x-subrip");
       const form = new FormData();
       const lang = language.toLowerCase();
+      if (uploadOptions.contentType === "text/plain" || uploadOptions.filename?.endsWith("txt")) {
+        uploadOptions.filename = `${uploadOptions.filename || "upload"}.srt`;
+      }
       const filePayload = await appendFileToForm(form, "File", file, uploadOptions);
       const metadata = {
         files: [
@@ -1749,7 +1796,7 @@ function uploadAPIFactory(rev) {
      * @param options  additional upload + request options
      */
     async chapters(videoId, chapters, action = "replace", options = {}) {
-      const { uploadOptions, requestOptions } = splitOptions(options);
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/png");
       const form = new FormData();
       const metadata = {
         chapters: []
@@ -1777,18 +1824,18 @@ function uploadAPIFactory(rev) {
       await uploadMultipart(rev, method, `/api/v2/uploads/chapters/${videoId}`, form, uploadOptions, requestOptions);
     },
     async thumbnail(videoId, file, options = {}) {
-      const { uploadOptions, requestOptions } = splitOptions(options);
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
       const form = new FormData();
       const filePayload = await appendFileToForm(form, "ThumbnailFile", file, uploadOptions);
       rev.log("info", `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
     },
     async presentationChapters(videoId, file, options = {}) {
-      const { uploadOptions, requestOptions } = splitOptions(options);
+      const { uploadOptions, requestOptions } = splitOptions(options, "application/vnd.ms-powerpoint");
       const form = new FormData();
-      const filePayload = await appendFileToForm(form, "ThumbnailFile", file, uploadOptions);
-      rev.log("info", `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
-      await uploadMultipart(rev, "POST", `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
+      const filePayload = await appendFileToForm(form, "PresentationFile", file, uploadOptions);
+      rev.log("info", `Uploading presentation for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/video-presentations/${videoId}`, form, filePayload, requestOptions);
     }
   };
   return uploadAPI;
@@ -2139,12 +2186,14 @@ function videoDownloadAPI(rev) {
     if (!(videoId || imageId)) {
       throw new TypeError("No video/image specified to download");
     }
-    if (!imageId) {
-      imageId = (await rev.get(`/api/v2/videos/${videoId}/playback-url`)).video.thumbnailUrl;
-    } else if (!imageId.endsWith(".jpg")) {
-      imageId = `${imageId}.jpg`;
+    let thumbnailUrl = "";
+    if (videoId) {
+      thumbnailUrl = `/api/v2/videos/${videoId}/thumbnail`;
+    } else if (imageId.startsWith("http")) {
+      thumbnailUrl = `${imageId}${!imageId.endsWith(".jpg") ? ".jpg" : ""}`;
+    } else {
+      thumbnailUrl = `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
     }
-    let thumbnailUrl = imageId.startsWith("http") ? imageId : `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
     const { body } = await rev.request("GET", thumbnailUrl, void 0, { responseType: "blob", ...options });
     return body;
   }
@@ -2417,7 +2466,7 @@ function videoAPIFactory(rev) {
      * @param videoId
      * @param options
      */
-    async waitTranscode(videoId, options, requestOptions) {
+    async waitTranscode(videoId, options = {}, requestOptions) {
       const {
         pollIntervalSeconds = 30,
         timeoutMinutes = 240,
@@ -2545,8 +2594,8 @@ var PostEventReportRequest = class extends SearchRequest {
 // src/api/webcast.ts
 function webcastAPIFactory(rev) {
   const webcastAPI = {
-    async list(options = {}) {
-      return rev.get("/api/v2/scheduled-events", options, { responseType: "json" });
+    async list(options = {}, requestOptions) {
+      return rev.get("/api/v2/scheduled-events", options, { ...requestOptions, responseType: "json" });
     },
     search(query, options) {
       const searchDefinition = {
@@ -2562,8 +2611,8 @@ function webcastAPIFactory(rev) {
       const { eventId } = await rev.post(`/api/v2/scheduled-events`, event);
       return eventId;
     },
-    async details(eventId) {
-      return rev.get(`/api/v2/scheduled-events/${eventId}`);
+    async details(eventId, requestOptions) {
+      return rev.get(`/api/v2/scheduled-events/${eventId}`, void 0, requestOptions);
     },
     async edit(eventId, event) {
       return rev.put(`/api/v2/scheduled-events/${eventId}`, event);
@@ -2595,11 +2644,11 @@ function webcastAPIFactory(rev) {
       const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
       return rev.get(`/api/v2/scheduled-events/${eventId}/comments`, query, { responseType: "json" });
     },
-    async status(eventId) {
-      return rev.get(`/api/v2/scheduled-events/${eventId}/status`);
+    async status(eventId, requestOptions) {
+      return rev.get(`/api/v2/scheduled-events/${eventId}/status`, void 0, requestOptions);
     },
-    async isPublic(eventId) {
-      const response = await rev.request("GET", `/api/v2/scheduled-events/${eventId}/is-public`, void 0, { throwHttpErrors: false, responseType: "json" });
+    async isPublic(eventId, requestOptions) {
+      const response = await rev.request("GET", `/api/v2/scheduled-events/${eventId}/is-public`, void 0, { ...requestOptions, throwHttpErrors: false, responseType: "json" });
       return response.statusCode !== 401 && response.body?.isPublic;
     },
     async playbackUrls(eventId, { ip, userAgent } = {}, options) {
@@ -2691,6 +2740,23 @@ function webcastAPIFactory(rev) {
     },
     deleteGuestRegistration(eventId, registrationId) {
       return rev.delete(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
+    },
+    async listBanners(eventId) {
+      const { banners } = await rev.get(`/api/v2/scheduled-events/${eventId}/banners`);
+      return banners || [];
+    },
+    addBanner(eventId, banner) {
+      return rev.post(`/api/v2/scheduled-events/${eventId}/banner`, banner);
+    },
+    setBannerStatus(eventId, bannerId, isEnabled) {
+      return rev.put(`/api/v2/scheduled-events/${eventId}/banner/${bannerId}/status`, { isEnabled });
+    },
+    updateBanner(eventId, banner) {
+      const { id, ...payload } = banner;
+      return rev.put(`/api/v2/scheduled-events/${eventId}/banner/${id}`, payload);
+    },
+    deleteBanner(eventId, bannerId) {
+      return rev.delete(`/api/v2/scheduled-events/${eventId}/banner/${bannerId}`);
     }
   };
   return webcastAPI;
@@ -2884,7 +2950,7 @@ var SessionKeepAlive = class {
     this.error = void 0;
     this._isExtending = false;
     const oldController = this.controller;
-    this.controller = new interop_default.AbortController();
+    this.controller = new polyfills_default.AbortController();
     if (oldController) {
       oldController.abort();
     }
@@ -3332,6 +3398,7 @@ var RevClient = class {
    * make a REST request
    */
   async request(method, endpoint, data = void 0, options = {}) {
+    if (shouldInitialize()) await onInitialize();
     const url = new URL(endpoint, this.url);
     if (url.origin !== this.url) {
       throw new TypeError(`Invalid endpoint - must be relative to ${this.url}`);
@@ -3342,7 +3409,7 @@ var RevClient = class {
       throwHttpErrors = true,
       ...requestOpts
     } = options;
-    const headers = new interop_default.Headers(optHeaders);
+    const headers = new polyfills_default.Headers(optHeaders);
     if (this.session.token && !headers.has("Authorization")) {
       headers.set("Authorization", `VBrick ${this.session.token}`);
     }
@@ -3361,7 +3428,7 @@ var RevClient = class {
       if (["POST", "PUT", "PATCH"].includes(normalizedMethod)) {
         if (typeof data === "string") {
           fetchOptions.body = data;
-        } else if (data instanceof interop_default.FormData) {
+        } else if (data instanceof polyfills_default.FormData) {
           shouldSetAsJSON = false;
           fetchOptions.body = data;
         } else if (isPlainObject(data) || Array.isArray(data)) {
@@ -3397,7 +3464,7 @@ var RevClient = class {
           break;
       }
     }
-    const response = await interop_default.fetch(`${url}`, {
+    const response = await polyfills_default.fetch(`${url}`, {
       ...fetchOptions,
       method,
       headers
@@ -3435,10 +3502,10 @@ var RevClient = class {
       case "stream":
         switch (this._streamPreference) {
           case "webstream":
-            body = interop_default.asWebStream(response.body);
+            body = polyfills_default.asWebStream(response.body);
             break;
           case "nativestream":
-            body = interop_default.asPlatformStream(response.body);
+            body = polyfills_default.asPlatformStream(response.body);
             break;
           default:
             body = response.body;
@@ -3446,10 +3513,10 @@ var RevClient = class {
         body = response.body;
         break;
       case "webstream":
-        body = interop_default.asWebStream(response.body);
+        body = polyfills_default.asWebStream(response.body);
         break;
       case "nativestream":
-        body = interop_default.asPlatformStream(response.body);
+        body = polyfills_default.asPlatformStream(response.body);
         break;
       default:
         body = await decodeBody(response, headers.get("Accept"));
@@ -3544,7 +3611,8 @@ var RevClient = class {
 var utils = {
   rateLimit: rate_limit_default,
   getExtensionForMime,
-  getMimeForExtension
+  getMimeForExtension,
+  setPolyfills
 };
 var src_default = RevClient;
 export {

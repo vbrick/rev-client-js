@@ -1,4 +1,4 @@
-import polyfills from '../interop';
+import polyfills from '../interop/polyfills';
 
 const ONE_MINUTE = 60 * 1000;
 

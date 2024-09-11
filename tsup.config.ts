@@ -1,4 +1,5 @@
 //@ts-check
+import fs from 'node:fs/promises';
 import { Options, defineConfig } from 'tsup';
 import pkg from './package.json';
 import path from 'node:path';
@@ -15,10 +16,13 @@ function fileEntry(source: string, filepath: string): Partial<Options> {
 const commonConfig: Options = {
     splitting: false,
     sourcemap: true,
-    clean: true,
     dts: false,
+    clean: false,
     skipNodeModulesBundle: true
 }
+
+console.log('clearing dist directory');
+await fs.rm('./dist', { recursive: true, force: true });
 
 export default defineConfig((options) => {
     const cfg: Options[] = [
@@ -30,25 +34,25 @@ export default defineConfig((options) => {
             dts: true
         },
         {
-            ...fileEntry('src/index-node.ts', pkg.module),
+            ...fileEntry('src/index-nodefetch.mts', pkg.exports['./node-fetch'].node.import),
             format: 'esm',
             platform: 'node',
             ...commonConfig
         },
         {
-            ...fileEntry('src/index-node.ts', pkg.main),
+            ...fileEntry('src/index-nodefetch.cts', pkg.exports['./node-fetch'].node.require),
             format: 'cjs',
             platform: 'node',
             ...commonConfig
         },
         {
-            ...fileEntry('src/index-node18.ts', pkg.exports['./native-fetch'].node.import),
+            ...fileEntry('src/index-node-native.ts', pkg.exports['./native-fetch'].node.import),
             format: 'esm',
             platform: 'node',
             ...commonConfig
         },
         {
-            ...fileEntry('src/index-node18.ts', pkg.exports['./native-fetch'].node.require),
+            ...fileEntry('src/index-node-native.ts', pkg.exports['./native-fetch'].node.require),
             format: 'cjs',
             platform: 'node',
             ...commonConfig

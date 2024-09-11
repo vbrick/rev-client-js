@@ -1,4 +1,4 @@
-import polyfills from '../interop';
+import polyfills from '../interop/polyfills';
 
 export function mergeHeaders(source?: HeadersInit, other?: HeadersInit) {
     const merged = new polyfills.Headers(source);

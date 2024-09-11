@@ -1,6 +1,6 @@
 {
   "name": "@vbrick/rev-client",
-  "version": "0.21.3",
+  "version": "0.22.2",
   "description": "Vbrick Rev API client for browser and server",
   "type": "module",
   "main": "dist/node/rev-client.cjs",
@@ -26,6 +26,15 @@
       },
       "default": "./dist/rev-client.js"
     },
+    "./node-fetch": {
+      "types": "./dist/rev-client.d.ts",
+      "node": {
+        "types": "./dist/rev-client.d.ts",
+        "import": "./dist/es/rev-client.mjs",
+        "require": "./dist/node/rev-client.cjs"
+      },
+      "default": "./dist/rev-client.js"
+    },
     "./iife": "./dist/rev-client.iife.js"
   },
   "files": [
@@ -45,19 +54,18 @@
   "license": "MIT",
   "repository": "github:vbrick/rev-client-js",
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   },
   "dependencies": {
-    "fetch-blob": "^3.1.2",
-    "form-data": "^3.0.1",
-    "node-abort-controller": "^3.0.0",
-    "node-fetch": "^2.6.1"
+    "fetch-blob": "^4.0.0",
+    "form-data-encoder": "^4.0.2",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
-    "@types/node": "^18.16.0",
+    "@types/node": "^22.5.0",
     "@types/node-fetch": "^2.5.12",
-    "tslib": "^2.6.2",
-    "tsup": "^8.0.1",
-    "typescript": "^5.3.2"
+    "tslib": "^2.7.0",
+    "tsup": "^8.2.4",
+    "typescript": "^5.5.4"
   }
 }

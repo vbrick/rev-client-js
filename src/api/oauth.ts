@@ -1,5 +1,5 @@
 import type { OAuth } from '../types/auth';
-import polyfills from '../interop';
+import polyfills from '../interop/polyfills';
 import type { Rev } from '../types/rev';
 
 const PLACEHOLDER = 'http://rev';
