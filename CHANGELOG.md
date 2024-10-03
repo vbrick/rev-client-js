@@ -1,3 +1,8 @@
+## 0.22.3
+
+* Update types for Rev 7.61
+* bump build dependencies
+
 ## 0.22.2
 
 ### Bugfixes
