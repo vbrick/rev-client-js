@@ -138,6 +138,12 @@ export namespace Video {
         enableAutoShowChapterImages?: boolean;
 
         /**
+         * This will prevent sensitive content from being indexed in Elastic Search.
+         * NOTE: Feature must be enabled (contact Vbrick Support)
+         */
+        sensitiveContent?: boolean;
+
+        /**
          * Retain the total views count from an outside system as an optional param.
          */
         legacyViewCount?: number;
@@ -188,6 +194,11 @@ export namespace Video {
 
          */
         legacyViewCount?: number;
+        /**
+         * This will prevent sensitive content from being indexed in Elastic Search.
+         * @deprecated - consider using the PATCH API instead
+         */
+        sensitiveContent?: boolean;
     }
 
 
@@ -340,7 +351,7 @@ export namespace Video {
         hasAudioOnly: boolean;
         viewerIdEnabled: boolean;
         enableAutoShowChapterImages: boolean;
-
+        sensitiveContent: boolean;
     }
 
     export interface PatchRequest {
@@ -360,6 +371,7 @@ export namespace Video {
         customFields: Admin.CustomField.Request[];
         unlisted?: boolean;
         userTags?: string[];
+        sensitiveContent?: boolean;
     }
 
     export interface StatusResponse {
@@ -685,13 +697,17 @@ export namespace Video {
 
     export interface ClipRequest {
         /**
-         * Start time of the video clip in timespan format (e.g. <code>00:00:00</code>). Minutes and seconds should be from 0-59.
+         * Start time of the video clip in timespan format (e.g. <code>00:00:00.000</code>) with hours, minutes, seconds, and optional milliseconds. Minutes and seconds should be from 0-59, and milliseconds have three digits.
          */
         start: string,
         /**
-         * End time of the video clip in timespan format (e.g. <code>00:00:00</code>). Minutes and seconds should be from 0-59.
+         * End time of the video clip in timespan format (e.g. <code>00:00:00.000</code>) with hours, minutes, seconds, and optional milliseconds. Minutes and seconds should be from 0-59, and milliseconds have three digits.
          */
-        end: string
+        end: string,
+        /**
+         * ID of the video within the system. The video must be accessible and editable to the account used for API authorization. If the video ID matches the video ID in the API call then leave blank or null, otherwise the video ID is required.
+         */
+        videoId?: string
     }
 }
 
