@@ -704,12 +704,13 @@ export interface Transcription {
 export namespace Transcription {
     export type SupportedLanguage = LiteralString<"da" | "de" | "el" | "en" | "en-gb" | "es" | "es-419" | "es-es" | "fi" | "fr" | "fr-ca" | "id" | "it" | "ja" | "ko" | "nl" | "no" | "pl" | "pt" | "pt-br" | "ru" | "sv" | "th" | "tr" | "zh" | "zh-tw" | "zh-cmn-hans" | "cs" | "en-au" | "hi" | "lt" | "so" | "hmn" | "my" | "cnh" | "kar" | "ku-kmr" | "ne" | "sw" | "af" | "sq" | "am" | "az" | "bn" | "bs" | "bg" | "hr" | "et" | "ka" | "ht" | "ha" | "hu" | "lv" | "ms" | "ro" | "sr" | "sk" | "sl" | "tl" | "ta" | "uk" | "vi">
     export type TranslateSource = Extract<SupportedLanguage, 'en' | 'en-gb' | 'fr' | 'de' | 'pt-br' | 'es' | 'zh-cmn-hans'>;
-    export type ServiceType = LiteralString<'Vbrick' | 'VoiceBase' | 'Manual'>
+    export type ServiceType = LiteralString<'Vbrick' | 'Manual'>
     export type StatusEnum = LiteralString<'NotStarted' | 'Preparing' | 'InProgress' | 'Success' | 'Failed'>;
     export interface Request {
         language: Transcription.SupportedLanguage;
         audioTrack?: number;
-        serviceType?: Omit<Transcription.ServiceType, 'Manual'>;
+        /** @deprecated - voicebase removed so no longer needed */
+        serviceType?: Extract<Transcription.ServiceType, 'Vbrick'>
     }
     export interface Status {
         videoId: string;

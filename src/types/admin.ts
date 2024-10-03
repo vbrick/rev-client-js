@@ -102,6 +102,7 @@ export namespace Admin {
         supplementalFilesEnabled: boolean;
         tagsEnabled: boolean;
         unlistedEnabled: boolean;
-        voiceBaseEnabled: boolean;
+        /** @deprecated */
+        voiceBaseEnabled?: undefined;
     }
 }
