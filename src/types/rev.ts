@@ -175,8 +175,9 @@ export namespace Rev {
     export interface KeepAliveOptions {
         /**
          * How many milliseconds between automatic extend session calls
-         * Default 5 minutes
-         * @default 300000
+         * Sane values are 5-45 minutes, depending on Rev session settings
+         * Default 10 minutes
+         * @default 600000
          */
         keepAliveInterval?: number;
         /**

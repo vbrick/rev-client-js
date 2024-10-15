@@ -329,8 +329,9 @@ declare namespace Rev {
     interface KeepAliveOptions {
         /**
          * How many milliseconds between automatic extend session calls
-         * Default 5 minutes
-         * @default 300000
+         * Sane values are 5-45 minutes, depending on Rev session settings
+         * Default 10 minutes
+         * @default 600000
          */
         keepAliveInterval?: number;
         /**
@@ -520,6 +521,11 @@ declare namespace Video {
          */
         enableAutoShowChapterImages?: boolean;
         /**
+         * This will prevent sensitive content from being indexed in Elastic Search.
+         * NOTE: Feature must be enabled (contact Vbrick Support)
+         */
+        sensitiveContent?: boolean;
+        /**
          * Retain the total views count from an outside system as an optional param.
          */
         legacyViewCount?: number;
@@ -571,6 +577,11 @@ declare namespace Video {
 
          */
         legacyViewCount?: number;
+        /**
+         * This will prevent sensitive content from being indexed in Elastic Search.
+         * @deprecated - consider using the PATCH API instead
+         */
+        sensitiveContent?: boolean;
     }
     interface Details {
         /** Video ID */
@@ -726,6 +737,7 @@ declare namespace Video {
         hasAudioOnly: boolean;
         viewerIdEnabled: boolean;
         enableAutoShowChapterImages: boolean;
+        sensitiveContent: boolean;
     }
     interface PatchRequest {
         title?: string;
@@ -744,6 +756,7 @@ declare namespace Video {
         customFields: Admin.CustomField.Request[];
         unlisted?: boolean;
         userTags?: string[];
+        sensitiveContent?: boolean;
     }
     interface StatusResponse {
         videoId: string;
@@ -1040,13 +1053,17 @@ declare namespace Video {
     }
     interface ClipRequest {
         /**
-         * Start time of the video clip in timespan format (e.g. <code>00:00:00</code>). Minutes and seconds should be from 0-59.
+         * Start time of the video clip in timespan format (e.g. <code>00:00:00.000</code>) with hours, minutes, seconds, and optional milliseconds. Minutes and seconds should be from 0-59, and milliseconds have three digits.
          */
         start: string;
         /**
-         * End time of the video clip in timespan format (e.g. <code>00:00:00</code>). Minutes and seconds should be from 0-59.
+         * End time of the video clip in timespan format (e.g. <code>00:00:00.000</code>) with hours, minutes, seconds, and optional milliseconds. Minutes and seconds should be from 0-59, and milliseconds have three digits.
          */
         end: string;
+        /**
+         * ID of the video within the system. The video must be accessible and editable to the account used for API authorization. If the video ID matches the video ID in the API call then leave blank or null, otherwise the video ID is required.
+         */
+        videoId?: string;
     }
 }
 interface Transcription {
@@ -1058,12 +1075,13 @@ interface Transcription {
 declare namespace Transcription {
     type SupportedLanguage = LiteralString<"da" | "de" | "el" | "en" | "en-gb" | "es" | "es-419" | "es-es" | "fi" | "fr" | "fr-ca" | "id" | "it" | "ja" | "ko" | "nl" | "no" | "pl" | "pt" | "pt-br" | "ru" | "sv" | "th" | "tr" | "zh" | "zh-tw" | "zh-cmn-hans" | "cs" | "en-au" | "hi" | "lt" | "so" | "hmn" | "my" | "cnh" | "kar" | "ku-kmr" | "ne" | "sw" | "af" | "sq" | "am" | "az" | "bn" | "bs" | "bg" | "hr" | "et" | "ka" | "ht" | "ha" | "hu" | "lv" | "ms" | "ro" | "sr" | "sk" | "sl" | "tl" | "ta" | "uk" | "vi">;
     type TranslateSource = Extract<SupportedLanguage, 'en' | 'en-gb' | 'fr' | 'de' | 'pt-br' | 'es' | 'zh-cmn-hans'>;
-    type ServiceType = LiteralString<'Vbrick' | 'VoiceBase' | 'Manual'>;
+    type ServiceType = LiteralString<'Vbrick' | 'Manual'>;
     type StatusEnum = LiteralString<'NotStarted' | 'Preparing' | 'InProgress' | 'Success' | 'Failed'>;
     interface Request {
         language: Transcription.SupportedLanguage;
         audioTrack?: number;
-        serviceType?: Omit<Transcription.ServiceType, 'Manual'>;
+        /** @deprecated - voicebase removed so no longer needed */
+        serviceType?: Extract<Transcription.ServiceType, 'Vbrick'>;
     }
     interface Status {
         videoId: string;
@@ -1238,7 +1256,8 @@ declare namespace Admin {
         supplementalFilesEnabled: boolean;
         tagsEnabled: boolean;
         unlistedEnabled: boolean;
-        voiceBaseEnabled: boolean;
+        /** @deprecated */
+        voiceBaseEnabled?: undefined;
     }
 }
 
@@ -1383,7 +1402,7 @@ declare namespace Channel {
     interface Member {
         id: string;
         type: LiteralString<'User' | 'Group'>;
-        roleTypes: LiteralString<'Admin' | 'Contributor' | 'Member'>[];
+        roleTypes: LiteralString<'Admin' | 'Contributor' | 'Uploader' | 'Member'>[];
     }
     interface CreateRequest {
         name: string;
@@ -2498,8 +2517,8 @@ interface Role {
     name: Role.RoleType;
 }
 declare namespace Role {
-    type RoleType = LiteralString<'AccountAdmin' | 'MediaAdmin' | 'EventAdmin' | 'EventHost' | 'InternalEventHost' | 'MediaContributor' | 'InternalMediaContributor' | 'MediaViewer' | 'TeamCreator' | 'CategoryCreator' | 'VodAnalyst' | 'EventAnalyst' | 'RevIqUser' | 'ChannelCreator'>;
-    type RoleName = LiteralString<'Account Admin' | 'Media Admin' | 'Media Contributor' | 'Media Viewer' | 'Event Admin' | 'Event Host' | 'Channel Creator' | 'Category Creator' | 'Internal Event Host' | 'Internal Media Contributor' | 'VOD Analyst' | 'Event Analyst' | 'Rev IQ User'>;
+    type RoleType = LiteralString<'AccountAdmin' | 'MediaAdmin' | 'EventAdmin' | 'EventHost' | 'InternalEventHost' | 'MediaContributor' | 'InternalMediaContributor' | 'MediaViewer' | 'TeamCreator' | 'CategoryCreator' | 'VodAnalyst' | 'EventAnalyst' | 'RevIqUser' | 'ChannelCreator' | 'MediaUploader' | 'InternalMediaUploader'>;
+    type RoleName = LiteralString<'Account Admin' | 'Media Admin' | 'Media Contributor' | 'Media Viewer' | 'Event Admin' | 'Event Host' | 'Channel Creator' | 'Category Creator' | 'Internal Event Host' | 'Internal Media Contributor' | 'VOD Analyst' | 'Event Analyst' | 'Rev IQ User' | 'Media Uploader' | 'Internal Media Uploader'>;
     interface Details {
         id: string;
         name: string;

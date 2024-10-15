@@ -4,7 +4,7 @@ export namespace Channel {
     export interface Member {
         id: string;
         type: LiteralString<'User' | 'Group'>;
-        roleTypes: LiteralString<'Admin' | 'Contributor' | 'Member'>[];
+        roleTypes: LiteralString<'Admin' | 'Contributor' | 'Uploader' | 'Member'>[];
     }
     export interface CreateRequest {
         name: string;
