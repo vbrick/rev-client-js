@@ -58,7 +58,7 @@ export const polyfills = {
     createAbortError(message: string): Error {
         return new DOMException(message, 'AbortError');
     },
-    fetch: globalThis.fetch,
+    fetch(...args: Parameters<typeof fetch>) { return globalThis.fetch(...args); },
     FormData: globalThis.FormData,
     File: globalThis.File,
     Headers: globalThis.Headers,
