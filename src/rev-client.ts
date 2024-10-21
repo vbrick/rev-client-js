@@ -158,7 +158,7 @@ export class RevClient {
             headers.set('Accept', 'application/json');
         }
         // set to JSON payload
-        if (shouldSetAsJSON) {
+        if (shouldSetAsJSON && fetchOptions.body) {
             headers.set('Content-Type', 'application/json');
         }
 
