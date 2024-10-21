@@ -1,3 +1,8 @@
+## 0.22.4
+
+* Bugfix on requests when using in browser.
+* Bugfix on `environment.getRevVersion()` call in browser 
+
 ## 0.22.3
 
 * Update types for Rev 7.61

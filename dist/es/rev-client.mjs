@@ -207,7 +207,9 @@ var polyfills = {
   createAbortError(message) {
     return new DOMException(message, "AbortError");
   },
-  fetch: globalThis.fetch,
+  fetch(...args) {
+    return globalThis.fetch(...args);
+  },
   FormData: globalThis.FormData,
   File: globalThis.File,
   Headers: globalThis.Headers,
@@ -3455,7 +3457,7 @@ var RevClient = class {
     if (!headers.has("Accept")) {
       headers.set("Accept", "application/json");
     }
-    if (shouldSetAsJSON) {
+    if (shouldSetAsJSON && fetchOptions.body) {
       headers.set("Content-Type", "application/json");
     }
     this.log("debug", `Request ${method} ${endpoint}`);

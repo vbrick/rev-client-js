@@ -3386,7 +3386,7 @@ declare const polyfills: {
         timeout(milliseconds: number): AbortSignal;
     };
     createAbortError(message: string): Error;
-    fetch: typeof fetch;
+    fetch(input: string | URL | Request, init?: RequestInit | undefined): Promise<Response>;
     FormData: {
         new (form?: HTMLFormElement, submitter?: HTMLElement | null): FormData;
         prototype: FormData;
