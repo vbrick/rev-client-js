@@ -49,9 +49,12 @@ class SessionKeepAlive {
             extendThresholdMilliseconds: threshold
         } = this.extendOptions;
 
+        // ensure poll isn't repeatedly triggered - 5 seconds min
+        const MIN_INTERVAL_MS = 5 * 1000;
+
         const timeTillExpiration = expires.getTime() - Date.now();
-        // clamp range to within 0 and max interval
-        return Math.max(0, Math.min(timeTillExpiration - threshold, interval));
+        // clamp range to within short timespan and max interval
+        return Math.max(MIN_INTERVAL_MS, Math.min(timeTillExpiration - threshold, interval));
     }
     private async _poll() {
         const { _session: session } = this;
@@ -565,7 +568,9 @@ export function createSession(rev: RevClient, credentials: Rev.Credentials, keep
         if (userId) {
             (session as UserSession).userId = userId;
         }
-    } else if (hasSession || publicOnly) {
+    } else if (publicOnly) {
+        session = new PublicOnlySession(rev, creds, false, rateLimits);
+    } else if (hasSession) {
         session = new AccessTokenSession(rev, creds, keepAliveOptions, rateLimits);
     } else {
         throw new TypeError('Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)');
