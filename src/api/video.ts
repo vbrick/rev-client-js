@@ -94,6 +94,10 @@ export default function videoAPIFactory(rev: RevClient) {
         //         : fileId
         //     await rev.delete(`/api/v2/videos/${videoId}/supplemental-files`, { fileIds });
         // },
+        async thumbnailConfiguration(videoId: string, options?: Rev.RequestOptions): Promise<Video.ThumbnailConfiguration> {
+            const {thumbnailCfg} = await rev.get(`/api/v2/videos/${videoId}/thumbnail-config`, undefined, options);
+            return thumbnailCfg;
+        },
         async transcriptions(videoId: string, options?: Rev.RequestOptions): Promise<Transcription[]> {
             const {transcriptionFiles} = await rev.get(`/api/v2/videos/${videoId}/transcription-files`, undefined, options);
             return transcriptionFiles;
@@ -180,6 +184,19 @@ export default function videoAPIFactory(rev: RevClient) {
         ...videoDownloadAPI(rev),
         ...videoReportAPI(rev),
         ...videoExternalAccessAPI(rev),
+        listDeleted(query: Video.RemovedVideosQuery = {}, options: Rev.SearchOptions<Video.RemovedVideoItem> = {}): Rev.ISearchRequest<Video.RemovedVideoItem> {
+            const searchDefinition: Rev.SearchDefinition<Video.RemovedVideoItem> = {
+                endpoint: '/api/v2/videos/deleted',
+                totalKey: 'totalVideos',
+                hitsKey: 'deletedVideos',
+                async request(endpoint, query, options) {
+                    await rev.session.queueRequest(RateLimitEnum.SearchVideos);
+                    return rev.get(endpoint, query, options);
+                }
+            };
+            const request = new SearchRequest<Video.RemovedVideoItem>(rev, searchDefinition, query, options);
+            return request;
+        },
         /**
          * @deprecated Use edit() API instead
          */

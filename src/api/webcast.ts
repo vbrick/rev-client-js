@@ -74,6 +74,9 @@ export default function webcastAPIFactory(rev: RevClient) {
             const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
             return rev.get(`/api/v2/scheduled-events/${eventId}/comments`, query, { responseType: 'json' });
         },
+        async reactions(eventId: string): Promise<Webcast.ReactionsSummary[]> {
+            return rev.get(`/api/v2/scheduled-events/${eventId}/reactions`, undefined, { responseType: 'json' });
+        },
         async status(eventId: string, requestOptions?: Rev.RequestOptions): Promise<Webcast.Status> {
             return rev.get(`/api/v2/scheduled-events/${eventId}/status`, undefined, requestOptions);
         },
@@ -141,6 +144,34 @@ export default function webcastAPIFactory(rev: RevClient) {
          */
         async guestRegistration(eventId: string, registrationId: string): Promise<GuestRegistration.Details> {
             return rev.get(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
+        },
+        /**
+         * Mute attendee for a specified webcast
+         */
+        async muteAttendee(eventId: string, userId: string, runNumber?: number): Promise<void> {
+            const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+            await rev.put(`/api/v2/scheduled-events/${eventId}/users/${userId}/mute`, query);
+        },
+        /**
+         * Unmute attendee for a specified webcast
+         */
+        async unmuteAttendee(eventId: string, userId: string, runNumber?: number): Promise<void> {
+            const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+            await rev.delete(`/api/v2/scheduled-events/${eventId}/users/${userId}/mute`, query);
+        },
+        /**
+         * Hide specific comment for a specified webcast
+         */
+        async hideComment(eventId: string, commentId: string, runNumber?: number): Promise<void> {
+            const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+            await rev.put(`/api/v2/scheduled-events/${eventId}/comments/${commentId}/hide`, query);
+        },
+        /**
+         * Unhide specific comment for a specified webcast
+         */
+        async unhideComment(eventId: string, commentId: string, runNumber?: number): Promise<void> {
+            const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+            await rev.delete(`/api/v2/scheduled-events/${eventId}/comments/${commentId}/hide`, query);
         },
         /**
          * Register one attendee/guest user for an upcoming Public webcast. Make sure you first enable Public webcast pre-registration before adding registrations.

@@ -373,6 +373,7 @@ These calls are called automatically by the `RevClient` instance, but they're in
 #### `channel.list(start?, options?)`
 #### `channel.addMembers(channelId, members)`
 #### `channel.removeMembers(channelId, members)`
+#### `channel.uploadLogo(channelId, imageFile, options?)`
 #### `channel.search(searchText?, {type?, assignable?})`
 
 Wrapper around the [Search Users,Groups and Channels](https://revdocs.vbrick.com/reference/searchaccessentity) API. If `options.assignable: true` then restrict to only assignable entities. `options.type` defaults to `Channel` to just return channels
@@ -525,12 +526,14 @@ The ID of the video
 #### `video.chapters(videoId)`
 #### `video.supplementalFiles(videoId)`
 #### `video.transcriptions(videoId)`
+#### `video.thumbnailConfiguration(videoId, options?)` - Get Thumbnail Configuration
 #### `video.migrate(videoId, migratePayload)`
 #### `video.download(videoId, options?)`
 #### `video.downloadTranscription(videoId, language)`
 #### `video.downloadSupplemental(videoId, fileId)`
 #### `video.downloadChapter(chapter)`
 #### `video.downloadThumbnail(query)`
+#### `video.downloadThumbnailSheet(query)`
 #### `video.listExternalAccess(videoId, searchText?, searchOptions?)` - Get External Access
 #### `video.createExternalAccess(videoId, {emails, message?, noEmail?})` - Add External Access
 #### `video.renewExternalAccess(videoId, {emails, noEmail?})`
@@ -584,6 +587,9 @@ for await (let video of request) {
 }
 ```
 
+#### `video.listDeleted(query?, options?)` - [Get Deleted Videos](https://revdocs.vbrick.com/reference/getdeletedvideos)
+##### Returns - class `SearchRequest`
+
 ### [Webcasts](https://revdocs.vbrick.com/reference/webcasts)
 
 #### `webcast.list(options?)`
@@ -609,7 +615,10 @@ for await (let video of request) {
 #### `webcast.stopRecord(eventId)`
 #### `webcast.linkVideo(eventId, videoId, autoRedirect?)`
 #### `webcast.unlinkVideo(eventId)`
-
+#### `webcast.muteAttendee(eventId, userId, runNumber?)`
+#### `webcast.unmuteAttendee(eventId, userId, runNumber?)`
+#### `webcast.hideComment(eventId, commentId, runNumber?)`
+#### `webcast.unhideComment(eventId, commentId, runNumber?)`
 #### `webcast.guestRegistration(eventId, registrationId)`
 #### `webcast.createGuestRegistration(eventId, registration)`
 #### `webcast.updateGuestRegistration(eventId, registrationId, registration)`

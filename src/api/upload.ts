@@ -218,6 +218,17 @@ export default function uploadAPIFactory(rev: RevClient) {
             rev.log('info', `Uploading presentation for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
 
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/video-presentations/${videoId}`, form, filePayload, requestOptions);
+        },
+        async chapterLogo(channelId: string, file: Rev.FileUploadType, options: Rev.UploadFileOptions = {}) {
+            const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
+
+            const form = new FormData();
+
+            const filePayload = await appendFileToForm(form, 'ImageFile', file, uploadOptions);
+
+            rev.log('info', `Uploading channel logo for ${channelId} (${filePayload.filename} (${filePayload.contentType})`);
+
+            await uploadMultipart(rev, 'POST', `/api/v2/uploads/channel-logo/${channelId}`, form, filePayload, requestOptions);
         }
     };
 

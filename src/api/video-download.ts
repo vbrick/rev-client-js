@@ -70,7 +70,7 @@ export function videoDownloadAPI(rev: RevClient) {
         }
 
         let thumbnailUrl: string = '';
-        
+
         if (videoId) {
             thumbnailUrl = `/api/v2/videos/${videoId}/thumbnail`;
             // allow getting from api if only know the video ID
@@ -85,12 +85,40 @@ export function videoDownloadAPI(rev: RevClient) {
         const { body } = await rev.request<T>('GET', thumbnailUrl, undefined, { responseType: 'blob', ...options });
         return body;
     }
+    /**
+     * Download the thumbnail sheet image for a video
+     * @param thumbnailSheet the thumbnailSheetUri or Thumbnail Configuration (get from video.thumbnailConfiguration)
+     * @param options
+     * @returns
+     */
+    async function downloadThumbnailSheet<T = Blob>(thumbnailSheet: string, options?: Rev.RequestOptions): Promise<T>;
+    async function downloadThumbnailSheet<T = Blob>(thumbnailSheet: Video.ThumbnailConfiguration, options?: Rev.RequestOptions): Promise<T>;
+    async function downloadThumbnailSheet<T = Blob>(thumbnailSheet: { videoId: string, sheetIndex?: string | number }, options?: Rev.RequestOptions): Promise<T>;
+    async function downloadThumbnailSheet<T = Blob>(thumbnailSheet: string | { videoId: string, sheetIndex?: string | number } | Video.ThumbnailConfiguration, options?: Rev.RequestOptions): Promise<T> {
+        let thumbnailSheetsUri = '';
+        if (typeof thumbnailSheet === 'string') {
+            thumbnailSheetsUri = thumbnailSheet;
+        } else if (thumbnailSheet && typeof thumbnailSheet === 'object' && 'thumbnailSheetsUri' in thumbnailSheet) {
+            thumbnailSheetsUri = thumbnailSheet.thumbnailSheetsUri;
+        } else if (thumbnailSheet?.videoId) {
+            const {videoId, sheetIndex = '1'} = thumbnailSheet;
+            thumbnailSheetsUri = `/api/v2/videos/${videoId}/thumbnail-sheet/${sheetIndex}`;
+        }
+
+        if (!thumbnailSheetsUri) {
+            throw new TypeError('No thumbnail sheet specified to download');
+        }
+
+        const { body } = await rev.request<T>('GET', thumbnailSheetsUri, undefined, { responseType: 'blob', ...options });
+        return body;
+    }
 
     return {
         download,
         downloadChapter,
         downloadSupplemental,
         downloadThumbnail,
-        downloadTranscription
+        downloadTranscription,
+        downloadThumbnailSheet
     };
 }

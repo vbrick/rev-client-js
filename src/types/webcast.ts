@@ -396,10 +396,13 @@ export namespace Webcast {
     }
 
     export interface Comment {
+        commentId: string;
+        userId: string;
         username: string;
         date: string;
         comment: string;
         htmlComment: string;
+        hidden: boolean;
     }
 
     export interface Status {
@@ -420,6 +423,24 @@ export namespace Webcast {
 
     export interface Playback extends Video.PlaybackUrlResult {
 
+    }
+    export interface ReactionsSummary {
+        /**
+         * Date and time the reaction was recorded.
+         */
+        webcastDate: string;
+        /**
+         * The emoji character.
+         */
+        reaction: string;
+        /**
+         * The unicode representation of the emoji character.
+         */
+        unicode: string;
+        /**
+         * The number of emojis sent.
+         */
+        count: number;
     }
 }
 
