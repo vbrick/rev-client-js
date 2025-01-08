@@ -1,63 +1,76 @@
-type CacheOption = boolean | 'Force';
-declare function adminAPIFactory(rev: RevClient): {
+/**
+ * A custom error for parsing and handling Error HTTP responses from Rev.
+ * @category Getting Started
+ */
+declare class RevError extends Error {
     /**
-    * get mapping of role names to role IDs
-    * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
-    */
-    roles(cache?: CacheOption): Promise<Role.Details[]>;
-    /**
-    * Get a Role (with the role id) based on its name
-    * @param name Name of the Role OR RoleType. You can specify the specific enum value (preferred, only Rev 7.53+), or the localized string value in the current user's language, i.e. "Media Viewer" for english
-    * @param fromCache - if true then use previously cached Role listing (more efficient)
-    */
-    getRoleByName(name: Role.RoleType | Role.RoleName, fromCache?: CacheOption): Promise<Role>;
-    /**
-    * get list of custom fields
-    * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
-    */
-    customFields(cache?: CacheOption): Promise<Admin.CustomField[]>;
-    /**
-    * Get a Custom Field based on its name
-    * @param name name of the Custom Field
-    * @param fromCache if true then use previously cached Role listing (more efficient)
-    */
-    getCustomFieldByName(name: string, fromCache?: CacheOption): Promise<Admin.CustomField>;
-    brandingSettings(): Promise<Admin.BrandingSettings>;
-    webcastRegistrationFields(): Promise<RegistrationField & {
-        id: string;
-    }>;
-    createWebcastRegistrationField(registrationField: RegistrationField.Request): Promise<string>;
-    updateWebcastRegistrationField(fieldId: string, registrationField: Partial<RegistrationField.Request>): Promise<void>;
-    deleteWebcastRegistrationField(fieldId: string): Promise<void>;
-    listIQCreditsUsage(query: {
-        startDate?: string | Date;
-        endDate?: string | Date;
-    }, options?: Rev.SearchOptions<Admin.IQCreditsSession>): Rev.ISearchRequest<Admin.IQCreditsSession>;
-    /**
-    * get system health - returns 200 if system is active and responding, otherwise throws error
-    */
-    verifySystemHealth(): Promise<boolean>;
-    /**
-    * gets list of scheduled maintenance windows
-    */
-    maintenanceSchedule(): Promise<{
-        start: string;
-        end: string;
-    }[]>;
-    /**
-     * gets the user location service URL
+     * HTTP Status Code
      */
-    userLocationService(): Promise<{
-        enabled: boolean;
-        locationUrls: string[];
-    }>;
+    status: number;
     /**
-     * returns an array of all expiration rules
+     * Request URL/endpoint
      */
-    expirationRules(): Promise<Admin.ExpirationRule[]>;
-    featureSettings(videoId?: string): Promise<Admin.FeatureSettings>;
-};
+    url: string;
+    /**
+     * Rev-specific error code
+     */
+    code: string;
+    /**
+     * Additional error message returned by Rev API
+     */
+    detail: string;
+    /**
+     * @hidden
+     * @param response
+     * @param body
+     */
+    constructor(response: Response, body: {
+        [key: string]: any;
+    } | string);
+    /** @ignore */
+    get name(): string;
+    /** @ignore */
+    get [Symbol.toStringTag](): string;
+    /**
+     * Consume a HTTP Response's body to create a new Error instance
+     * @param response
+     * @returns
+     */
+    static create(response: Response): Promise<RevError>;
+}
+/**
+ * This error is not very common - when calling Search APIs this may be thrown if paging through search results takes too long.
+ * @category Utilities
+ */
+declare class ScrollError extends Error {
+    /**
+     * HTTP Status Code
+     */
+    status: number;
+    /**
+     * Rev-specific error code
+     */
+    code: string;
+    /**
+     * Additional error message returned by Rev API
+     */
+    detail: string;
+    /**
+     * @hidden
+     * @param status
+     * @param code
+     * @param detail
+     */
+    constructor(status?: number, code?: string, detail?: string);
+    /** @ignore */
+    get name(): string;
+    /** @ignore */
+    get [Symbol.toStringTag](): string;
+}
 
+/**
+ * @inline
+ */
 declare enum RateLimitEnum {
     Get = "get",
     Post = "post",
@@ -71,6 +84,7 @@ declare enum RateLimitEnum {
     GetVideoViewReport = "viewReport"
 }
 
+/** @category Authentication */
 declare namespace Auth {
     interface LoginResponse {
         token: string;
@@ -102,6 +116,7 @@ declare namespace Auth {
         expiration: string;
     }
 }
+/** @category Authentication */
 declare namespace OAuth {
     interface Config {
         /**
@@ -177,11 +192,16 @@ declare namespace OAuth {
     }
 }
 
+/** @ignore */
 type LiteralString<T> = T | (string & Record<never, never>);
 type FetchResponse = Response;
+/**
+ * @category Utilities
+ */
 declare namespace Rev {
     type HTTPMethod = LiteralString<'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD'>;
     type ResponseType = LiteralString<'json' | 'text' | 'blob' | 'stream' | 'webstream' | 'nativestream'>;
+    /** @interface */
     type PatchOperation = {
         op: 'add' | 'remove' | 'replace';
         path: string;
@@ -204,57 +224,129 @@ declare namespace Rev {
         apiKey?: string;
     }
     interface Credentials {
-        /** Username of Rev User (for login) - this or apiKey must be specified */
+        /**
+         * Username of Rev User (for login) - this or apiKey must be specified
+         * @group Username Login
+         */
         username?: string;
-        /** Password of Rev User (for login) - this or secret must be specified */
+        /**
+         * Password of Rev User (for login) - this or secret must be specified
+         * @group Username Login
+         */
         password?: string;
-        /** API Key forRev User (for login) - this or username must be specified */
+        /**
+         * API Key forRev User (for login) - this or username must be specified
+         * @group API Key Login
+         */
         apiKey?: string;
-        /** API Secret for Rev User (for login) - this or password must be specified */
+        /**
+         * API Secret for Rev User (for login) - this or password must be specified
+         * @group API Key Login
+         */
         secret?: string;
-        /** oauth configuration values for oauth token management */
+        /**
+         * oauth configuration values for oauth token management
+         * @group OAuth Login
+         */
         oauthConfig?: OAuth.Config;
-        /** authCode from deprecated legacy oauth authorization flow */
+        /**
+         * authCode from deprecated legacy oauth authorization flow
+         * @deprecated
+         * @group OAuth Login
+         */
         authCode?: string;
-        /** code from oauth2 authorization flow */
+        /**
+         * code from oauth2 authorization flow
+         * @group OAuth Login
+         */
         code?: string;
-        /** code verifier from oauth2 authorization flow */
+        /**
+         * code verifier from oauth2 authorization flow
+         * @group OAuth Login
+         */
         codeVerifier?: string;
-        /** JWT Token */
+        /**
+         * JWT Token
+         * @group JWT Login
+         */
         jwtToken?: string;
-        /** Webcast Guest Registration */
+        /**
+         * Webcast Guest Registration
+         * @group Guest Login
+         */
         guestRegistrationToken?: string;
-        /** Webcast ID for Guest Registration */
+        /**
+         * Webcast ID for Guest Registration
+         * @group Guest Login
+         */
         webcastId?: string;
-        /** existing token/extend session details */
+        /**
+         * existing token/extend session details
+         * @group Custom Login
+         */
         session?: Rev.IRevSessionState;
-        /** use public APIs only - no authentication */
+        /**
+         * use public APIs only - no authentication
+         * @group Custom Login
+         */
         publicOnly?: boolean;
     }
     type LogSeverity = LiteralString<'debug' | 'info' | 'warn' | 'error'>;
     type LogFunction = (severity: LogSeverity, ...args: any[]) => void;
+    /**
+     * The main configuration options for setting up the Rev API Client
+     *
+     * @groupDescription Required
+     * `url` is required
+     * @groupDescription API Key Login
+     * @groupDescription Username Login
+     * @groupDescription JWT Login
+     * @groupDescription OAuth Login
+     * @groupDescription Custom Login
+     * @groupDescription Advanced
+     *
+     */
     interface Options extends Credentials {
-        /** URL of Rev account */
+        /**
+         * URL of Rev account
+         * @group Required
+         */
         url: string;
-        /** Logging function - default is log to console */
+        /**
+         * Logging function - default is log to console
+         * @group Advanced
+         */
         log?: LogFunction;
-        /** Enable/disable logging */
+        /**
+         * Enable/disable logging
+         * @group Advanced
+         */
         logEnabled?: boolean;
         /** If true then automatically extend the Rev session at regular intervals, until
          *     rev.disconnect() is called. Optionally, pass in keepAlive options instead of `true`
+         * @group Advanced
          */
         keepAlive?: boolean | KeepAliveOptions;
+        /**
+         * Turn on/off rate limits
+         * Automatically throttle requests client-side to fit within Vbrick's [API Request Rate Limits](https://revdocs.vbrick.com/reference/rate-limiting). Note that the default values *(when value is `true`)* is set to the account maximum
+         * @group Advanced
+         */
         rateLimits?: boolean | Rev.RateLimits;
         /**
          * Specify the default response type for streaming responses
          * 'stream': whatever underlying library returns (NodeJS Readable for node-fetch, ReadableStream otherwise)
          * 'webstream': always return a ReadableStream
          * 'nativestream': always return native stream type (NodeJS Readable on NodeJS, ReadableStream otherwise)
+         * @group Advanced
          */
         defaultStreamPreference?: 'stream' | 'webstream' | 'nativestream';
     }
+    /**
+     * @interface
+     */
     type RateLimits = {
-        [K in RateLimitEnum]?: number;
+        [K in `${RateLimitEnum}`]?: number;
     };
     interface IRevSession {
         token?: string;
@@ -271,9 +363,23 @@ declare namespace Rev {
         toJSON(): Rev.IRevSessionState;
         queueRequest(queue: `${RateLimitEnum}`): Promise<void>;
     }
+    /**
+     * Allows customizing the fetch RequestInit options, as well as setting the type of response
+     */
     interface RequestOptions extends Partial<RequestInit> {
         /**
          * specify body type when decoding. Use 'stream' to skip parsing body completely
+         *
+         * @remarks
+         *
+         * Options are:
+         *  * `undefined` *(default)*: autodetect - object if json response (most common), text if text response type, otherwise a ReadableStream
+         * * `'json'`: return a json object (most common type of response)
+         * * `'text'`: return as `string`
+         * * `'blob'`: return as a `Blob`
+         * * `'stream'`: return the `response.body` as-is with no processing *(may be NodeJS Readable if using `node-fetch` polyfill)*
+         * * `'webstream'`: return `response.body` as a `ReadableStream`
+         * * `'nativestream'`: return `response.body` as a NodeJS Readable stream if using `node`, otherwise `ReadableStream`
          */
         responseType?: ResponseType;
         /**
@@ -380,6 +486,9 @@ declare namespace Rev {
     }
 }
 
+/**
+ * @category Users & Groups
+ */
 declare namespace AccessControl {
     type EntityType = 'User' | 'Group' | 'Role' | 'Channel';
     interface Entity {
@@ -401,6 +510,7 @@ declare namespace AccessControl {
     }
 }
 
+/** @category Videos */
 declare namespace Video {
     type AccessControl = LiteralString<"AllUsers" | "Public" | "Private" | "Channels">;
     type ApprovalStatus = LiteralString<'Approved' | 'PendingApproval' | 'Rejected' | 'RequiresApproval' | 'SubmittedApproval'>;
@@ -414,6 +524,7 @@ declare namespace Video {
     type SearchFilterEnum = LiteralString<"myRecommendations" | "mySubscriptions">;
     type MetadataGenerationField = LiteralString<"description" | "title" | "tags" | "all" | "chapters">;
     type MetadataGenerationStatus = LiteralString<"NotStarted" | "InProgress" | "Success" | "Failed">;
+    type RemovedVideoState = LiteralString<"Deleted" | "ChangedToPrivate" | "ChangedToInactive" | "ChangedToUnlisted">;
     interface LinkedUrl {
         Url: string;
         EncodingType: EncodingType;
@@ -781,11 +892,11 @@ declare namespace Video {
          * list of category IDs separated by commas. pass blank to get uncategorized only
          */
         categories?: string;
-        /** list of uploader names separated by commas */
+        /** Use the first and last name of the uploader or an exact match of the uploader's username. Note that partial matches may still be returned. For example, uploaders=\"john doe\" will retrieve all videos uploaded by a user with the first and last name \"john doe\". To return an exact match, you must use the uploaderIds query string */
         uploaders?: string;
         /** list of uploader IDs separated by commas */
         uploaderIds?: string;
-        /** Include the first name and last name of the owner. Note that partial matches may be returned. Example: owners="john doe" is going to retrieve all videos owned by the user with first name and last name = "john doe". To return an exact result you must use the ownerIds query string. */
+        /** Retrieve videos owned by users by searching with the username as the search criterion. Example: owners=johndoe,janedoe */
         owners?: string;
         /** Owner GUIDs to get specific videos owner by these users. Example: ownerIds=abc, xyz */
         ownerIds?: string;
@@ -798,6 +909,10 @@ declare namespace Video {
         toModifiedDate?: string;
         exactMatch?: boolean;
         unlisted?: LiteralString<'unlisted' | 'listed' | 'all'>;
+        /**
+         * If provided, videos will be filtered by access control
+         */
+        accessControl?: AccessControl;
         /**
          * If provided, the query results are fetched on the provided searchField only.
          * If the exactMatch flag is also set along with searchField, then the results are fetched for
@@ -1065,13 +1180,46 @@ declare namespace Video {
          */
         videoId?: string;
     }
+    interface ThumbnailConfiguration {
+        /** Total number of horizontal tiles making up the thumbsheet. */
+        horizontalTiles: number;
+        /** Total number of vertical tiles making up the thumbsheet. */
+        verticalTiles: number;
+        /** Seconds per frame. */
+        spf: number;
+        /** Total number of thumbnails contained in the sheet. */
+        totalThumbnails: number;
+        /** Thumbnail sheet width in pixels. */
+        sheetWidth: number;
+        /** Thumbnail sheet height in pixels. */
+        sheetHeight: number;
+        /** Uri to thumbnail sheet instance. */
+        thumbnailSheetsUri: string;
+        /** Number of thumbnail sheets. */
+        numSheets: number;
+    }
+    interface RemovedVideosQuery {
+        fromDate?: string;
+        toDate?: string;
+        state?: RemovedVideoState;
+    }
+    interface RemovedVideoItem {
+        /** Video ID */
+        id: string;
+        state: RemovedVideoState;
+        accountId: string;
+        /** ISO Date */
+        when: string;
+    }
 }
+/** @category Videos */
 interface Transcription {
     downloadUrl: string;
     fileSize: number;
     filename: string;
     locale: string;
 }
+/** @category Videos */
 declare namespace Transcription {
     type SupportedLanguage = LiteralString<"da" | "de" | "el" | "en" | "en-gb" | "es" | "es-419" | "es-es" | "fi" | "fr" | "fr-ca" | "id" | "it" | "ja" | "ko" | "nl" | "no" | "pl" | "pt" | "pt-br" | "ru" | "sv" | "th" | "tr" | "zh" | "zh-tw" | "zh-cmn-hans" | "cs" | "en-au" | "hi" | "lt" | "so" | "hmn" | "my" | "cnh" | "kar" | "ku-kmr" | "ne" | "sw" | "af" | "sq" | "am" | "az" | "bn" | "bs" | "bg" | "hr" | "et" | "ka" | "ht" | "ha" | "hu" | "lv" | "ms" | "ro" | "sr" | "sk" | "sl" | "tl" | "ta" | "uk" | "vi">;
     type TranslateSource = Extract<SupportedLanguage, 'en' | 'en-gb' | 'fr' | 'de' | 'pt-br' | 'es' | 'zh-cmn-hans'>;
@@ -1101,6 +1249,7 @@ declare namespace Transcription {
         }>;
     }
 }
+/** @category Videos */
 interface ExternalAccess {
     /**
      * email address this token is associated with
@@ -1131,6 +1280,7 @@ interface ExternalAccess {
      */
     message: string;
 }
+/** @category Videos */
 declare namespace ExternalAccess {
     interface Request {
         /** List of email adddresses to add/remove/renew/revoke external access for */
@@ -1155,6 +1305,9 @@ declare namespace ExternalAccess {
     }
 }
 
+/**
+ * @category Administration
+ */
 declare namespace Admin {
     interface CustomField {
         id: string;
@@ -1261,6 +1414,10 @@ declare namespace Admin {
     }
 }
 
+/**
+ * A page of results returned from `.nextPage()`
+ * @category Utilities
+ */
 interface IPageResponse<T> {
     items: T[];
     done: boolean;
@@ -1271,15 +1428,20 @@ interface IPageResponse<T> {
 /**
  * Interface to iterate through results from API endpoints that return results in pages.
  * Use in one of three ways:
- * 1) Get all results as an array: await request.exec() == <array>
- * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
- * 3) Use for await to get all results one at a time: for await (let hit of request) { }
+ * 1) Get all results as an array: `await request.exec() == <array>`
+ * 2) Get each page of results: `await request.nextPage() == { current, total, items: <array> }`
+ * 3) Use for await to get all results one at a time: `for await (let hit of request) { }`
+ * @category Utilities
  */
 declare abstract class PagedRequest<ItemType> implements Rev.ISearchRequest<ItemType> {
     current: number;
     total: number | undefined;
     done: boolean;
     options: Required<Rev.SearchOptions<ItemType>>;
+    /**
+     * @hidden
+     * @param options
+     */
     constructor(options?: Rev.SearchOptions<ItemType>);
     protected abstract _requestPage(): Promise<IPageResponse<ItemType>>;
     /**
@@ -1304,15 +1466,25 @@ declare abstract class PagedRequest<ItemType> implements Rev.ISearchRequest<Item
      *
      */
     exec(): Promise<ItemType[]>;
+    /**
+     * Supports iterating through results using for await...
+     * @see [MDN Docs](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of)
+     */
     [Symbol.asyncIterator](): AsyncGenerator<Awaited<ItemType>, void, unknown>;
 }
 
+/**
+ * @category Audit
+ */
 declare namespace Audit {
     export interface Options<T extends Audit.Entry = Audit.Entry> extends Rev.SearchOptions<T> {
         fromDate?: string | Date;
         toDate?: string | Date;
         beforeRequest?: (request: PagedRequest<T>) => Promise<void>;
     }
+    /**
+     * Individual Audit entry. This is converted from the raw CSV response lines
+     */
     export interface Entry<EntityKey extends string = string> {
         messageKey: string;
         entityKey: EntityKey;
@@ -1326,6 +1498,10 @@ declare namespace Audit {
     export type UserAccessEntry = Entry<'Network.UserAccess'>;
     export type UserEntry = Entry<'Network.User'>;
     export type GroupEntry = Entry<'Network.Group'>;
+    /**
+     * @ignore
+     * @inline
+     */
     type DeviceKeys = 'Devices:DmeDevice' | 'Devices:EncoderDevice' | 'Devices:CustomDevice' | 'Devices:LdapConnectorDevice' | 'Devices:AkamaiDevice';
     export type DeviceEntry = Entry<DeviceKeys>;
     export type VideoEntry = Entry<'Media:Video'>;
@@ -1333,6 +1509,7 @@ declare namespace Audit {
     export {  };
 }
 
+/** @category Administration */
 interface Category {
     categoryId: string;
     name: string;
@@ -1340,8 +1517,15 @@ interface Category {
     parentCategoryId?: string | null;
     restricted?: boolean;
 }
+/**
+ * @category Administration
+ */
 declare namespace Category {
     export type ListItem = Omit<Category, "parentCategoryId">;
+    /**
+     * @ignore
+     * @inline
+     */
     interface BaseCategory {
         categoryId: string;
         name: string;
@@ -1384,6 +1568,7 @@ declare namespace Category {
          */
         parentCategoryId?: string;
     }
+    /** @inline */
     type Parent = BaseCategory & {
         parentCategory: null | Parent;
     };
@@ -1398,6 +1583,9 @@ declare namespace Category {
     export {  };
 }
 
+/**
+ * @category Channels
+ */
 declare namespace Channel {
     interface Member {
         id: string;
@@ -1423,6 +1611,7 @@ declare namespace Channel {
     }
 }
 
+/** @category Devices */
 declare namespace Device {
     export type DeviceType = 'Dme' | 'Akamai' | 'AkamaiLive' | 'Custom' | 'Encoder';
     export type HealthStatusType = 'Uninitialized' | 'Initializing' | 'Healthy' | 'Warning' | 'Error' | 'Updating' | 'Normal' | 'Caution' | 'Alert';
@@ -1492,6 +1681,7 @@ declare namespace Device {
         VideoStreamGroupsToAdd?: DmeVideoStreamGroup[];
     }
     /**
+     * @inline
      * Used to manually add video streams to the DME.
      */
     interface DmeVideoStream {
@@ -1513,6 +1703,7 @@ declare namespace Device {
         isMulticast?: boolean;
     }
     /**
+     * @inline
      * Used to add an HLS stream, required for mobile devices.  This is not added by default.
      */
     interface DmeVideoStreamGroup {
@@ -1525,13 +1716,19 @@ declare namespace Device {
          */
         hasHls: boolean;
     }
+    /** @inline */
     interface OriginStats {
         segmentsFailed: number;
         playlistsFailed: number;
         playlistsReceived: number;
         segmentsReceived: number;
     }
+    /**
+     * @inline
+     * @ignore
+     */
     type HealthEnum = "Uninitialized" | "Normal" | "Caution" | "Alert";
+    /** @inline */
     interface MeshStatistics {
         clientHttpRequests?: number;
         clientHttpHits?: number;
@@ -1561,6 +1758,7 @@ declare namespace Device {
         cacheHits?: number;
         squidCpuUsage?: number;
     }
+    /** @inline */
     interface HLSDistribution {
         streamId: string;
         streamName: string;
@@ -1583,6 +1781,7 @@ declare namespace Device {
         automaticMulticast: "HighBitrate" | "LowBitrate";
         eventStarted: string;
     }
+    /** @inline */
     interface DmeRecordingStatus {
         id: string;
         streamName: string;
@@ -1590,6 +1789,7 @@ declare namespace Device {
         duration: string;
         status: string;
     }
+    /** @inline */
     interface DmeServiceStatus {
         name: string;
         active: string;
@@ -1597,6 +1797,7 @@ declare namespace Device {
         stateStartTime: string;
         memory: number;
     }
+    /** @inline */
     interface EnrichedStreamStatus {
         typeNumeric?: number;
         stateStartTime?: number;
@@ -1626,6 +1827,7 @@ declare namespace Device {
             connectionEndTime?: number;
         }[];
     }
+    /** @inline */
     interface PassthroughStreamStatus {
         reflectionData?: {
             playbackUrlPaths: {
@@ -1678,6 +1880,7 @@ declare namespace Device {
             };
         };
     }
+    /** @inline */
     interface HLSStreamStatus {
         masterStatus: string;
         cdn?: {
@@ -1692,6 +1895,7 @@ declare namespace Device {
         groupName?: string;
         isMasterSub?: number;
     }
+    /** @inline */
     interface MPSStreamStatus {
         status: string;
         packetsDropped: number;
@@ -1703,6 +1907,7 @@ declare namespace Device {
         farPort: number;
         nearPort: number;
     }
+    /** @inline */
     export interface DmeHealthStatus {
         bootTime?: string;
         systemTime?: string;
@@ -1777,6 +1982,7 @@ declare namespace Device {
     export {  };
 }
 
+/** @category Users & Groups */
 declare namespace Group {
     interface Details {
         groupName: string;
@@ -1800,6 +2006,20 @@ declare namespace Group {
     }
 }
 
+/** @category Videos */
+declare namespace Upload {
+    type PresentationChaptersOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
+        contentType?: LiteralString<'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation'>;
+    };
+    type TranscriptionOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
+        contentType?: LiteralString<'text/plain' | 'text/vtt' | 'application/x-subrip'>;
+    };
+    type SupplementalOptions = Rev.RequestOptions & Omit<Rev.UploadFileOptions, 'filename' | 'contentLength'> & {
+        contentType?: LiteralString<'application/x-7z-compressed' | 'text/csv' | 'application/msword' | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' | 'image/gif' | 'image/jpeg' | 'application/pdf' | 'image/png' | 'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation' | 'application/x-rar-compressed' | 'image/svg+xml' | 'text/plain' | 'application/vnd.ms-excel' | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' | 'application/zip'>;
+    };
+}
+
+/** @category Users & Groups */
 interface User {
     userId: string;
     username: string;
@@ -1823,7 +2043,13 @@ interface User {
     permissions: User.Permissions;
     status: User.UserStatus;
 }
+/** @category Users & Groups */
 declare namespace User {
+    /**
+     * Individual user entry result when using `.user.search()`.
+     * **NOTE** these entries are transformed from the raw API result (camelCase instead of PascalCase) in order to better match the User Details API
+     * See {@link User.RawSearchHit} for the original API schema
+     */
     interface SearchHit {
         userId: string;
         email: string | null;
@@ -1884,6 +2110,7 @@ declare namespace User {
     }
 }
 
+/** @category Playlists */
 interface Playlist {
     id: string;
     name: string;
@@ -1892,6 +2119,7 @@ interface Playlist {
     videos?: Playlist.Video[];
     searchFilter?: Video.SearchOptions;
 }
+/** @category Playlists */
 declare namespace Playlist {
     type PlaylistTypeEnum = LiteralString<'Static' | 'Dynamic'>;
     interface List {
@@ -1929,6 +2157,7 @@ declare namespace Playlist {
     }
 }
 
+/** @category Videos */
 declare namespace Recording {
     interface PresentationProfileRequest {
         presentationProfileId: string;
@@ -1948,6 +2177,7 @@ declare namespace Recording {
     }
 }
 
+/** @category Webcasts */
 interface Webcast {
     id: string;
     title: string;
@@ -1979,6 +2209,7 @@ interface Webcast {
     };
     shortcutName: string;
 }
+/** @category Webcasts */
 declare namespace Webcast {
     type WebcastAccessControl = LiteralString<'Public' | 'TrustedPublic' | 'AllUsers' | 'Private'>;
     type SortField = LiteralString<'startDate' | 'title'>;
@@ -2095,7 +2326,7 @@ declare namespace Webcast {
             /**
              * Maximum allowed banners are five
              */
-            banners: Array<Banner.Request>;
+            banners: Array<WebcastBanner.Request>;
         };
         viewerIdEnabled?: boolean;
         /**
@@ -2178,7 +2409,7 @@ declare namespace Webcast {
         attendeeJoinMethod: LiteralString<'Anonymous' | 'Registration'>;
         bannerDetails?: {
             isEnabled: boolean;
-            banners: Banner[];
+            banners: WebcastBanner[];
         };
         viewerIdEnabled: boolean;
         externalPresenters: Array<{
@@ -2322,10 +2553,13 @@ declare namespace Webcast {
         }>;
     }
     interface Comment {
+        commentId: string;
+        userId: string;
         username: string;
         date: string;
         comment: string;
         htmlComment: string;
+        hidden: boolean;
     }
     interface Status {
         eventTitle: string;
@@ -2343,7 +2577,26 @@ declare namespace Webcast {
     }
     interface Playback extends Video.PlaybackUrlResult {
     }
+    interface ReactionsSummary {
+        /**
+         * Date and time the reaction was recorded.
+         */
+        webcastDate: string;
+        /**
+         * The emoji character.
+         */
+        reaction: string;
+        /**
+         * The unicode representation of the emoji character.
+         */
+        unicode: string;
+        /**
+         * The number of emojis sent.
+         */
+        count: number;
+    }
 }
+/** @category Webcasts */
 interface GuestRegistration {
     name: string;
     email: string;
@@ -2354,6 +2607,7 @@ interface GuestRegistration {
         value: string;
     }>;
 }
+/** @category Webcasts */
 declare namespace GuestRegistration {
     interface Details extends GuestRegistration {
         token: string;
@@ -2373,7 +2627,8 @@ declare namespace GuestRegistration {
         size?: number;
     }
 }
-interface Banner {
+/** @category Webcasts */
+interface WebcastBanner {
     id: string;
     /** Provides a description of the banner for the attendee. */
     name: string;
@@ -2385,10 +2640,12 @@ interface Banner {
     isEnabled?: boolean;
     pushMethod: LiteralString<'Manual' | 'AtEnd'>;
 }
-declare namespace Banner {
-    type Request = Omit<Banner, 'id'>;
+/** @category Webcasts */
+declare namespace WebcastBanner {
+    type Request = Omit<WebcastBanner, 'id'>;
 }
 
+/** @category Administration */
 interface Zone {
     id: string;
     parentZoneId?: string | null;
@@ -2421,6 +2678,7 @@ interface Zone {
     };
     fallbackToSource: boolean;
 }
+/** @category Administration */
 declare namespace Zone {
     interface CreateRequest {
         id?: string;
@@ -2512,10 +2770,16 @@ declare namespace Zone {
     type FlatZone = Omit<Zone, 'childZones'>;
 }
 
+/**
+ * @category Users & Groups
+ */
 interface Role {
     id: string;
     name: Role.RoleType;
 }
+/**
+ * @category Users & Groups
+ */
 declare namespace Role {
     type RoleType = LiteralString<'AccountAdmin' | 'MediaAdmin' | 'EventAdmin' | 'EventHost' | 'InternalEventHost' | 'MediaContributor' | 'InternalMediaContributor' | 'MediaViewer' | 'TeamCreator' | 'CategoryCreator' | 'VodAnalyst' | 'EventAnalyst' | 'RevIqUser' | 'ChannelCreator' | 'MediaUploader' | 'InternalMediaUploader'>;
     type RoleName = LiteralString<'Account Admin' | 'Media Admin' | 'Media Contributor' | 'Media Viewer' | 'Event Admin' | 'Event Host' | 'Channel Creator' | 'Category Creator' | 'Internal Event Host' | 'Internal Media Contributor' | 'VOD Analyst' | 'Event Analyst' | 'Rev IQ User' | 'Media Uploader' | 'Internal Media Uploader'>;
@@ -2526,6 +2790,7 @@ declare namespace Role {
         roleType: Role.RoleType;
     }
 }
+/** @category Webcasts */
 interface RegistrationField {
     id: string;
     name: string;
@@ -2534,6 +2799,7 @@ interface RegistrationField {
     options?: string[];
     includeInAllWebcasts: boolean;
 }
+/** @category Webcasts */
 declare namespace RegistrationField {
     interface Request {
         name: string;
@@ -2546,16 +2812,113 @@ declare namespace RegistrationField {
     }
 }
 
+/**
+ * if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache. false means bypass cache
+ * @inline
+ * @ignore
+ */
+type CacheOption = boolean | 'Force';
+/** @ignore */
+type API$e = ReturnType<typeof adminAPIFactory>;
+/**
+ * The Admin API methods
+ * @category Administration
+ * @group API
+ * @see [Administration API Docs](https://revdocs.vbrick.com/reference/getroles)
+ */
+interface AdminAPI extends API$e {
+}
+/** @ignore */
+declare function adminAPIFactory(rev: RevClient): {
+    /**
+    * get mapping of role names to role IDs
+    * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
+    */
+    roles(cache?: CacheOption): Promise<Role.Details[]>;
+    /**
+    * Get a Role (with the role id) based on its name
+    * @param name Name of the Role OR RoleType. You can specify the specific enum value (preferred, only Rev 7.53+), or the localized string value in the current user's language, i.e. "Media Viewer" for english
+    * @param fromCache - if true then use previously cached Role listing (more efficient)
+    */
+    getRoleByName(name: Role.RoleType | Role.RoleName, fromCache?: CacheOption): Promise<Role>;
+    /**
+    * get list of custom fields
+    * @param cache - if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache
+    */
+    customFields(cache?: CacheOption): Promise<Admin.CustomField[]>;
+    /**
+    * Get a Custom Field based on its name
+    * @param name name of the Custom Field
+    * @param fromCache if true then use previously cached Role listing (more efficient)
+    */
+    getCustomFieldByName(name: string, fromCache?: CacheOption): Promise<Admin.CustomField>;
+    brandingSettings(): Promise<Admin.BrandingSettings>;
+    webcastRegistrationFields(): Promise<RegistrationField & {
+        id: string;
+    }>;
+    createWebcastRegistrationField(registrationField: RegistrationField.Request): Promise<string>;
+    updateWebcastRegistrationField(fieldId: string, registrationField: Partial<RegistrationField.Request>): Promise<void>;
+    deleteWebcastRegistrationField(fieldId: string): Promise<void>;
+    listIQCreditsUsage(query: {
+        startDate?: string | Date;
+        endDate?: string | Date;
+    }, options?: Rev.SearchOptions<Admin.IQCreditsSession>): Rev.ISearchRequest<Admin.IQCreditsSession>;
+    /**
+    * get system health - returns 200 if system is active and responding, otherwise throws error
+    */
+    verifySystemHealth(): Promise<boolean>;
+    /**
+    * gets list of scheduled maintenance windows
+    */
+    maintenanceSchedule(): Promise<{
+        start: string;
+        end: string;
+    }[]>;
+    /**
+     * gets the user location service URL
+     */
+    userLocationService(): Promise<{
+        enabled: boolean;
+        locationUrls: string[];
+    }>;
+    /**
+     * returns an array of all expiration rules
+     */
+    expirationRules(): Promise<Admin.ExpirationRule[]>;
+    featureSettings(videoId?: string): Promise<Admin.FeatureSettings>;
+};
+
+/**
+ * @category Audit
+ */
 declare class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
     options: Required<Omit<Audit.Options<T>, 'toDate' | 'fromDate'>>;
     private params;
     private _req;
+    /**
+     * @hidden
+     * @param rev
+     * @param endpoint
+     * @param label
+     * @param options
+     */
     constructor(rev: RevClient, endpoint: string, label?: string, { toDate, fromDate, beforeRequest, ...options }?: Audit.Options<T>);
     protected _requestPage(): Promise<IPageResponse<T>>;
     private _buildReqFunction;
     private _parseDates;
 }
 
+/** @ignore */
+type API$d = ReturnType<typeof auditAPIFactory>;
+/**
+ * The Audit API methods
+ * @category Audit
+ * @group API
+ * @see [Audit API Docs](https://revdocs.vbrick.com/reference/getuseraccessauditdetails)
+ */
+interface AuditAPI extends API$d {
+}
+/** @ignore */
 declare function auditAPIFactory(rev: RevClient, optRateLimits?: Rev.Options['rateLimits']): {
     /**
     * Logs of user login / logout / failed login activity
@@ -2614,6 +2977,17 @@ declare function buildLegacyOAuthQuery(config: OAuth.Config, oauthSecret: string
  */
 declare function parseLegacyOAuthRedirectResponse(url: string | URL | URLSearchParams | Record<string, string>): OAuth.RedirectResponse;
 
+/** @ignore */
+type API$c = ReturnType<typeof authAPIFactory>;
+/**
+ * Authentication API methods
+ * @category Authentication
+ * @group API
+ * @see [Auth API Docs](https://revdocs.vbrick.com/reference/authenticateuser)
+     */
+interface AuthAPI extends API$c {
+}
+/** @ignore */
 declare function authAPIFactory(rev: RevClient): {
     loginToken(apiKey: string, secret: string, options?: Rev.RequestOptions): Promise<Auth.LoginResponse>;
     extendSessionToken(apiKey: string): Promise<Auth.ExtendResponse>;
@@ -2637,8 +3011,6 @@ declare function authAPIFactory(rev: RevClient): {
      * generate the Authorization URL for the OAuth2 flow as well as the codeVerifier for the
      * subsequent Access Token request. You *must* store the codeVerifier somehow (i.e. serverside database matched to user's state/cookies/session, or on browser SessionStorage) to be able to complete the OAuth2 login flow.
      * @param config OAuth signing settings, retrieved from Rev Admin -> Security -> API Keys page
-     * @param oauthSecret Secret from Rev Admin -> Security. This is a DIFFERENT value from the
-     *                    User Secret used for API login. Do not expose client-side!
      * @param state optional state to pass back to redirectUri once complete
      * @param verifier the code_verifier to use when generating the code challenge. Can be any string 43-128 characters in length, just these characters: [A-Za-z0-9._~-]. If not provided then code will automatically generate a suitable value
      * @returns A valid oauth flow URL + the code_verifier to save for later verification
@@ -2678,6 +3050,17 @@ declare function authAPIFactory(rev: RevClient): {
     extendSessionOAuth(config: OAuth.Config, refreshToken: string): Promise<OAuth.LoginResponse>;
 };
 
+/** @ignore */
+type API$b = ReturnType<typeof categoryAPIFactory>;
+/**
+ * Category API methods
+ * @category Administration
+ * @group API
+ * @see [Category API Docs](https://revdocs.vbrick.com/reference/getcategories)
+ */
+interface CategoryAPI extends API$b {
+}
+/** @ignore */
 declare function categoryAPIFactory(rev: RevClient): {
     create(category: Category.CreateRequest): Promise<Category.CreateResponse>;
     details(categoryId: string): Promise<Category.Details>;
@@ -2697,9 +3080,10 @@ declare function categoryAPIFactory(rev: RevClient): {
 /**
  * Interface to iterate through results from API endpoints that return results in pages.
  * Use in one of three ways:
- * 1) Get all results as an array: await request.exec() == <array>
- * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
- * 3) Use for await to get all results one at a time: for await (let hit of request) { }
+ * 1) Get all results as an array: `await request.exec() == <array>`
+ * 2) Get each page of results: `await request.nextPage() == { current, total, items: <array> }`
+ * 3) Use for await to get all results one at a time: `for await (let hit of request) { }`
+ * @category Utilities
  */
 declare class SearchRequest<T> extends PagedRequest<T> {
     options: Required<Rev.SearchOptions<T>>;
@@ -2710,6 +3094,17 @@ declare class SearchRequest<T> extends PagedRequest<T> {
     private _buildReqFunction;
 }
 
+/** @ignore */
+type API$a = ReturnType<typeof channelAPIFactory>;
+/**
+ * Channel API methods
+ * @category Channels
+ * @group API
+ * @see [Channel API Docs](https://revdocs.vbrick.com/reference/getchannels)
+ */
+interface ChannelAPI extends API$a {
+}
+/** @ignore */
 declare function channelAPIFactory(rev: RevClient): {
     create(channel: Channel.CreateRequest): Promise<string>;
     update(channelId: string, channel: Channel.CreateRequest): Promise<void>;
@@ -2721,6 +3116,7 @@ declare function channelAPIFactory(rev: RevClient): {
     list(start?: number, options?: Channel.SearchOptions): ChannelListRequest;
     addMembers(channelId: string, members: Channel.Member[]): Promise<void>;
     removeMembers(channelId: string, members: Array<string | Channel.Member>): Promise<void>;
+    uploadLogo(channelId: string, imageFile: Rev.FileUploadType, options?: Rev.UploadFileOptions): Promise<void>;
     /**
      *
      * @param {string} [searchText]
@@ -2730,6 +3126,7 @@ declare function channelAPIFactory(rev: RevClient): {
         type?: AccessControl.EntitySearchType;
     }): SearchRequest<AccessControl.SearchHit>;
 };
+/** @category Channels */
 declare class ChannelListRequest implements Rev.ISearchRequest<Channel.SearchHit> {
     currentPage: number;
     current: number;
@@ -2753,16 +3150,70 @@ declare class ChannelListRequest implements Rev.ISearchRequest<Channel.SearchHit
     [Symbol.asyncIterator](): AsyncGenerator<Channel.SearchHit, void, unknown>;
 }
 
+/** @ignore */
+type API$9 = ReturnType<typeof deviceAPIFactory>;
+/**
+ * Device API methods
+ * @category Devices
+ * @group API
+ * @see [Device API Docs](https://revdocs.vbrick.com/reference/getdmedevices-1)
+ */
+interface DeviceAPI extends API$9 {
+}
+/** @ignore */
 declare function deviceAPIFactory(rev: RevClient): {
+    /**
+     * Get a list of all DMEs
+     * @returns
+     */
     listDMEs(): Promise<Device.DmeDetails[]>;
+    /**
+     * Get a list of devices that can be used for Zoning configuration
+     * @returns
+     */
     listZoneDevices(): Promise<Device.ZoneDevice[]>;
+    /**
+     * Get a list of the Presentation Profiles defined in Rev
+     * @returns
+     */
     listPresentationProfiles(): Promise<Device.PresentationProfile[]>;
+    /**
+     * Create a new DME in Rev
+     * @param dme
+     * @returns
+     */
     add(dme: Device.CreateDMERequest): Promise<any>;
+    /**
+     * Get details about the specified DME's health
+     * @param deviceId
+     * @returns
+     */
     healthStatus(deviceId: string): Promise<Device.DmeHealthStatus>;
+    /**
+     * Remove a DME from Rev
+     * @param deviceId
+     * @returns
+     */
     delete(deviceId: string): Promise<void>;
+    /**
+     * Have Rev send a reboot request to the specified DME
+     * @param deviceId
+     * @returns
+     */
     rebootDME(deviceId: string): Promise<any>;
 };
 
+/** @ignore */
+type API$8 = ReturnType<typeof groupAPIFactory>;
+/**
+ * Group API methods
+ * @category Users & Groups
+ * @group API
+ * @see [Group API Docs](https://revdocs.vbrick.com/reference/getgroups-1)
+ */
+interface GroupAPI extends API$8 {
+}
+/** @ignore */
 declare function groupAPIFactory(rev: RevClient): {
     /**
      * Create a group. Returns the resulting Group ID
@@ -2794,10 +3245,18 @@ declare function groupAPIFactory(rev: RevClient): {
     }>;
 };
 
+/** @category Playlists */
 declare class PlaylistDetailsRequest extends SearchRequest<Video.Details> {
     playlist: Playlist & Omit<Playlist.DetailsResponse, 'scrollId'>;
     get playlistName(): string;
     get searchFilter(): Video.SearchOptions | undefined;
+    /**
+     * @hidden
+     * @param rev
+     * @param playlistId
+     * @param query
+     * @param options
+     */
     constructor(rev: RevClient, playlistId: string, query?: {
         count?: number;
     }, options?: Rev.SearchOptions<Video.Details>);
@@ -2817,6 +3276,17 @@ declare class PlaylistDetailsRequest extends SearchRequest<Video.Details> {
     }>;
 }
 
+/** @ignore */
+type API$7 = ReturnType<typeof playlistAPIFactory>;
+/**
+ * Playlist API methods
+ * @category Playlists
+ * @group API
+ * @see [Playlist API Docs](https://revdocs.vbrick.com/reference/getplaylists)
+ */
+interface PlaylistAPI extends API$7 {
+}
+/** @ignore */
 declare function playlistAPIFactory(rev: RevClient): {
     create(name: string, videos: string[] | Video.SearchOptions): Promise<string>;
     details(playlistId: string, query: {
@@ -2836,6 +3306,17 @@ declare function playlistAPIFactory(rev: RevClient): {
     list(): Promise<Playlist.List>;
 };
 
+/** @ignore */
+type API$6 = ReturnType<typeof recordingAPIFactory>;
+/**
+ * Recording-related API methods
+ * @category Videos
+ * @group API
+ * @see [Recording API Docs](https://revdocs.vbrick.com/reference/startrecording)
+ */
+interface RecordingAPI extends API$6 {
+}
+/** @ignore */
 declare function recordingAPIFactory(rev: RevClient): {
     startVideoConferenceRecording(sipAddress: string, sipPin: string, title?: string): Promise<string>;
     getVideoConferenceStatus(videoId: string): Promise<Video.StatusEnum>;
@@ -2845,23 +3326,55 @@ declare function recordingAPIFactory(rev: RevClient): {
     stopPresentationProfileRecording(recordingId: string): Promise<Recording.StopPresentationProfileResponse>;
 };
 
-type PresentationChaptersOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
-    contentType?: LiteralString<'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation'>;
-};
-type TranscriptionOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
-    contentType?: LiteralString<'text/plain' | 'text/vtt' | 'application/x-subrip'>;
-};
-type SupplementalOptions = Rev.RequestOptions & Omit<Rev.UploadFileOptions, 'filename' | 'contentLength'> & {
-    contentType?: LiteralString<'application/x-7z-compressed' | 'text/csv' | 'application/msword' | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' | 'image/gif' | 'image/jpeg' | 'application/pdf' | 'image/png' | 'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation' | 'application/x-rar-compressed' | 'image/svg+xml' | 'text/plain' | 'application/vnd.ms-excel' | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' | 'application/zip'>;
-};
+/**
+ * @ignore
+ */
+type API$5 = ReturnType<typeof uploadAPIFactory>;
+/**
+ * @category Videos
+ * @group API
+ * @see [Upload API Docs](https://revdocs.vbrick.com/reference/uploadvideo-1)
+ */
+interface UploadAPI extends API$5 {
+}
+/** @ignore */
 declare function uploadAPIFactory(rev: RevClient): {
     /**
      * Upload a video, and returns the resulting video ID
+     * @see [API Docs](https://revdocs.vbrick.com/reference/uploadvideo-1)
+     *
+     * @example
+     * ```js
+    const rev = new RevClient(...config...);
+    await rev.connect();
+
+    // if browser - pass in File
+    const file = fileInputElement.files[0];
+    // if nodejs - can pass in path to file instead
+    // const file = "/path/to/local/video.mp4";
+    // upload returns resulting ID when complete
+    const videoId = await rev.upload.video(file, {
+        uploader: 'username.of.uploader',
+        title: 'video uploaded via the API',
+        //categories: [EXISTING_REV_CATEGORY_NAME],
+        unlisted: true,
+        isActive: true
+        /// ...any additional metadata
+    });
+    ```
+     * @param file A File/Blob. if using nodejs you can also pass in the path to a file
+     * @param metadata metadata to add to video (title, etc.) - see API docs
+     * @param options Additional `RequestInit` options, as well as customizing the contentType/contentLength/filename of the `file` in the POST upload form (only needed if they can't be inferred from input)
+     * @returns the resulting video id
      */
     video(file: Rev.FileUploadType, metadata?: Video.UploadMetadata, options?: Rev.UploadFileOptions): Promise<string>;
+    /**
+     * Replace an existing video with an uploaded file
+     * @see [API Docs](https://revdocs.vbrick.com/reference/replacevideo)
+     */
     replaceVideo(videoId: string, file: Rev.FileUploadType, options?: Rev.UploadFileOptions): Promise<void>;
-    transcription(videoId: string, file: Rev.FileUploadType, language?: Transcription.SupportedLanguage, options?: TranscriptionOptions): Promise<void>;
-    supplementalFile(videoId: string, file: Rev.FileUploadType, options?: SupplementalOptions): Promise<void>;
+    transcription(videoId: string, file: Rev.FileUploadType, language?: Transcription.SupportedLanguage, options?: Upload.TranscriptionOptions): Promise<void>;
+    supplementalFile(videoId: string, file: Rev.FileUploadType, options?: Upload.SupplementalOptions): Promise<void>;
     /**
      *
      * @param videoId id of video to add chapters to
@@ -2872,9 +3385,21 @@ declare function uploadAPIFactory(rev: RevClient): {
      */
     chapters(videoId: string, chapters: Video.Chapter.Request[], action?: "append" | "replace", options?: Rev.RequestOptions): Promise<void>;
     thumbnail(videoId: string, file: Rev.FileUploadType, options?: Rev.RequestOptions & Rev.UploadFileOptions): Promise<void>;
-    presentationChapters(videoId: string, file: Rev.FileUploadType, options?: PresentationChaptersOptions): Promise<void>;
+    presentationChapters(videoId: string, file: Rev.FileUploadType, options?: Upload.PresentationChaptersOptions): Promise<void>;
+    chapterLogo(channelId: string, file: Rev.FileUploadType, options?: Rev.UploadFileOptions): Promise<void>;
 };
 
+/** @ignore */
+type API$4 = ReturnType<typeof userAPIFactory>;
+/**
+ * User API methods
+ * @category Users & Groups
+ * @group API
+ * @see [User API Docs](https://revdocs.vbrick.com/reference/createuser)
+ */
+interface UserAPI extends API$4 {
+}
+/** @ignore */
 declare function userAPIFactory(rev: RevClient): {
     /**
      * get the list of roles available in the system (with role name and id)
@@ -2888,9 +3413,8 @@ declare function userAPIFactory(rev: RevClient): {
     create(user: User.Request): Promise<string>;
     delete(userId: string): Promise<void>;
     details: {
-        (userId: string, options?: User.DetailsOptions): Promise<User>;
-        (username: string, type: "username"): Promise<User>;
-        (email: string, type: "email"): Promise<User>;
+        (userLookupValue: string, options?: User.DetailsOptions): Promise<User>;
+        (userLookupValue: string, type: "userId" | "email" | "username"): Promise<User>;
     };
     /**
      * Use the Details API to get information about currently logged in user
@@ -2899,18 +3423,18 @@ declare function userAPIFactory(rev: RevClient): {
     profile(requestOptions?: Rev.RequestOptions): Promise<User>;
     /**
      * get user details by username
-     * @deprecated - use details(username, {lookupType: 'username'})
+     * @deprecated use {@link details | user.details()} with `{lookupType: 'username'}`
      */
     getByUsername(username: string): Promise<User>;
     /**
      * get user details by email address
-     * @deprecated - use details(email, 'email')
+     * @deprecated use {@link details | user.details()} with `{lookupType: 'email'}`
      */
     getByEmail(email: string): Promise<User>;
     /**
      * Check if user exists in the system. Instead of throwing on a 401/403 error if
-     * user does not exist it returns false. Returns user details if does exist,
-     * instead of just true
+     * user does not exist it returns `false`. Returns {@link User | user details} if does exist,
+     * instead of just `true`
      * @param userLookupValue userId, username, or email
      * @param type
      * @returns User if exists, otherwise false
@@ -2977,10 +3501,17 @@ declare function parseOptions(options: Video.VideoReportOptions): {
     sortDirection: Rev.SortDirection;
     videoIds: string | undefined;
 };
+/** @category Videos */
 declare class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
     options: Required<ReturnType<typeof parseOptions>>;
     private _rev;
     private _endpoint;
+    /**
+     * @hidden
+     * @param rev
+     * @param options
+     * @param endpoint
+     */
     constructor(rev: RevClient, options?: Video.VideoReportOptions, endpoint?: string);
     protected _requestPage(): Promise<{
         items: Video.VideoReportEntry[];
@@ -2992,10 +3523,25 @@ declare class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
     set endDate(value: Date);
 }
 
+/** @ignore */
 type VideoSearchDetailedItem = Video.SearchHit & (Video.Details | {
     error?: Error;
 });
+/**
+ * @ignore
+ */
+type API$3 = ReturnType<typeof videoAPIFactory>;
+/**
+ * Video API methods
+ * @category Videos
+ * @group API
+ * @see [Video API Docs](https://revdocs.vbrick.com/reference/searchvideo)
+ */
+interface VideoAPI extends API$3 {
+}
+/** @ignore */
 declare function videoAPIFactory(rev: RevClient): {
+    listDeleted(query?: Video.RemovedVideosQuery, options?: Rev.SearchOptions<Video.RemovedVideoItem>): Rev.ISearchRequest<Video.RemovedVideoItem>;
     /**
      * @deprecated Use edit() API instead
      */
@@ -3043,7 +3589,9 @@ declare function videoAPIFactory(rev: RevClient): {
         (videoId: string, startDate: Date | string, endDate?: undefined, options?: Rev.RequestOptions): Promise<Video.SummaryStatistics>;
         (videoId: string, startDate: Date | string, endDate: Date | string, options?: Rev.RequestOptions): Promise<Video.SummaryStatistics>;
     };
-    download: <T = ReadableStream<any>>(videoId: string, options?: Rev.RequestOptions) => Promise<Rev.Response<T>>;
+    download: <T = ReadableStream<any>>(videoId: string, options?: Rev.RequestOptions) => Promise<Rev.
+    /** @ignore */
+    Response<T>>;
     downloadChapter: (chapter: Video.Chapter, options?: Rev.RequestOptions) => Promise<Blob>;
     downloadSupplemental: {
         <T = Blob>(file: Video.SupplementalFile, options?: Rev.RequestOptions): Promise<T>;
@@ -3062,6 +3610,14 @@ declare function videoAPIFactory(rev: RevClient): {
         <T = Blob>(transcription: Transcription, options?: Rev.RequestOptions): Promise<T>;
         <T = Blob>(videoId: string, language: string, options?: Rev.RequestOptions): Promise<T>;
     };
+    downloadThumbnailSheet: {
+        <T = Blob>(thumbnailSheet: string, options?: Rev.RequestOptions): Promise<T>;
+        <T = Blob>(thumbnailSheet: Video.ThumbnailConfiguration, options?: Rev.RequestOptions): Promise<T>;
+        <T = Blob>(thumbnailSheet: {
+            videoId: string;
+            sheetIndex?: string | number;
+        }, options?: Rev.RequestOptions): Promise<T>;
+    };
     /**
      * This is an example of using the video Patch API to only update a single field
      * @param videoId
@@ -3077,9 +3633,16 @@ declare function videoAPIFactory(rev: RevClient): {
     delete(videoId: string, options?: Rev.RequestOptions): Promise<void>;
     /**
      * get processing status of a video
-     * @param videoId
+     * @see [API Docs](https://revdocs.vbrick.com/reference/getvideostatus)
      */
     status(videoId: string, options?: Rev.RequestOptions): Promise<Video.StatusResponse>;
+    /**
+     * get details of a video
+     * @see [API Docs](https://revdocs.vbrick.com/reference/getvideosdetails)
+     * @param videoId
+     * @param options
+     * @returns
+     */
     details(videoId: string, options?: Rev.RequestOptions): Promise<Video.Details>;
     update(videoId: string, metadata: Video.UpdateRequest, options?: Rev.RequestOptions): Promise<void>;
     comments: {
@@ -3088,6 +3651,7 @@ declare function videoAPIFactory(rev: RevClient): {
     };
     chapters(videoId: string, options?: Rev.RequestOptions): Promise<Video.Chapter[]>;
     supplementalFiles(videoId: string, options?: Rev.RequestOptions): Promise<Video.SupplementalFile[]>;
+    thumbnailConfiguration(videoId: string, options?: Rev.RequestOptions): Promise<Video.ThumbnailConfiguration>;
     transcriptions(videoId: string, options?: Rev.RequestOptions): Promise<Transcription[]>;
     upload: (file: Rev.FileUploadType, metadata?: Video.UploadMetadata, options?: Rev.UploadFileOptions) => Promise<string>;
     replace: (videoId: string, file: Rev.FileUploadType, options?: Rev.UploadFileOptions) => Promise<void>;
@@ -3111,8 +3675,19 @@ declare function videoAPIFactory(rev: RevClient): {
     playbackUrls(videoId: string, { ip, userAgent }?: Video.PlaybackUrlsRequest, options?: Rev.RequestOptions): Promise<Video.PlaybackUrlsResponse>;
 };
 
+/** @category Webcasts */
 declare class RealtimeReportRequest<T extends Webcast.RealtimeSession = Webcast.RealtimeSession> extends SearchRequest<T> {
+    /**
+     * The overall summary statistics returned with the first page of results
+     */
     summary: Webcast.RealtimeSummary;
+    /**
+     * @hidden
+     * @param rev
+     * @param eventId
+     * @param query
+     * @param options
+     */
     constructor(rev: RevClient, eventId: string, query?: Webcast.RealtimeRequest, options?: Rev.SearchOptions<T>);
     /**
      * get the aggregate statistics only, instead of actual session data.
@@ -3120,8 +3695,15 @@ declare class RealtimeReportRequest<T extends Webcast.RealtimeSession = Webcast.
      */
     getSummary(): Promise<Webcast.RealtimeSummary>;
 }
+/** @category Webcasts */
 declare class PostEventReportRequest extends SearchRequest<Webcast.PostEventSession> {
     summary: Webcast.PostEventSummary;
+    /**
+     * @hidden
+     * @param rev
+     * @param query
+     * @param options
+     */
     constructor(rev: RevClient, query: {
         eventId: string;
         runNumber?: number;
@@ -3134,11 +3716,25 @@ declare class PostEventReportRequest extends SearchRequest<Webcast.PostEventSess
     getSummary(): Promise<Webcast.PostEventSummary>;
 }
 
+/**
+ * @category Webcasts
+ */
 type RealtimeSession<T extends Webcast.RealtimeRequest | undefined> = T extends {
     attendeeDetails: 'All';
 } ? Webcast.RealtimeSessionDetail : T extends {
     attendeeDetails: 'Counts';
 } ? never : Webcast.RealtimeSession;
+/** @ignore */
+type API$2 = ReturnType<typeof webcastAPIFactory>;
+/**
+ * Webcast API methods
+ * @category Webcasts
+ * @group API
+ * @see [Webcast API Docs](https://revdocs.vbrick.com/reference/createevent)
+ */
+interface WebcastAPI extends API$2 {
+}
+/** @ignore */
 declare function webcastAPIFactory(rev: RevClient): {
     list(options?: Webcast.ListRequest, requestOptions?: Rev.RequestOptions): Promise<Webcast[]>;
     search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): Rev.ISearchRequest<Webcast>;
@@ -3152,6 +3748,7 @@ declare function webcastAPIFactory(rev: RevClient): {
     questions(eventId: string, runNumber?: number): Promise<Webcast.Question[]>;
     pollResults(eventId: string, runNumber?: number): Promise<Webcast.PollResults[]>;
     comments(eventId: string, runNumber?: number): Promise<Webcast.Comment[]>;
+    reactions(eventId: string): Promise<Webcast.ReactionsSummary[]>;
     status(eventId: string, requestOptions?: Rev.RequestOptions): Promise<Webcast.Status>;
     isPublic(eventId: string, requestOptions?: Rev.RequestOptions): Promise<boolean>;
     playbackUrls(eventId: string, { ip, userAgent }?: Webcast.PlaybackUrlRequest, options?: Rev.RequestOptions): Promise<Webcast.PlaybackUrlsResponse>;
@@ -3178,6 +3775,22 @@ declare function webcastAPIFactory(rev: RevClient): {
      */
     guestRegistration(eventId: string, registrationId: string): Promise<GuestRegistration.Details>;
     /**
+     * Mute attendee for a specified webcast
+     */
+    muteAttendee(eventId: string, userId: string, runNumber?: number): Promise<void>;
+    /**
+     * Unmute attendee for a specified webcast
+     */
+    unmuteAttendee(eventId: string, userId: string, runNumber?: number): Promise<void>;
+    /**
+     * Hide specific comment for a specified webcast
+     */
+    hideComment(eventId: string, commentId: string, runNumber?: number): Promise<void>;
+    /**
+     * Unhide specific comment for a specified webcast
+     */
+    unhideComment(eventId: string, commentId: string, runNumber?: number): Promise<void>;
+    /**
      * Register one attendee/guest user for an upcoming Public webcast. Make sure you first enable Public webcast pre-registration before adding registrations.
      * @param eventId
      * @param registration
@@ -3188,13 +3801,26 @@ declare function webcastAPIFactory(rev: RevClient): {
     updateGuestRegistration(eventId: string, registrationId: string, registration: GuestRegistration.Request): Promise<void>;
     patchGuestRegistration(eventId: string, registrationId: string, registration: Partial<GuestRegistration.Request>): Promise<void>;
     deleteGuestRegistration(eventId: string, registrationId: string): Promise<void>;
-    listBanners(eventId: string): Promise<Banner[]>;
-    addBanner(eventId: string, banner: Banner.Request): Promise<Banner>;
+    listBanners(eventId: string): Promise<WebcastBanner[]>;
+    addBanner(eventId: string, banner: WebcastBanner.Request): Promise<WebcastBanner>;
     setBannerStatus(eventId: string, bannerId: string, isEnabled: boolean): Promise<void>;
-    updateBanner(eventId: string, banner: Banner): Promise<Banner>;
+    updateBanner(eventId: string, banner: WebcastBanner): Promise<WebcastBanner>;
     deleteBanner(eventId: string, bannerId: string): Promise<void>;
 };
 
+/**
+ * @ignore
+ */
+type API$1 = ReturnType<typeof zonesAPIFactory>;
+/**
+ * Zone-related API methods
+ * @category Administration
+ * @group API
+ * @see [Zones API Docs](https://revdocs.vbrick.com/reference/getzones)
+ */
+interface ZoneAPI extends API$1 {
+}
+/** @ignore */
 declare function zonesAPIFactory(rev: RevClient): {
     list(): Promise<{
         defaultZone: Zone;
@@ -3207,6 +3833,16 @@ declare function zonesAPIFactory(rev: RevClient): {
     readonly devices: () => Promise<Device.ZoneDevice[]>;
 };
 
+/** @ignore */
+type API = ReturnType<typeof environmentAPIFactory>;
+/**
+ * @see [Environment API Docs](https://revdocs.vbrick.com/reference/user-location)
+ * @category Utilities
+ * @group API
+ */
+interface EnvironmentAPI extends API {
+}
+/** @ignore */
 declare function environmentAPIFactory(rev: RevClient): {
     /**
      * Get's the accountId embedded in Rev's main entry point
@@ -3234,82 +3870,301 @@ declare function environmentAPIFactory(rev: RevClient): {
     getUserLocalIp(timeoutMs?: number, forceRefresh?: boolean): Promise<string | undefined>;
 };
 
+/**
+ * @categoryDescription Getting Started
+ * @see {@link RevClient}, the main entry point for using this library
+ */
+/** @inline */
 type PayloadType = {
     [key: string]: any;
 } | Record<string, any> | any[];
+/**
+ * All API interactions are wrapped up in the `RevClient` class.
+ *
+ * @example
+ * ```js
+import {RevClient} from '/path/to/rev-client.js';
+
+// create client object
+const rev = new RevClient({
+    url: 'https://my.rev.url',
+    apiKey: 'my.user.apikey',
+    secret: 'my.user.secret',
+    // or can login via username + password
+    // username: 'my.username',
+    // password: 'my.password',
+    logEnabled: true, // turn on debug logging
+    keepAlive: true // automatically extend session
+    rateLimits: true // automatically enforce rate limiting (avoid 429 error responses)
+});
+
+(async () => {
+    // call login api and start session. will throw error if invalid login
+    await rev.connect();
+
+    // get details of current user
+    const currentUser = await rev.user.details('me');
+    console.log(currentUser);
+});
+```
+ *
+ * @category Getting Started
+ *
+ * @groupDescription APIs
+ * Methods to call the Rev APIs  are broken up into namespaces.
+ * They roughly match up to the categories in the [Rev API Docs](https://revdocs.vbrick.com/reference/developer-hub)
+ * Documentation for the individual api namespaces are broken out into separate pages:
+ * * `.admin`: {@link AdminAPI | admin api}
+ *
+ * * **`.admin`**: {@link AdminAPI | Admin Methods}
+ * * **`.audit`**: {@link AuditAPI | Audit Methods}
+ * * **`.auth`**: {@link AuthAPI | Auth Methods}
+ * * **`.category`**: {@link CategoryAPI | Category Methods}
+ * * **`.channel`**: {@link ChannelAPI | Channel Methods}
+ * * **`.device`**: {@link DeviceAPI | Device Methods}
+ * * **`.environment`**: {@link EnvironmentAPI | Environment Methods}
+ * * **`.group`**: {@link GroupAPI | Group Methods}
+ * * **`.playlist`**: {@link PlaylistAPI | Playlist Methods}
+ * * **`.recording`**: {@link RecordingAPI | Recording Methods}
+ * * **`.upload`**: {@link UploadAPI | Upload Methods}
+ * * **`.user`**: {@link UserAPI | User Methods}
+ * * **`.video`**: {@link VideoAPI | Video Methods}
+ * * **`.webcast`**: {@link WebcastAPI | Webcast Methods}
+ * * **`.zones`**: {@link ZoneAPI | Zone Methods}
+ *
+ *
+ * @groupDescription Session
+ * Methods to maintain the authentication session (accessToken)
+ *
+ * @groupDescription Request
+ * Methods to directly make (authenticated) HTTP requests
+ *
+ * @groupDescription Properties
+ * instance properties
+ *
+ * @groupDescription Internal
+ * for internal use
+ *
+ */
 declare class RevClient {
+    /**
+     * The Rev tenant url (i.e. https://my.rev.url)
+     * @group Properties
+     */
     url: string;
+    /**
+     * turns on/off debug logging to console
+     * @group Internal
+     */
     logEnabled: boolean;
+    /**
+     ** This is an internal class that handles authentication and maintaining the session. It should not be used directly.
+     * @group Internal
+     */
     session: Rev.IRevSession;
-    readonly admin: ReturnType<typeof adminAPIFactory>;
-    readonly audit: ReturnType<typeof auditAPIFactory>;
-    readonly auth: ReturnType<typeof authAPIFactory>;
-    readonly category: ReturnType<typeof categoryAPIFactory>;
-    readonly channel: ReturnType<typeof channelAPIFactory>;
-    readonly device: ReturnType<typeof deviceAPIFactory>;
-    readonly environment: ReturnType<typeof environmentAPIFactory>;
-    readonly group: ReturnType<typeof groupAPIFactory>;
-    readonly playlist: ReturnType<typeof playlistAPIFactory>;
-    readonly recording: ReturnType<typeof recordingAPIFactory>;
-    readonly upload: ReturnType<typeof uploadAPIFactory>;
-    readonly user: ReturnType<typeof userAPIFactory>;
-    readonly video: ReturnType<typeof videoAPIFactory>;
-    readonly webcast: ReturnType<typeof webcastAPIFactory>;
-    readonly zones: ReturnType<typeof zonesAPIFactory>;
+    /**
+     * @group APIs
+     */
+    readonly admin: AdminAPI;
+    /**
+     * @group APIs
+     */
+    readonly audit: AuditAPI;
+    /**
+     * @group APIs
+     */
+    readonly auth: AuthAPI;
+    /**
+     * @group APIs
+     */
+    readonly category: CategoryAPI;
+    /**
+     * @group APIs
+     */
+    readonly channel: ChannelAPI;
+    /**
+     * @group APIs
+     */
+    readonly device: DeviceAPI;
+    /**
+     * @group APIs
+     */
+    readonly environment: EnvironmentAPI;
+    /**
+     * @group APIs
+     */
+    readonly group: GroupAPI;
+    /**
+     * @group APIs
+     */
+    readonly playlist: PlaylistAPI;
+    /**
+     *
+     * @group APIs
+     */
+    readonly recording: RecordingAPI;
+    /**
+     * @group APIs
+     */
+    readonly upload: UploadAPI;
+    /**
+     * @group APIs
+     */
+    readonly user: UserAPI;
+    /**
+     * @group APIs
+     */
+    readonly video: VideoAPI;
+    /**
+     * @group APIs
+     */
+    readonly webcast: WebcastAPI;
+    /**
+     * @group APIs
+     */
+    readonly zones: ZoneAPI;
+    /**
+     * @internal
+     */
     private _streamPreference;
+    /**
+     *
+     * @param options The configuration options including target Rev URL and authentication credentials
+     */
     constructor(options: Rev.Options);
     /**
-     * make a REST request
+     * make a REST request.
+     * The Authorization http header for the current session will automatically be added.
+     *
+     * @group Request
+     * @param method HTTP Method
+     * @param endpoint API endpoint path
+     * @param data Request body if PUT/POST/PATCH or query parameters object if GET/DELETE/HEAD. objects/arrays are automatically stringified
+     * @param options additional request options, including additional HTTP Headers if necessary.
+     * @returns the decoded response body as well as statuscode/headers/and raw response
+     *
      */
     request<T = any>(method: Rev.HTTPMethod, endpoint: string, data?: any, options?: Rev.RequestOptions): Promise<Rev.Response<T>>;
+    /**
+     *
+     * Make a GET Request
+     * @group Request
+     * @param endpoint API path
+     * @param data Query parameters as json object
+     * @param options Additional request options
+     * @returns Depends on options.responseType/API response - usually JSON object except for binary download endpoints
+     */
     get<T = any>(endpoint: string, data?: PayloadType, options?: Rev.RequestOptions): Promise<T>;
+    /**
+     *
+     * Make a POST Request
+     * @group Request
+     * @param endpoint API path
+     * @param data Request body
+     * @param options Additional request options
+     * @returns Depends on options.responseType/API response - usually JSON object
+     */
     post<T = any>(endpoint: string, data?: PayloadType, options?: Rev.RequestOptions): Promise<T>;
+    /**
+     *
+     * Make a GET Request
+     * @group Request
+     * @param endpoint API path
+     * @param data Request body
+     * @param options Additional request options
+     * @returns Depends on options.responseType/API response - usually JSON object or void
+     */
     put<T = any>(endpoint: string, data?: PayloadType, options?: Rev.RequestOptions): Promise<T>;
+    /**
+     *
+     * Make a PATCH Request
+     * @group Request
+     * @param endpoint API path
+     * @param data Request body
+     * @param options Additional request options
+     * @returns
+     */
     patch(endpoint: string, data?: PayloadType, options?: Rev.RequestOptions): Promise<void>;
+    /**
+     *
+     * Make a DELETE Request
+     * @group Request
+     * @param endpoint API path
+     * @param data query parameters as JSON object
+     * @param options Additional request options
+     * @returns
+     */
     delete(endpoint: string, data?: PayloadType, options?: Rev.RequestOptions): Promise<void>;
     /**
+     *
      * authenticate with Rev
+     * @group Session
      */
     connect(): Promise<void>;
     /**
+     *
      * end rev session
+     * @group Session
      */
     disconnect(): Promise<void>;
+    /**
+     *
+     * Call the Extend Session API to maintain the current session's expiration time
+     * Note that this API call is automatically handled unless `keepAlive: false` was specified in configuring the client.
+     * @group Session
+     */
     extendSession(): Promise<void>;
     /**
+     *
      * Returns true/false based on if the session is currently valid
+     * @group Session
      * @returns Promise<boolean>
      */
     verifySession(): Promise<boolean>;
+    /**
+     *
+     * Returns true if session is connected and token's expiration date is in the future
+     * @group Properties
+     */
     get isConnected(): boolean;
+    /**
+     *
+     * the current session's `accessToken`
+     * @group Properties
+     */
     get token(): string | undefined;
+    /**
+     *
+     * `Date` value when current `accessToken` will expire
+     * @group Properties
+     */
     get sessionExpires(): Date;
+    /**
+     *
+     * get/set serialized session state (accessToken, expiration, and userId/apiKey)
+     * Useful if you need to create a new RevClient instance with the same accessToken
+     * @group Properties
+     */
     get sessionState(): Rev.IRevSessionState;
+    /**
+     *
+     * get/set serialized session state (accessToken, expiration, and userId/apiKey)
+     * Useful if you need to create a new RevClient instance with the same accessToken
+     * @group Properties
+     */
     set sessionState(state: Rev.IRevSessionState);
+    /**
+     *
+     * used internally to write debug log entries. Does nothing if `logEnabled` is `false`
+     * @group Internal
+     * @param severity
+     * @param args
+     * @returns
+     */
     log(severity: Rev.LogSeverity, ...args: any[]): void;
 }
 
-declare class RevError extends Error {
-    status: number;
-    url: string;
-    code: string;
-    detail: string;
-    constructor(response: Response, body: {
-        [key: string]: any;
-    } | string);
-    get name(): string;
-    get [Symbol.toStringTag](): string;
-    static create(response: Response): Promise<RevError>;
-}
-declare class ScrollError extends Error {
-    status: number;
-    code: string;
-    detail: string;
-    constructor(status?: number, code?: string, detail?: string);
-    get name(): string;
-    get [Symbol.toStringTag](): string;
-}
-
+/** @category Utilities */
 interface RateLimitOptions {
     /**
      * how many to allow in parallel in any given interval
@@ -3337,6 +4192,10 @@ interface RateLimitOptions {
      */
     signal?: AbortSignal;
 }
+/**
+ * @category Utilities
+ * @inline
+ */
 type ThrottledFunction<T extends (...args: any[]) => any> = ((...args: Parameters<T>) => ReturnType<T> extends PromiseLike<infer Return> ? Promise<Return> : Promise<ReturnType<T>>) & {
     /**
      * Abort pending executions. All unresolved promises are rejected with a `AbortError` error.
@@ -3345,12 +4204,13 @@ type ThrottledFunction<T extends (...args: any[]) => any> = ((...args: Parameter
      */
     abort: (message?: string, dispose?: boolean) => void;
 };
-interface RateLimitOptionsWithFn<T> extends RateLimitOptions {
+/** @inline */
+type RateLimitOptionsWithFn<T> = RateLimitOptions & {
     /**
      * function to rate limit
      */
     fn: T;
-}
+};
 declare function rateLimit<T extends (...args: any) => any>(options: RateLimitOptionsWithFn<T>): ThrottledFunction<T>;
 declare function rateLimit<T extends (...args: any) => any>(fn: T, options: RateLimitOptions): ThrottledFunction<T>;
 declare function rateLimit<T extends (...args: any) => any>(fn: T | RateLimitOptionsWithFn<T>, options?: RateLimitOptions): ThrottledFunction<T>;
@@ -3359,210 +4219,86 @@ declare function getMimeForExtension(extension?: string, defaultType?: string): 
 declare function getExtensionForMime(contentType: string, defaultExtension?: string): string;
 
 /**
- * used in OAuth - get random verifier string
- * @param byteLength
+ * ADVANCED - this includes library dependencies that may need to be overridden based on the current platform.
+ * @category Utilities
  */
-declare function randomValues(byteLength: number): string;
-/**
- * sha256 hash function for oauth2 pkce
- * @param value
- * @returns
- */
-declare function sha256Hash(value: string): Promise<string>;
-/**
- * used to sign the verifier in OAuth workflow
- */
-declare function hmacSign(message: string, secret: string): Promise<string>;
-declare const polyfills: {
-    AbortController: {
-        new (): AbortController;
-        prototype: AbortController;
-    };
-    AbortSignal: {
-        new (): AbortSignal;
-        prototype: AbortSignal;
-        abort(reason?: any): AbortSignal;
-        any(signals: AbortSignal[]): AbortSignal;
-        timeout(milliseconds: number): AbortSignal;
-    };
+interface RevPolyfills {
+    AbortController: typeof AbortController;
+    AbortSignal: typeof AbortSignal;
     createAbortError(message: string): Error;
     fetch(input: string | URL | Request, init?: RequestInit | undefined): Promise<Response>;
-    FormData: {
-        new (form?: HTMLFormElement, submitter?: HTMLElement | null): FormData;
-        prototype: FormData;
-    };
-    File: {
-        new (fileBits: BlobPart[], fileName: string, options?: FilePropertyBag): File;
-        prototype: File;
-    };
-    Headers: {
-        new (init?: HeadersInit): Headers;
-        prototype: Headers;
-    };
-    Request: {
-        new (input: RequestInfo | URL, init?: RequestInit): Request;
-        prototype: Request;
-    };
-    Response: {
-        new (body?: BodyInit | null, init?: ResponseInit): Response;
-        prototype: Response;
-        error(): Response;
-        json(data: any, init?: ResponseInit): Response;
-        redirect(url: string | URL, status?: number): Response;
-    };
+    FormData: typeof FormData;
+    File: typeof File;
+    Headers: typeof Headers;
+    Request: typeof Request;
+    Response: typeof Response;
     uploadParser: {
         string(value: string | URL, options: Rev.UploadFileOptions): Promise<{
             file: Blob | File;
-            options: {
-                filename: string;
-                contentType: string;
-                contentLength?: number;
-                useChunkedTransfer?: boolean;
-                defaultContentType?: string;
-                disableExternalResources?: boolean;
-                responseType?: Rev.ResponseType;
-                throwHttpErrors?: boolean;
-                body?: (BodyInit | null) | undefined;
-                cache?: RequestCache | undefined;
-                credentials?: RequestCredentials | undefined;
-                headers?: HeadersInit | undefined;
-                integrity?: string | undefined;
-                keepalive?: boolean | undefined;
-                method?: string | undefined;
-                mode?: RequestMode | undefined;
-                priority?: RequestPriority | undefined;
-                redirect?: RequestRedirect | undefined;
-                referrer?: string | undefined;
-                referrerPolicy?: ReferrerPolicy | undefined;
-                signal?: (AbortSignal | null) | undefined;
-                window?: null | undefined;
-            };
+            options: Rev.UploadFileOptions;
         }>;
         stream(value: AsyncIterable<Uint8Array>, options: Rev.UploadFileOptions): Promise<{
             file: Blob | File;
-            options: {
-                filename: string;
-                contentType: string;
-                contentLength?: number;
-                useChunkedTransfer?: boolean;
-                defaultContentType?: string;
-                disableExternalResources?: boolean;
-                responseType?: Rev.ResponseType;
-                throwHttpErrors?: boolean;
-                body?: (BodyInit | null) | undefined;
-                cache?: RequestCache | undefined;
-                credentials?: RequestCredentials | undefined;
-                headers?: HeadersInit | undefined;
-                integrity?: string | undefined;
-                keepalive?: boolean | undefined;
-                method?: string | undefined;
-                mode?: RequestMode | undefined;
-                priority?: RequestPriority | undefined;
-                redirect?: RequestRedirect | undefined;
-                referrer?: string | undefined;
-                referrerPolicy?: ReferrerPolicy | undefined;
-                signal?: (AbortSignal | null) | undefined;
-                window?: null | undefined;
-            };
+            options: Rev.UploadFileOptions;
         }>;
         response(response: Response, options: Rev.UploadFileOptions): Promise<{
             file: Blob | File;
-            options: {
-                filename: string;
-                contentType: string;
-                contentLength?: number;
-                useChunkedTransfer?: boolean;
-                defaultContentType?: string;
-                disableExternalResources?: boolean;
-                responseType?: Rev.ResponseType;
-                throwHttpErrors?: boolean;
-                body?: (BodyInit | null) | undefined;
-                cache?: RequestCache | undefined;
-                credentials?: RequestCredentials | undefined;
-                headers?: HeadersInit | undefined;
-                integrity?: string | undefined;
-                keepalive?: boolean | undefined;
-                method?: string | undefined;
-                mode?: RequestMode | undefined;
-                priority?: RequestPriority | undefined;
-                redirect?: RequestRedirect | undefined;
-                referrer?: string | undefined;
-                referrerPolicy?: ReferrerPolicy | undefined;
-                signal?: (AbortSignal | null) | undefined;
-                window?: null | undefined;
-            };
+            options: Rev.UploadFileOptions;
         }>;
         blob(value: Blob | File, options: Rev.UploadFileOptions): Promise<{
             file: Blob | File;
-            options: {
-                filename: string;
-                contentType: string;
-                contentLength?: number;
-                useChunkedTransfer?: boolean;
-                defaultContentType?: string;
-                disableExternalResources?: boolean;
-                responseType?: Rev.ResponseType;
-                throwHttpErrors?: boolean;
-                body?: (BodyInit | null) | undefined;
-                cache?: RequestCache | undefined;
-                credentials?: RequestCredentials | undefined;
-                headers?: HeadersInit | undefined;
-                integrity?: string | undefined;
-                keepalive?: boolean | undefined;
-                method?: string | undefined;
-                mode?: RequestMode | undefined;
-                priority?: RequestPriority | undefined;
-                redirect?: RequestRedirect | undefined;
-                referrer?: string | undefined;
-                referrerPolicy?: ReferrerPolicy | undefined;
-                signal?: (AbortSignal | null) | undefined;
-                window?: null | undefined;
-            };
+            options: Rev.UploadFileOptions;
         }>;
         parse(value: Rev.FileUploadType, options: Rev.UploadFileOptions): Promise<{
             file: Blob | File;
-            options: {
-                filename: string;
-                contentType: string;
-                contentLength?: number;
-                useChunkedTransfer?: boolean;
-                defaultContentType?: string;
-                disableExternalResources?: boolean;
-                responseType?: Rev.ResponseType;
-                throwHttpErrors?: boolean;
-                body?: (BodyInit | null) | undefined;
-                cache?: RequestCache | undefined;
-                credentials?: RequestCredentials | undefined;
-                headers?: HeadersInit | undefined;
-                integrity?: string | undefined;
-                keepalive?: boolean | undefined;
-                method?: string | undefined;
-                mode?: RequestMode | undefined;
-                priority?: RequestPriority | undefined;
-                redirect?: RequestRedirect | undefined;
-                referrer?: string | undefined;
-                referrerPolicy?: ReferrerPolicy | undefined;
-                signal?: (AbortSignal | null) | undefined;
-                window?: null | undefined;
-            };
+            options: Rev.UploadFileOptions;
         }>;
     };
-    randomValues: typeof randomValues;
-    sha256Hash: typeof sha256Hash;
-    hmacSign: typeof hmacSign;
+    randomValues(byteLength: number): string;
+    sha256Hash(value: string): Promise<string>;
+    hmacSign(message: string, secret: string): Promise<string>;
     beforeFileUploadRequest(form: FormData, headers: Headers, uploadOptions: Rev.UploadFileOptions, options: Rev.RequestOptions): FormData | undefined;
     asPlatformStream<TIn = any, TOut = TIn>(stream: TIn): TOut;
     asWebStream<TIn = any>(stream: TIn): ReadableStream;
-};
-
-type RevPolyfills = typeof polyfills;
+}
+/**
+ * ADVANCED - override the underlying implementation used when constructing requests/other primitive values.
+ * This is used internally and should not be used unless you absolutely need to change some particular behavior (for example, using a different `fetch` implementation)
+ * @param overrideCallback
+ */
 declare function setPolyfills(overrideCallback: (polyfills: RevPolyfills) => Promise<void> | void): void;
 
+/**
+ * Includes some helper utilities that may be useful when using this library
+ * @category Utilities
+ * @interface
+ */
 declare const utils: {
+    /**
+     * Rate-limit a function - useful to throttle the number of API requests made in a minute
+     * @example
+     * ```js
+     * const {utils} = import '@vbrick/rev-client'
+     * const lock = utils.rateLimit(() => {}, { perSecond: 1 });
+     * for (let i = 0; i < 10; i++) {
+     *   await lock();
+     *   console.log(`${i}: this will only be called once per second`);
+     * }
+     * ```
+     */
     rateLimit: typeof rateLimit;
+    /**
+     * Get a valid file extension for a given mimetype (used for uploading videos/transcriptions/etc)
+     */
     getExtensionForMime: typeof getExtensionForMime;
+    /**
+     * Get a valid mimetype for a given file extension (used for uploading videos/transcriptions/etc)
+     */
     getMimeForExtension: typeof getMimeForExtension;
+    /**
+     * ADVANCED - Override the underlying classes used in making requests. This is for internal use only and shouldn't typically be used.
+     */
     setPolyfills: typeof setPolyfills;
 };
 
-export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, ExternalAccess, Group, GuestRegistration, OAuth, Playlist, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, Transcription, User, Video, Webcast, Zone, RevClient as default, utils };
+export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, ExternalAccess, Group, GuestRegistration, OAuth, Playlist, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, Transcription, Upload, User, Video, Webcast, WebcastBanner, Zone, RevClient as default, utils };
