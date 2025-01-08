@@ -159,7 +159,7 @@ export namespace Webcast {
             /**
              * Maximum allowed banners are five
              */
-            banners: Array<Banner.Request>
+            banners: Array<WebcastBanner.Request>
         }
         viewerIdEnabled?: boolean;
 
@@ -245,7 +245,7 @@ export namespace Webcast {
         attendeeJoinMethod: LiteralString<'Anonymous' | 'Registration'>;
         bannerDetails?: {
             isEnabled: boolean;
-            banners: Banner[];
+            banners: WebcastBanner[];
         }
         viewerIdEnabled: boolean;
         externalPresenters: Array<{
@@ -469,7 +469,8 @@ export namespace GuestRegistration {
     }
 }
 
-export interface Banner {
+/** @category Webcasts */
+export interface WebcastBanner {
     id: string;
     /** Provides a description of the banner for the attendee. */
     name: string;
@@ -481,6 +482,7 @@ export interface Banner {
     isEnabled?: boolean;
     pushMethod: LiteralString<'Manual' | 'AtEnd'>;
 }
-export namespace Banner {
-    export type Request = Omit<Banner, 'id'>;
+/** @category Webcasts */
+export namespace WebcastBanner {
+    export type Request = Omit<WebcastBanner, 'id'>;
 }

@@ -1,6 +1,6 @@
 import { Rev } from '..';
 import type { RevClient } from '../rev-client';
-import { Webcast, GuestRegistration, Banner } from '../types/webcast';
+import { Webcast, GuestRegistration, WebcastBanner } from '../types/webcast';
 import { SearchRequest } from '../utils/request-utils';
 import { titleCase } from '../utils';
 import { PostEventReportRequest, RealtimeReportRequest } from './webcast-report-request';
@@ -209,17 +209,17 @@ export default function webcastAPIFactory(rev: RevClient) {
         deleteGuestRegistration(eventId: string, registrationId: string): Promise<void> {
             return rev.delete(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
         },
-        async listBanners(eventId: string): Promise<Banner[]> {
+        async listBanners(eventId: string): Promise<WebcastBanner[]> {
             const {banners} = await rev.get(`/api/v2/scheduled-events/${eventId}/banners`);
             return banners || [];
         },
-        addBanner(eventId: string, banner: Banner.Request): Promise<Banner> {
+        addBanner(eventId: string, banner: WebcastBanner.Request): Promise<WebcastBanner> {
             return rev.post(`/api/v2/scheduled-events/${eventId}/banner`, banner);
         },
         setBannerStatus(eventId: string, bannerId: string, isEnabled: boolean): Promise<void> {
             return rev.put(`/api/v2/scheduled-events/${eventId}/banner/${bannerId}/status`, {isEnabled});
         },
-        updateBanner(eventId: string, banner: Banner): Promise<Banner> {
+        updateBanner(eventId: string, banner: WebcastBanner): Promise<WebcastBanner> {
             // separate id from the banner data
             const {id, ...payload} = banner;
             return rev.put(`/api/v2/scheduled-events/${eventId}/banner/${id}`, payload);
