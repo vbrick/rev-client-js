@@ -1,5 +1,8 @@
 import { LiteralString } from './rev';
 
+/**
+ * @category Channels
+ */
 export namespace Channel {
     export interface Member {
         id: string;

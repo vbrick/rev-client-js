@@ -1,7 +1,8 @@
-import { Rev, RegistrationField, Admin } from '.';
+import { Rev, RegistrationField, Admin } from './index';
 import { Video } from './video';
 import { LiteralString } from './rev';
 
+/** @category Webcasts */
 export interface Webcast {
     id: string;
     title: string;
@@ -27,6 +28,7 @@ export interface Webcast {
     shortcutName: string;
 }
 
+/** @category Webcasts */
 export namespace Webcast {
     export type WebcastAccessControl = LiteralString<'Public' | 'TrustedPublic' | 'AllUsers' | 'Private'>;
     export type SortField = LiteralString<'startDate' | 'title'>;
@@ -443,14 +445,14 @@ export namespace Webcast {
         count: number;
     }
 }
-
+/** @category Webcasts */
 export interface GuestRegistration {
     name: string,
     email: string,
     registrationId: string,
     registrationFieldsAnswers: Array<{ id: string, name: string, value: string }>
 }
-
+/** @category Webcasts */
 export namespace GuestRegistration {
     export interface Details extends GuestRegistration {
         token: string

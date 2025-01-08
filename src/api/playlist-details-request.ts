@@ -1,6 +1,6 @@
-import RevClient from "..";
-import { Playlist, Rev, Video } from "../types";
-import { RateLimitEnum } from "../utils";
+import {RevClient} from "../rev-client";
+import { Playlist, Rev, Video } from "../types/index";
+import { RateLimitEnum } from "../utils/index";
 import { SearchRequest } from "../utils/request-utils";
 
 function getSummaryFromResponse<T extends Record<string, any>>(response: T, hitsKey: string) {
@@ -14,6 +14,7 @@ function getSummaryFromResponse<T extends Record<string, any>>(response: T, hits
     return summary as Omit<Playlist.DetailsResponse, 'scrollId'>;
 }
 
+/** @category Playlists */
 export class PlaylistDetailsRequest extends SearchRequest<Video.Details> {
     playlist: Playlist & Omit<Playlist.DetailsResponse, 'scrollId'> = {} as any;
     get playlistName() {
@@ -24,6 +25,13 @@ export class PlaylistDetailsRequest extends SearchRequest<Video.Details> {
             ? this.playlist.playlistDetails?.searchFilter || this.playlist.searchFilter
             : undefined;
     }
+    /**
+     * @hidden
+     * @param rev
+     * @param playlistId
+     * @param query
+     * @param options
+     */
     constructor(rev: RevClient, playlistId: string, query: { count?: number } = {}, options: Rev.SearchOptions<Video.Details> = {}) {
         const searchDefinition: Rev.SearchDefinition<Video.Details> = {
             endpoint: `/api/v2/playlists/${playlistId}`,

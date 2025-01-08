@@ -1,22 +1,59 @@
 import type { RevClient } from '../rev-client';
-import type { Rev, User } from '../types';
+import type { Rev, User } from '../types/index';
 import { LiteralString } from '../types/rev';
-import { RateLimitEnum, isPlainObject } from '../utils';
+import { RateLimitEnum } from '../utils';
 import { SearchRequest } from '../utils/request-utils';
 
+/** @ignore */
+export type API = ReturnType<typeof userAPIFactory>;
+
+/**
+ * User API methods
+ * @category Users & Groups
+ * @group API
+ * @see [User API Docs](https://revdocs.vbrick.com/reference/createuser)
+ */
+export interface UserAPI extends API {}
+
+/** @ignore */
 export default function userAPIFactory(rev: RevClient) {
     /**
      * Get details about a specific user
-     * @param userLookupValue default is search by userId
-     * @param type            specify that userLookupValue is email or
-     *                        username instead of userId
-     * @returns {User}        User details
+     * By default it will lookup users by `userId`. To lookup by `username` or `email` pass in the second parameter `{lookupType}`. Specify the special value `'me'` to get details of the authenticated user
+     *
+     * @param userLookupValue userId, username or email
+     * @param options the lookup type {lookupType: 'username'} as well as any additional {@link Rev.RequestOptions | request options}
+     *
+     * @example
+     * ```js
+     * const rev = new RevClient(...config...);
+     * await rev.connect();
+     *
+     * // get details of the current user
+     * let user = await rev.user.details('me');
+     * // { userId: '<guid>', username: 'string', email: 'string', ... }
+     *
+     * // now get the same user record, just change the lookup criteria
+     * console.log('looking up by id', user.userId);
+     * user = await rev.user.details(user.userId);
+     *
+     * console.log('looking up by username', user.username);
+     * user = await rev.user.details(user.username, { lookupType: 'username' });
+     *
+     * console.log('looking up by email', user.email);
+     * user = await rev.user.details(user.email, { lookupType: 'email' });
+     * ```
+     *
+     * @see [Get User by ID](https://revdocs.vbrick.com/reference/getuser)
+     * @see [Get User by Username](https://revdocs.vbrick.com/reference/getuserbyusername)
+     * @see [Get User by Email](https://revdocs.vbrick.com/reference/getuserbyemail)
      */
-    function details(userId: string, options?: User.DetailsOptions): Promise<User>;
-    /** @deprecated - use {lookupType: 'username'} */
-    function details(username: string, type: 'username'): Promise<User>;
-    /** @deprecated - use {lookupType: 'email'} */
-    function details(email: string, type: 'email'): Promise<User>;
+    function details(userLookupValue: string, options?: User.DetailsOptions): Promise<User>;
+    /**
+     * @deprecated
+     * use {@link details | updated signature} `details(userLookupValue, {lookupType: 'userId' | 'username' | 'email'})` instead
+     */
+    function details(userLookupValue: string, type: 'userId' | 'email' | 'username'): Promise<User>;
     async function details(userLookupValue: string, options: User.DetailsLookup | User.DetailsOptions = {}) {
         const {lookupType, ...requestOptions} = typeof options === 'string'
             ? {lookupType: options}
@@ -58,7 +95,7 @@ export default function userAPIFactory(rev: RevClient) {
         },
         /**
          * get user details by username
-         * @deprecated - use details(username, {lookupType: 'username'})
+         * @deprecated use {@link details | user.details()} with `{lookupType: 'username'}`
          */
         async getByUsername(username: string) {
             // equivalent to rev.get<User>(`/api/v2/users/${username}`, { type: 'username' });
@@ -66,15 +103,15 @@ export default function userAPIFactory(rev: RevClient) {
         },
         /**
          * get user details by email address
-         * @deprecated - use details(email, 'email')
+         * @deprecated use {@link details | user.details()} with `{lookupType: 'email'}`
          */
         async getByEmail(email: string) {
             return userAPI.details(email, {lookupType: 'email'});
         },
         /**
          * Check if user exists in the system. Instead of throwing on a 401/403 error if
-         * user does not exist it returns false. Returns user details if does exist,
-         * instead of just true
+         * user does not exist it returns `false`. Returns {@link User | user details} if does exist,
+         * instead of just `true`
          * @param userLookupValue userId, username, or email
          * @param type
          * @returns User if exists, otherwise false

@@ -2,7 +2,8 @@ import polyfills from '../interop/polyfills';
 
 const ONE_MINUTE = 60 * 1000;
 
-interface RateLimitOptions{
+/** @category Utilities */
+export interface RateLimitOptions {
     /**
      * how many to allow in parallel in any given interval
      * @default 1
@@ -27,9 +28,13 @@ interface RateLimitOptions{
     /**
      * cancel with AbortController
      */
-    signal?: AbortSignal
+    signal?: AbortSignal,
 }
 
+/**
+ * @category Utilities
+ * @inline
+ */
 export type ThrottledFunction<T extends (...args: any[]) => any> = (
     (...args: Parameters<T>) => ReturnType<T> extends PromiseLike<infer Return> ? Promise<Return> : Promise<ReturnType<T>>
 ) & {
@@ -41,17 +46,26 @@ export type ThrottledFunction<T extends (...args: any[]) => any> = (
     abort: (message?: string, dispose?: boolean) => void;
 };
 
-interface RateLimitOptionsWithFn<T> extends RateLimitOptions {
+/** @inline */
+type RateLimitOptionsWithFn<T> = RateLimitOptions & {
+
     /**
      * function to rate limit
      */
     fn: T
 }
+
 function rateLimit<T extends (...args: any) => any>(options: RateLimitOptionsWithFn<T>): ThrottledFunction<T>;
 function rateLimit<T extends (...args: any) => any>(fn: T, options: RateLimitOptions): ThrottledFunction<T>;
 function rateLimit<T extends (...args: any) => any>(fn: T | RateLimitOptionsWithFn<T>, options?: RateLimitOptions): ThrottledFunction<T>;
 
-// adapted from https://github.com/sindresorhus/p-throttle
+/**
+ *
+ * adapted from {@link https://github.com/sindresorhus/p-throttle | p-throttle}
+ * @param fn
+ * @param options
+ * @returns
+ */
 function rateLimit<T extends (...args: any) => any> (fn: T | RateLimitOptionsWithFn<T>, options: RateLimitOptions = {}) {
     if (fn && (typeof fn === 'object')) {
         options = Object.assign({}, fn, options);

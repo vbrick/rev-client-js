@@ -1,6 +1,6 @@
-import { RevClient } from '..';
-import { Audit } from '../types';
-import { asValidDate, tryParseJson } from '../utils';
+import { RevClient } from '../rev-client';
+import { Audit } from '../types/index';
+import { asValidDate, tryParseJson } from '../utils/index';
 import { IPageResponse, PagedRequest } from '../utils/paged-request';
 import { parseCSV } from '../utils/parse-csv';
 import { RateLimitEnum, makeQueue } from '../utils/rate-limit-queues';
@@ -18,6 +18,9 @@ function parseEntry<T extends Audit.Entry>(line: Record<string, any>): T {
     } as T;
 }
 
+/**
+ * @category Audit
+ */
 export class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
     declare options: Required<Omit<Audit.Options<T>, 'toDate' | 'fromDate'>>;
     private params: {
@@ -26,6 +29,13 @@ export class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
         nextContinuationToken?: string;
     }
     private _req: () => Promise<IPageResponse<T>>;
+    /**
+     * @hidden
+     * @param rev
+     * @param endpoint
+     * @param label
+     * @param options
+     */
     constructor(
         rev: RevClient,
         endpoint: string,

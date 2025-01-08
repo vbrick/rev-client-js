@@ -27,6 +27,18 @@ function splitOptions(options: Rev.UploadFileOptions & Rev.RequestOptions, defau
     };
 }
 
+/**
+ * @ignore
+ */
+export type API = ReturnType<typeof uploadAPIFactory>;
+/**
+ * @category Videos
+ * @group API
+ * @see [Upload API Docs](https://revdocs.vbrick.com/reference/uploadvideo-1)
+ */
+export interface UploadAPI extends API {};
+
+/** @ignore */
 export default function uploadAPIFactory(rev: RevClient) {
     const { FormData } = polyfills;
 
@@ -35,6 +47,31 @@ export default function uploadAPIFactory(rev: RevClient) {
     const uploadAPI = {
         /**
          * Upload a video, and returns the resulting video ID
+         * @see [API Docs](https://revdocs.vbrick.com/reference/uploadvideo-1)
+         *
+         * @example
+         * ```js
+        const rev = new RevClient(...config...);
+        await rev.connect();
+
+        // if browser - pass in File
+        const file = fileInputElement.files[0];
+        // if nodejs - can pass in path to file instead
+        // const file = "/path/to/local/video.mp4";
+        // upload returns resulting ID when complete
+        const videoId = await rev.upload.video(file, {
+            uploader: 'username.of.uploader',
+            title: 'video uploaded via the API',
+            //categories: [EXISTING_REV_CATEGORY_NAME],
+            unlisted: true,
+            isActive: true
+            /// ...any additional metadata
+        });
+        ```
+         * @param file A File/Blob. if using nodejs you can also pass in the path to a file
+         * @param metadata metadata to add to video (title, etc.) - see API docs
+         * @param options Additional `RequestInit` options, as well as customizing the contentType/contentLength/filename of the `file` in the POST upload form (only needed if they can't be inferred from input)
+         * @returns the resulting video id
          */
         async video(
             file: Rev.FileUploadType,
@@ -70,6 +107,10 @@ export default function uploadAPIFactory(rev: RevClient) {
             const { videoId } = await uploadMultipart(rev, 'POST', '/api/v2/uploads/videos', form, filePayload, requestOptions);
             return videoId;
         },
+        /**
+         * Replace an existing video with an uploaded file
+         * @see [API Docs](https://revdocs.vbrick.com/reference/replacevideo)
+         */
         async replaceVideo(videoId: string, file: Rev.FileUploadType, options: Rev.UploadFileOptions = {}): Promise<void> {
             const { uploadOptions, requestOptions } = splitOptions(options, 'video/mp4');
             const form = new FormData();

@@ -1,6 +1,7 @@
 import { LiteralString } from './rev';
 import {Video} from './video';
 
+/** @category Playlists */
 export interface Playlist {
     id: string;
     name: string;
@@ -10,6 +11,7 @@ export interface Playlist {
     searchFilter?: Video.SearchOptions;
 }
 
+/** @category Playlists */
 export namespace Playlist {
     export type PlaylistTypeEnum = LiteralString<'Static' | 'Dynamic'>
 

@@ -1,3 +1,6 @@
+/**
+ * @category Users & Groups
+ */
 export namespace AccessControl {
     export type EntityType = 'User' | 'Group' | 'Role' | 'Channel';
 

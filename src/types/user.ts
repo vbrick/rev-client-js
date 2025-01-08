@@ -1,7 +1,7 @@
-import { Role } from '.';
-import { Rev } from './rev';
-import { LiteralString } from './rev';
+import { Role } from './index';
+import { Rev, LiteralString } from './rev';
 
+/** @category Users & Groups */
 export interface User {
     userId: string;
     username: string;
@@ -20,8 +20,13 @@ export interface User {
     status: User.UserStatus;
 }
 
+/** @category Users & Groups */
 export namespace User {
-
+    /**
+     * Individual user entry result when using `.user.search()`.
+     * **NOTE** these entries are transformed from the raw API result (camelCase instead of PascalCase) in order to better match the User Details API
+     * See {@link User.RawSearchHit} for the original API schema
+     */
     export interface SearchHit {
         userId: string;
         email: string | null;

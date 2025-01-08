@@ -1,7 +1,12 @@
+import type { API } from "../api/admin";
 import { LiteralString } from "./rev";
 import { Video } from './video';
 
+/**
+ * @category Administration
+ */
 export namespace Admin {
+
     export interface CustomField {
         id: string,
         name: string,

@@ -1,6 +1,6 @@
 import { RevError } from '../rev-error';
 import type { RevClient } from '../rev-client';
-import { Video, Rev, Admin, Transcription } from '../types';
+import { Video, Rev, Admin, Transcription } from '../types/index';
 import { SearchRequest } from '../utils/request-utils';
 import { videoReportAPI } from './video-report-request';
 import { videoDownloadAPI } from './video-download';
@@ -8,12 +8,28 @@ import { RateLimitEnum, sleep } from '../utils';
 import { mergeHeaders } from '../utils/merge-headers';
 import { videoExternalAccessAPI } from './video-external-access';
 
+/** @ignore */
 type VideoSearchDetailedItem = Video.SearchHit & (Video.Details | { error?: Error });
 
+/**
+ * @ignore
+ */
+export type API = ReturnType<typeof videoAPIFactory>;
+
+/**
+ * Video API methods
+ * @category Videos
+ * @group API
+ * @see [Video API Docs](https://revdocs.vbrick.com/reference/searchvideo)
+ */
+export interface VideoAPI extends API {};
+
+/** @ignore */
 export default function videoAPIFactory(rev: RevClient) {
     /** get list of comments on a video
-         * set showAll param to true to include un-redacted values of comments (admin only)
-         */
+     *
+     * set `showAll` param to `true` to include un-redacted values of comments (admin only)
+     */
     function comments(videoId: string): Promise<Video.Comment[]>;
     function comments(videoId: string, showAll: true): Promise<Video.Comment.Unredacted[]>;
     async function comments(videoId: string, showAll: boolean = false): Promise<Video.Comment[] | Video.Comment.Unredacted[]> {
@@ -58,11 +74,18 @@ export default function videoAPIFactory(rev: RevClient) {
         },
         /**
          * get processing status of a video
-         * @param videoId
+         * @see [API Docs](https://revdocs.vbrick.com/reference/getvideostatus)
          */
         async status(videoId: string, options?: Rev.RequestOptions): Promise<Video.StatusResponse> {
             return rev.get(`/api/v2/videos/${videoId}/status`, undefined, options);
         },
+        /**
+         * get details of a video
+         * @see [API Docs](https://revdocs.vbrick.com/reference/getvideosdetails)
+         * @param videoId
+         * @param options
+         * @returns
+         */
         async details(videoId: string, options?: Rev.RequestOptions): Promise<Video.Details> {
             await rev.session.queueRequest(RateLimitEnum.GetVideoDetails);
             return rev.get(`/api/v2/videos/${videoId}/details`, undefined, options);

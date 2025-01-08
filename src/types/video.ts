@@ -1,6 +1,7 @@
-import type { AccessControl, Category, Admin, Rev } from '.';
+import type { AccessControl, Category, Admin, Rev } from './index';
 import { LiteralString } from './rev';
 
+/** @category Videos */
 export namespace Video {
     export type AccessControl = LiteralString<"AllUsers" | "Public" | "Private" | "Channels">;
     export type ApprovalStatus = LiteralString<'Approved' | 'PendingApproval' | 'Rejected' | 'RequiresApproval' | 'SubmittedApproval'>;
@@ -752,12 +753,14 @@ export namespace Video {
     }
 }
 
+/** @category Videos */
 export interface Transcription {
     downloadUrl: string,
     fileSize: number;
     filename: string;
     locale: string;
 }
+/** @category Videos */
 export namespace Transcription {
     export type SupportedLanguage = LiteralString<"da" | "de" | "el" | "en" | "en-gb" | "es" | "es-419" | "es-es" | "fi" | "fr" | "fr-ca" | "id" | "it" | "ja" | "ko" | "nl" | "no" | "pl" | "pt" | "pt-br" | "ru" | "sv" | "th" | "tr" | "zh" | "zh-tw" | "zh-cmn-hans" | "cs" | "en-au" | "hi" | "lt" | "so" | "hmn" | "my" | "cnh" | "kar" | "ku-kmr" | "ne" | "sw" | "af" | "sq" | "am" | "az" | "bn" | "bs" | "bg" | "hr" | "et" | "ka" | "ht" | "ha" | "hu" | "lv" | "ms" | "ro" | "sr" | "sk" | "sl" | "tl" | "ta" | "uk" | "vi">
     export type TranslateSource = Extract<SupportedLanguage, 'en' | 'en-gb' | 'fr' | 'de' | 'pt-br' | 'es' | 'zh-cmn-hans'>;
@@ -788,6 +791,7 @@ export namespace Transcription {
     }
 }
 
+/** @category Videos */
 export interface ExternalAccess {
     /**
      * email address this token is associated with
@@ -823,6 +827,7 @@ export interface ExternalAccess {
    */
   message: string
 }
+/** @category Videos */
 export namespace ExternalAccess {
     export interface Request {
         /** List of email adddresses to add/remove/renew/revoke external access for */

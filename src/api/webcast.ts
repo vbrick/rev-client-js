@@ -1,17 +1,31 @@
-import { Rev } from '..';
+import { Rev } from '../index';
 import type { RevClient } from '../rev-client';
 import { Webcast, GuestRegistration, WebcastBanner } from '../types/webcast';
 import { SearchRequest } from '../utils/request-utils';
-import { titleCase } from '../utils';
+import { titleCase } from '../utils/index';
 import { PostEventReportRequest, RealtimeReportRequest } from './webcast-report-request';
 import { mergeHeaders } from '../utils/merge-headers';
 
+/**
+ * @category Webcasts
+ */
 type RealtimeSession<T extends Webcast.RealtimeRequest | undefined> = T extends { attendeeDetails: 'All' }
     ? Webcast.RealtimeSessionDetail
     : T extends { attendeeDetails: 'Counts' }
     ? never
     : Webcast.RealtimeSession;
 
+/** @ignore */
+export type API = ReturnType<typeof webcastAPIFactory>;
+/**
+ * Webcast API methods
+ * @category Webcasts
+ * @group API
+ * @see [Webcast API Docs](https://revdocs.vbrick.com/reference/createevent)
+ */
+export interface WebcastAPI extends API {};
+
+/** @ignore */
 export default function webcastAPIFactory(rev: RevClient) {
     const webcastAPI = {
         async list(options: Webcast.ListRequest = { }, requestOptions?: Rev.RequestOptions): Promise<Webcast[]> {

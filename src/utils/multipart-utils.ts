@@ -1,7 +1,7 @@
 import polyfills from '../interop/polyfills';
 import type { RevClient } from '../rev-client';
 import { RevError } from '../rev-error';
-import type { Rev } from '../types';
+import type { Rev } from '../types/index';
 import { sanitizeUploadOptions } from './file-utils';
 import { isBlobLike } from './is-utils';
 
@@ -49,7 +49,7 @@ export const uploadParser = {
             contentType = value.type ?? '',
             defaultContentType
         } = options;
-    
+
         const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
 
         if (value.type !== sanitized.contentType && typeof value.slice === 'function') {

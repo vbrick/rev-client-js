@@ -2,6 +2,7 @@ import { Rev, Transcription, Video } from "../types";
 import { isPlainObject } from "../utils";
 import type {RevClient} from "../rev-client";
 
+/** @ignore */
 export function videoDownloadAPI(rev: RevClient) {
     /**
      * Download a video. does not parse the output body. Note that content is sent as transfer-encoding: chunked;
@@ -18,7 +19,6 @@ export function videoDownloadAPI(rev: RevClient) {
 
     /**
      * download specified chapter. The chapter object has an imageUrl, this just wraps the functionality and adds the authorization header
-     * @param videoId
      * @param chapter chapter object returned from the video.chapters(videoId) API call
      * @returns
      */

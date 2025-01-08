@@ -1,5 +1,5 @@
 import type { RevClient } from '../rev-client';
-import type { Rev, Video } from '../types';
+import type { Rev, Video } from '../types/index';
 import { RateLimitEnum, asValidDate, isPlainObject } from '../utils';
 import { IPageResponse, PagedRequest } from '../utils/paged-request';
 
@@ -76,10 +76,17 @@ function parseDates(startArg: string | Date | undefined, endArg: string | Date |
     return { startDate, endDate };
 }
 
+/** @category Videos */
 export class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
     declare options: Required<ReturnType<typeof parseOptions>>;
     private _rev: RevClient;
     private _endpoint: string;
+    /**
+     * @hidden
+     * @param rev
+     * @param options
+     * @param endpoint
+     */
     constructor(rev: RevClient, options: Video.VideoReportOptions = {}, endpoint = "/api/v2/videos/report") {
         super(parseOptions(options));
         this._endpoint = endpoint;
@@ -141,6 +148,7 @@ export class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
     set endDate(value) { this.options.endDate = value; }
 }
 
+/** @ignore */
 export function videoReportAPI(rev: RevClient) {
     function report(options?: Video.VideoReportOptions): VideoReportRequest;
     function report(videoId: string, options?: Video.VideoReportOptions): VideoReportRequest;

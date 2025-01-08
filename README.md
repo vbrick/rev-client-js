@@ -502,7 +502,7 @@ The ID of the video
 #### `user.unsuspend(userId)` - Use Patch API to unsuspend user
 #### `user.search(searchText, options?)`
 
-**NOTE:** The response from this endpoint is remapped from the raw API results - it returns camelCase instead of PascalCase (`{userId: string, firstname: string, profileImageUri: string, entityType: string }` instead of `{Id: string, FirstName: string, ProfileImageUri: string, EntityType: string}`. See [the typescript interface](./src/types/user.ts#23) for details.
+**NOTE:** The response from this endpoint is remapped from the raw API results - it returns camelCase instead of PascalCase (`{userId: string, firstname: string, profileImageUri: string, entityType: string }` instead of `{Id: string, FirstName: string, ProfileImageUri: string, EntityType: string}`.
 
 **NOTE:** set `options.assignable` to `true` to use the "Search assignable Users/Groups/Channels" instead of searching for all users
 

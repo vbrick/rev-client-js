@@ -1,10 +1,25 @@
-import { Admin, Rev, Role, RegistrationField } from '..';
+import { Admin, Rev, Role, RegistrationField } from '../types/index';
 import type { RevClient } from '../rev-client';
 import { SearchRequest } from '../utils/request-utils';
 
-// if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache. false means bypass cache
+/**
+ * if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache. false means bypass cache
+ * @inline
+ * @ignore
+ */
 type CacheOption = boolean | 'Force'
 
+/** @ignore */
+export type API = ReturnType<typeof adminAPIFactory>;
+/**
+ * The Admin API methods
+ * @category Administration
+ * @group API
+ * @see [Administration API Docs](https://revdocs.vbrick.com/reference/getroles)
+ */
+export interface AdminAPI extends API {}
+
+/** @ignore */
 export default function adminAPIFactory(rev: RevClient) {
     let roles: Role.Details[];
     let customFields: Admin.CustomField[];

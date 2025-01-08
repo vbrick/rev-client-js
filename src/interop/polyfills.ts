@@ -6,7 +6,6 @@
 import { uploadParser } from '../utils/multipart-utils';
 import type { Rev } from '../types/rev';
 
-
 /**
  * used in OAuth - get random verifier string
  * @param byteLength
@@ -139,7 +138,7 @@ export function onInitialize() {
     if (!isPendingInitialize) {
         return;
     }
-    
+
     initializePromise ||= (async () => {
         while (pendingInitialize.length > 0) {
             const pending = pendingInitialize.shift();
@@ -158,6 +157,11 @@ export function onInitialize() {
     return initializePromise;
 }
 
+/**
+ * ADVANCED - override the underlying implementation used when constructing requests/other primitive values.
+ * This is used internally and should not be used unless you absolutely need to change some particular behavior (for example, using a different `fetch` implementation)
+ * @param overrideCallback
+ */
 export function setPolyfills(overrideCallback: (polyfills: RevPolyfills) => Promise<void> | void) {
     pendingInitialize.push(overrideCallback);
     isPendingInitialize = true;

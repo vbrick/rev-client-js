@@ -4,6 +4,18 @@ import { Rev } from '../types/rev';
 import { mergeHeaders } from '../utils/merge-headers';
 import {buildLegacyOAuthQuery, getOAuth2AuthorizationUrl, getOAuth2PKCEVerifier, parseLegacyOAuthRedirectResponse} from './oauth';
 
+/** @ignore */
+export type API = ReturnType<typeof authAPIFactory>;
+
+/**
+ * Authentication API methods
+ * @category Authentication
+ * @group API
+ * @see [Auth API Docs](https://revdocs.vbrick.com/reference/authenticateuser)
+     */
+export interface AuthAPI extends API {}
+
+/** @ignore */
 export default function authAPIFactory(rev: RevClient) {
 
     const authAPI = {
@@ -60,8 +72,6 @@ export default function authAPIFactory(rev: RevClient) {
          * generate the Authorization URL for the OAuth2 flow as well as the codeVerifier for the
          * subsequent Access Token request. You *must* store the codeVerifier somehow (i.e. serverside database matched to user's state/cookies/session, or on browser SessionStorage) to be able to complete the OAuth2 login flow.
          * @param config OAuth signing settings, retrieved from Rev Admin -> Security -> API Keys page
-         * @param oauthSecret Secret from Rev Admin -> Security. This is a DIFFERENT value from the
-         *                    User Secret used for API login. Do not expose client-side!
          * @param state optional state to pass back to redirectUri once complete
          * @param verifier the code_verifier to use when generating the code challenge. Can be any string 43-128 characters in length, just these characters: [A-Za-z0-9._~-]. If not provided then code will automatically generate a suitable value
          * @returns A valid oauth flow URL + the code_verifier to save for later verification

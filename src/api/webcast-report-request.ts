@@ -1,6 +1,6 @@
-import { RevError } from '..';
+import { RevError } from '../rev-error';
 import type { RevClient } from '../rev-client';
-import type { Rev } from '../types';
+import type { Rev } from '../types/index';
 import { Webcast } from '../types/webcast';
 import { RateLimitEnum } from '../utils';
 import { SearchRequest } from '../utils/request-utils';
@@ -16,8 +16,19 @@ function getSummaryFromResponse<T extends Record<string, any>>(response: T, hits
     return summary;
 }
 
+/** @category Webcasts */
 export class RealtimeReportRequest<T extends Webcast.RealtimeSession = Webcast.RealtimeSession> extends SearchRequest<T> {
+    /**
+     * The overall summary statistics returned with the first page of results
+     */
     declare summary: Webcast.RealtimeSummary;
+    /**
+     * @hidden
+     * @param rev
+     * @param eventId
+     * @param query
+     * @param options
+     */
     constructor(rev: RevClient, eventId: string, query: Webcast.RealtimeRequest = {}, options: Rev.SearchOptions<T> = {}) {
         const searchDefinition: Rev.SearchDefinition<T> = {
             endpoint: `/api/v2/scheduled-events/${eventId}/real-time/attendees`,
@@ -49,8 +60,15 @@ export class RealtimeReportRequest<T extends Webcast.RealtimeSession = Webcast.R
     }
 }
 
+/** @category Webcasts */
 export class PostEventReportRequest extends SearchRequest<Webcast.PostEventSession> {
     declare summary: Webcast.PostEventSummary;
+    /**
+     * @hidden
+     * @param rev
+     * @param query
+     * @param options
+     */
     constructor(rev: RevClient, query: { eventId: string, runNumber?: number }, options: Rev.SearchOptions<Webcast.PostEventSession> = {}) {
         const { eventId, runNumber } = query;
         const runQuery = (runNumber && runNumber >= 0)
