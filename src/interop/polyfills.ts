@@ -3,7 +3,6 @@
  * This folder wraps all components that get polyfilled in node.js, as well as
  * allowing uploading a video from the local filesystem on node.js
  */
-import { isBlobLike } from '../utils/is-utils';
 import { uploadParser } from '../utils/multipart-utils';
 import type { Rev } from '../types/rev';
 
@@ -52,7 +51,7 @@ async function hmacSign(message: string, secret: string) {
     return btoa(String.fromCharCode(...new Uint8Array(signed)));
 }
 
-export const polyfills = {
+export const polyfills: RevPolyfills = {
     AbortController: globalThis.AbortController,
     AbortSignal: globalThis.AbortSignal,
     createAbortError(message: string): Error {
@@ -82,7 +81,49 @@ export const polyfills = {
 }
 export default polyfills;
 
-export type RevPolyfills = typeof polyfills;
+/**
+ * ADVANCED - this includes library dependencies that may need to be overridden based on the current platform.
+ * @category Utilities
+ */
+export interface RevPolyfills {
+    AbortController: typeof AbortController,
+    AbortSignal: typeof AbortSignal,
+    createAbortError(message: string): Error;
+    fetch(input: string | URL | Request, init?: RequestInit | undefined): Promise<Response>;
+    FormData: typeof FormData;
+    File: typeof File;
+    Headers: typeof Headers;
+    Request: typeof Request;
+    Response: typeof Response;
+    uploadParser: {
+        string(value: string | URL, options: Rev.UploadFileOptions): Promise<{
+            file: Blob | File;
+            options: Rev.UploadFileOptions;
+        }>;
+        stream(value: AsyncIterable<Uint8Array>, options: Rev.UploadFileOptions): Promise<{
+            file: Blob | File;
+            options: Rev.UploadFileOptions;
+        }>;
+        response(response: Response, options: Rev.UploadFileOptions): Promise<{
+            file: Blob | File;
+            options: Rev.UploadFileOptions;
+        }>;
+        blob(value: Blob | File, options: Rev.UploadFileOptions): Promise<{
+            file: Blob | File;
+            options: Rev.UploadFileOptions;
+        }>;
+        parse(value: Rev.FileUploadType, options: Rev.UploadFileOptions): Promise<{
+            file: Blob | File;
+            options: Rev.UploadFileOptions;
+        }>;
+    };
+    randomValues(byteLength: number): string;
+    sha256Hash(value: string): Promise<string>;
+    hmacSign(message: string, secret: string): Promise<string>;
+    beforeFileUploadRequest(form: FormData, headers: Headers, uploadOptions: Rev.UploadFileOptions, options: Rev.RequestOptions): FormData | undefined;
+    asPlatformStream<TIn = any, TOut = TIn>(stream: TIn): TOut;
+    asWebStream<TIn = any>(stream: TIn): ReadableStream;
+}
 
 // logic for overriding polyfills before first network request
 type InitializeCallback = (polyfills: RevPolyfills) => Promise<void> | void;
