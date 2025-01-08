@@ -1,7 +1,7 @@
 import polyfills from '../interop/polyfills';
 import type { RevClient } from '../rev-client';
-import { Rev, Transcription, Video } from '../types';
-import { LiteralString } from '../types/rev';
+import { Rev, Transcription, Video } from '../types/index';
+import type { Upload } from '../types/upload';
 import { RateLimitEnum } from '../utils';
 import { appendFileToForm, appendJSONToForm, uploadMultipart } from '../utils/multipart-utils';
 
@@ -26,36 +26,6 @@ function splitOptions(options: Rev.UploadFileOptions & Rev.RequestOptions, defau
         }
     };
 }
-
-type PresentationChaptersOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
-    contentType?: LiteralString<'application/vnd.ms-powerpoint'
-                | 'application/vnd.openxmlformats-officedocument.presentationml.presentation'>;
-};
-
-type TranscriptionOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
-    contentType?: LiteralString<'text/plain'
-                | 'text/vtt'
-                | 'application/x-subrip'>;
-};
-
-type SupplementalOptions = Rev.RequestOptions & Omit<Rev.UploadFileOptions, 'filename' | 'contentLength'> & {
-    contentType?: LiteralString<'application/x-7z-compressed'
-                | 'text/csv'
-                | 'application/msword'
-                | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                | 'image/gif'
-                | 'image/jpeg'
-                | 'application/pdf'
-                | 'image/png'
-                | 'application/vnd.ms-powerpoint'
-                | 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-                | 'application/x-rar-compressed'
-                | 'image/svg+xml'
-                | 'text/plain'
-                | 'application/vnd.ms-excel'
-                | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                | 'application/zip'>
-};
 
 export default function uploadAPIFactory(rev: RevClient) {
     const { FormData } = polyfills;
@@ -111,7 +81,7 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             await uploadMultipart(rev, 'PUT', `/api/v2/uploads/videos/${videoId}`, form, filePayload, requestOptions);
         },
-        async transcription(videoId: string, file: Rev.FileUploadType, language: Transcription.SupportedLanguage = 'en', options: TranscriptionOptions = { }): Promise<void> {
+        async transcription(videoId: string, file: Rev.FileUploadType, language: Transcription.SupportedLanguage = 'en', options: Upload.TranscriptionOptions = { }): Promise<void> {
             const { uploadOptions, requestOptions } = splitOptions(options, 'application/x-subrip');
 
             const form = new FormData();
@@ -134,7 +104,7 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/transcription-files/${videoId}`, form, filePayload, requestOptions);
         },
-        async supplementalFile(videoId: string, file: Rev.FileUploadType, options: SupplementalOptions = {}) {
+        async supplementalFile(videoId: string, file: Rev.FileUploadType, options: Upload.SupplementalOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options);
 
             const form = new FormData();
@@ -208,7 +178,7 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
         },
-        async presentationChapters(videoId: string, file: Rev.FileUploadType, options: PresentationChaptersOptions = {}) {
+        async presentationChapters(videoId: string, file: Rev.FileUploadType, options: Upload.PresentationChaptersOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'application/vnd.ms-powerpoint');
 
             const form = new FormData();
