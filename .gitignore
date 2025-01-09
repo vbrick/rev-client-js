@@ -1,8 +1,6 @@
 # custom
 local.yaml
 
-package-lock.json
-
 .vscode
 
 ## Ignore Visual Studio temporary files, build results, and
