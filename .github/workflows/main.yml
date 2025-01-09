@@ -41,6 +41,8 @@ jobs:
           source_dir: ./src/*
           output_dir: ./docs
           front_page: README.md
+          install_module: 'typedoc-plugin-missing-exports'
+          plugin: typedoc-plugin-missing-exports
 
       - name: Setup Pages
         uses: actions/configure-pages@v3
