@@ -2,6 +2,30 @@ import { Rev, LiteralString } from './rev';
 
 /** @category Videos */
 export namespace Upload {
+    export type VideoOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
+        contentType?: LiteralString<
+            'video/x-ms-asf' |
+            'video/x-msvideo' |
+            'video/x-f4v' |
+            'video/x-flv' |
+            'audio/mp4' |
+            'video/x-m4v' |
+            'video/x-matroska' |
+            'video/quicktime' |
+            'audio/mpeg' |
+            'video/mp4' |
+            'video/mpeg' |
+            'video/mp2t' |
+            'video/x-ms-wmv' |
+            'application/zip' |
+            'video/x-matroska' |
+            'model/vnd.mts' |
+            'audio/x-ms-wma'>
+    }
+
+    export type ImageOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
+        contentType?: LiteralString<'image/gif' | 'image/jpeg' | 'image/png'>;
+    }
 
     export type PresentationChaptersOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
         contentType?: LiteralString<'application/vnd.ms-powerpoint' |
