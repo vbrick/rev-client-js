@@ -51,8 +51,8 @@ export default function channelAPIFactory(rev: RevClient) {
 
             await rev.patch(`/api/v2/channels/${channelId}`, operations);
         },
-        async uploadLogo(channelId: string, imageFile: Rev.FileUploadType, options?: Rev.UploadFileOptions) {
-            return rev.upload.chapterLogo(channelId, imageFile, options);
+        get uploadLogo() {
+            return rev.upload.channelLogo;
         },
         /**
          *

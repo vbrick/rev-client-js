@@ -231,14 +231,14 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/video-presentations/${videoId}`, form, filePayload, requestOptions);
         },
-        async chapterLogo(channelId: string, file: Rev.FileUploadType, options: Rev.UploadFileOptions = {}) {
+        async channelLogo(channelId: string, file: Rev.FileUploadType, options: Upload.ImageOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
 
             const form = new FormData();
 
             const filePayload = await appendFileToForm(form, 'ImageFile', file, uploadOptions);
 
-            rev.log('info', `Uploading channel logo for ${channelId} (${filePayload.filename} (${filePayload.contentType})`);
+            rev.log('info', `Uploading channel logo for ${channelId} (${filePayload.filename} ${filePayload.contentType})`);
 
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/channel-logo/${channelId}`, form, filePayload, requestOptions);
         }
