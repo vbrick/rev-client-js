@@ -231,6 +231,71 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/video-presentations/${videoId}`, form, filePayload, requestOptions);
         },
+        async webcastPresentation(eventId: string, file: Rev.FileUploadType, options: Upload.PresentationChaptersOptions) {
+            const { uploadOptions, requestOptions } = splitOptions(options, 'application/vnd.ms-powerpoint');
+
+            const form = new FormData();
+
+            const filePayload = await appendFileToForm(form, 'PresentationFile', file, uploadOptions);
+
+            rev.log('info', `Uploading presentation for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
+
+            await uploadMultipart(rev, 'POST', `/api/v2/uploads/presentations/${eventId}`, form, filePayload, requestOptions);
+        },
+        async webcastBackground(eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions) {
+            const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
+
+            const form = new FormData();
+
+            const filePayload = await appendFileToForm(form, 'ImageFile', file, uploadOptions);
+
+            rev.log('info', `Uploading background image for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
+
+            await uploadMultipart(rev, 'POST', `/api/v2/uploads/background-image/${eventId}`, form, filePayload, requestOptions);
+        },
+        async webcastProducerLayoutBackground(eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions) {
+            const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
+
+            const form = new FormData();
+
+            const filePayload = await appendFileToForm(form, 'ImageFile', file, uploadOptions);
+
+            rev.log('info', `Uploading producer layout background image for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
+
+            await uploadMultipart(rev, 'POST', `/api/v2/uploads/webcast-producer-bgimage/${eventId}`, form, filePayload, requestOptions);
+        },
+        async webcastBranding(eventId: string, request: Webcast.BrandingRequest, options: Upload.ImageOptions = { }): Promise<void> {
+            const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
+
+            const form = new FormData();
+
+            const logoOptions: Rev.UploadFileOptions = {
+                ...uploadOptions,
+                // make sure filename is by default unique
+                filename: 'logo',
+                ...(request.logoImageOptions ?? {})
+            };
+            const backgroundOptions: Rev.UploadFileOptions = {
+                ...uploadOptions,
+                // make sure filename is by default unique
+                filename: 'background',
+                ...(request.logoImageOptions ?? {})
+            };
+
+            const logoImagePayload = await appendFileToForm(form, 'LogoImageFile', request.logoImage, logoOptions);
+            const backgroundImagePayload = await appendFileToForm(form, 'BackgroundImageFile', request.backgroundImage, backgroundOptions);
+
+            const meta = {
+                ...request.branding,
+                logoImageFilename: logoImagePayload.filename,
+                backgroundImageFilename: backgroundImagePayload.filename
+            };
+
+            appendJSONToForm(form, 'Branding', meta);
+
+            rev.log('info', `Uploading webcast branding to ${eventId} (${meta.logoImageFilename} ${meta.backgroundImageFilename})`);
+
+            await uploadMultipart(rev, 'POST', `/api/v2/uploads/webcast-branding/${eventId}`, form, uploadOptions, requestOptions);
         async channelLogo(channelId: string, file: Rev.FileUploadType, options: Upload.ImageOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
 

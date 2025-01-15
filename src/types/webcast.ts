@@ -1,4 +1,4 @@
-import { Rev, RegistrationField, Admin } from './index';
+import { Rev, RegistrationField, Admin, Upload } from './index';
 import { Video } from './video';
 import { LiteralString } from './rev';
 
@@ -25,7 +25,14 @@ export interface Webcast {
         userIds: string[];
         groupIds: string[];
     };
-    shortcutName: string;
+    shortcutName?: string | null;
+    shortcutNameUrl?: string | null;
+    linkedVideoId?: string | null;
+    isFeatured: boolean;
+    /**
+     * Attendee join method. Only required when 'accesscontrol' is Public. Default is 'Registration'. When set to 'Anonymous', no attendee specific details are collected or registered.
+     */
+    attendeeJoinMethod?: LiteralString<'Anonymous' | 'Registration'>
 }
 
 /** @category Webcasts */
@@ -49,7 +56,13 @@ export namespace Webcast {
     }
 
     export interface SearchRequest {
+        /**
+         * Search parameter to use to match those events that are set to start on or after the date specified. Value should be less than or equal to endDate. If not specified, it assumes a value of endDate - 365 days.
+         */
         startDate?: string | Date;
+        /**
+         * Search parameter to use to match those events that are set to start on or before the date specified. Value should be greater than or equal to startDate. If not specified, it assumes a value of the current date.
+         */
         endDate?: string | Date;
         /**
          * Name of the field in the event that will be used to sort the dataset in the response. Default is 'StartDate'
@@ -154,7 +167,15 @@ export namespace Webcast {
          * Internal user Ids. Only required when 'Producer' selected as a videoSourceType.
          */
         presenterIds?: string[];
+        /**
+         * Only required when 'Producer' selected as a videoSourceType.
+         */
         externalPresenters?: Array<{ name: string, title: string, email: string }>;
+
+        embeddedContent?: {
+            isEnabled: boolean;
+            contentLinks: Array<Webcast.ContentLink.Request | Webcast.ContentLink>
+        }
 
         bannerDetails?: {
             isEnabled: boolean;
@@ -164,6 +185,8 @@ export namespace Webcast {
             banners: Array<WebcastBanner.Request>
         }
         viewerIdEnabled?: boolean;
+
+        reactionsSettings?: ReactionsSettings;
 
         /**
          * Default=false. If accessControl is set to Public and 'EDIT PUBLIC REG. PAGE CONSENT VERBIAGE' is enabled on the account. When true, you can customize the consent verbiage for public attendees.
@@ -238,6 +261,18 @@ export namespace Webcast {
         recordingUploaderUserId: string;
         disableAutoRecording?: boolean;
         hideShareUrl?: boolean;
+        enableCustomBranding: boolean;
+        /**
+         * Internal user Id. Only used when 'WebrtcSinglePresenter' selected as a videoSourceType.
+         */
+        presenterId?: string | null;
+        /**
+         * Internal user Ids. Only used when 'Producer' selected as a videoSourceType.
+         */
+        presenterIds?: string[];
+
+        brandingSettings: Webcast.BrandingSettings;
+
         autoplay?: boolean;
 
         presentationFileDownloadAllowed: boolean;
@@ -245,6 +280,10 @@ export namespace Webcast {
         customFields?: Admin.CustomField[];
         emailToPreRegistrants?: boolean;
         attendeeJoinMethod: LiteralString<'Anonymous' | 'Registration'>;
+        embeddedContent: {
+            isEnabled: boolean;
+            contentLinks: Webcast.ContentLink[];
+        }
         bannerDetails?: {
             isEnabled: boolean;
             banners: WebcastBanner[];
@@ -259,6 +298,7 @@ export namespace Webcast {
             imageId: string;
             imageUrls: Array<{ url: string; scaleSize: string; }>
         }>;
+        reactionsSettings: ReactionsSettings;
         isCustomConsentEnabled?: boolean;
         consentVerbiage?: string;
     }
@@ -444,6 +484,80 @@ export namespace Webcast {
          */
         count: number;
     }
+
+    export interface BrandingSettings {
+        headerColor: string;
+        headerFontColor: string;
+        primaryFontColor: string;
+        accentColor: string;
+        accentFontColor: string;
+        primaryColor: string;
+        logos: Array<{ url: string, scaleSize: LiteralString<'Original' | 'ExtraSmall' | 'Small' | 'Medium' | 'Large'> }>
+    }
+
+    export interface BrandingRequest {
+        branding: Omit<Webcast.BrandingSettings, 'logos'>
+        logoImage: Rev.FileUploadType,
+        logoImageOptions?: Exclude<Upload.ImageOptions, Rev.RequestOptions>
+        backgroundImage: Rev.FileUploadType,
+        backgroundImageOptions?: Exclude<Upload.ImageOptions, Rev.RequestOptions>
+
+    }
+
+    export interface ContentLink {
+        id: string;
+        isEnabled: boolean;
+        /**
+         * The name that appears to attendees and that appears on the flyout tab during the webcast.
+         */
+        name: string;
+        /**
+         * The third-party URL or embed code. Look for this on the application or website that you will be embedding. This can usually be found in its Admin or Settings section.
+         */
+        code: string;
+        /**
+         * Icon that is assigned to the flyout tab and is clicked to open.
+         */
+        icon: LiteralString<'abc-text' | 'barchart' | 'group-2' | 'group-3' | 'person-check' | 'person-record' | 'person-wave' | 'poll-chart' | 'end' | 'smile-face' | 'vote-box'>
+    }
+    export namespace ContentLink {
+        /** @interface */
+        export type Request = Omit<ContentLink, 'id' | 'isEnabled'>
+    }
+
+    export interface ReactionsSettings {
+        /**
+         * Default=false. When true, the Live Emoji Reactions feature is enabled for the event.
+         */
+        enabled?: boolean;
+        /**
+         * List of emojis available for the event. If omitted or left empty the emojis will default to the standard set.
+         */
+        emojis?: Array<{
+            /** The unicode representation of the emoji character. */
+            character: string,
+            /** The name of the emoji. */
+            name: string
+        }>
+    }
+
+    export namespace BulkDelete {
+        export interface Response {
+            jobId: string;
+            count: number;
+            statusUrl: string;
+        }
+        export interface Status {
+            jobId: string;
+            count: number;
+            status: LiteralString<'Initialized' | 'InProgress' | 'Completed'>;
+            processedCount: number;
+            failedCount: number;
+            remainingCount: number;
+        }
+    }
+
+
 }
 /** @category Webcasts */
 export interface GuestRegistration {
