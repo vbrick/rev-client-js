@@ -1103,7 +1103,7 @@ declare namespace Video {
             imageFile?: Rev.FileUploadType;
             /** set filename/contenttype or other options for appended file */
             uploadOptions?: Rev.UploadFileOptions & {
-                contentType?: 'image/gif' | 'image/jpeg' | 'image/png';
+                contentType?: LiteralString<'image/gif' | 'image/jpeg' | 'image/png'>;
             };
         }
     }
@@ -1907,7 +1907,6 @@ declare namespace Device {
         farPort: number;
         nearPort: number;
     }
-    /** @inline */
     export interface DmeHealthStatus {
         bootTime?: string;
         systemTime?: string;
@@ -2008,6 +2007,12 @@ declare namespace Group {
 
 /** @category Videos */
 declare namespace Upload {
+    type VideoOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
+        contentType?: LiteralString<'video/x-ms-asf' | 'video/x-msvideo' | 'video/x-f4v' | 'video/x-flv' | 'audio/mp4' | 'video/x-m4v' | 'video/x-matroska' | 'video/quicktime' | 'audio/mpeg' | 'video/mp4' | 'video/mpeg' | 'video/mp2t' | 'video/x-ms-wmv' | 'application/zip' | 'video/x-matroska' | 'model/vnd.mts' | 'audio/x-ms-wma'>;
+    };
+    type ImageOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
+        contentType?: LiteralString<'image/gif' | 'image/jpeg' | 'image/png'>;
+    };
     type PresentationChaptersOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
         contentType?: LiteralString<'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation'>;
     };
@@ -2207,7 +2212,14 @@ interface Webcast {
         userIds: string[];
         groupIds: string[];
     };
-    shortcutName: string;
+    shortcutName?: string | null;
+    shortcutNameUrl?: string | null;
+    linkedVideoId?: string | null;
+    isFeatured: boolean;
+    /**
+     * Attendee join method. Only required when 'accesscontrol' is Public. Default is 'Registration'. When set to 'Anonymous', no attendee specific details are collected or registered.
+     */
+    attendeeJoinMethod?: LiteralString<'Anonymous' | 'Registration'>;
 }
 /** @category Webcasts */
 declare namespace Webcast {
@@ -2222,7 +2234,13 @@ declare namespace Webcast {
         sortDirection?: Rev.SortDirection;
     }
     interface SearchRequest {
+        /**
+         * Search parameter to use to match those events that are set to start on or after the date specified. Value should be less than or equal to endDate. If not specified, it assumes a value of endDate - 365 days.
+         */
         startDate?: string | Date;
+        /**
+         * Search parameter to use to match those events that are set to start on or before the date specified. Value should be greater than or equal to startDate. If not specified, it assumes a value of the current date.
+         */
         endDate?: string | Date;
         /**
          * Name of the field in the event that will be used to sort the dataset in the response. Default is 'StartDate'
@@ -2316,11 +2334,18 @@ declare namespace Webcast {
          * Internal user Ids. Only required when 'Producer' selected as a videoSourceType.
          */
         presenterIds?: string[];
+        /**
+         * Only required when 'Producer' selected as a videoSourceType.
+         */
         externalPresenters?: Array<{
             name: string;
             title: string;
             email: string;
         }>;
+        embeddedContent?: {
+            isEnabled: boolean;
+            contentLinks: Array<Webcast.ContentLink.Request | Webcast.ContentLink>;
+        };
         bannerDetails?: {
             isEnabled: boolean;
             /**
@@ -2329,6 +2354,7 @@ declare namespace Webcast {
             banners: Array<WebcastBanner.Request>;
         };
         viewerIdEnabled?: boolean;
+        reactionsSettings?: ReactionsSettings;
         /**
          * Default=false. If accessControl is set to Public and 'EDIT PUBLIC REG. PAGE CONSENT VERBIAGE' is enabled on the account. When true, you can customize the consent verbiage for public attendees.
          */
@@ -2401,12 +2427,26 @@ declare namespace Webcast {
         recordingUploaderUserId: string;
         disableAutoRecording?: boolean;
         hideShareUrl?: boolean;
+        enableCustomBranding: boolean;
+        /**
+         * Internal user Id. Only used when 'WebrtcSinglePresenter' selected as a videoSourceType.
+         */
+        presenterId?: string | null;
+        /**
+         * Internal user Ids. Only used when 'Producer' selected as a videoSourceType.
+         */
+        presenterIds?: string[];
+        brandingSettings: Webcast.BrandingSettings;
         autoplay?: boolean;
         presentationFileDownloadAllowed: boolean;
         registrationFields: RegistrationField[];
         customFields?: Admin.CustomField[];
         emailToPreRegistrants?: boolean;
         attendeeJoinMethod: LiteralString<'Anonymous' | 'Registration'>;
+        embeddedContent: {
+            isEnabled: boolean;
+            contentLinks: Webcast.ContentLink[];
+        };
         bannerDetails?: {
             isEnabled: boolean;
             banners: WebcastBanner[];
@@ -2424,6 +2464,7 @@ declare namespace Webcast {
                 scaleSize: string;
             }>;
         }>;
+        reactionsSettings: ReactionsSettings;
         isCustomConsentEnabled?: boolean;
         consentVerbiage?: string;
     }
@@ -2594,6 +2635,75 @@ declare namespace Webcast {
          * The number of emojis sent.
          */
         count: number;
+    }
+    interface BrandingSettings {
+        headerColor: string;
+        headerFontColor: string;
+        primaryFontColor: string;
+        accentColor: string;
+        accentFontColor: string;
+        primaryColor: string;
+        logos: Array<{
+            url: string;
+            scaleSize: LiteralString<'Original' | 'ExtraSmall' | 'Small' | 'Medium' | 'Large'>;
+        }>;
+    }
+    interface BrandingRequest {
+        branding: Omit<Webcast.BrandingSettings, 'logos'>;
+        logoImage: Rev.FileUploadType;
+        logoImageOptions?: Exclude<Upload.ImageOptions, Rev.RequestOptions>;
+        backgroundImage: Rev.FileUploadType;
+        backgroundImageOptions?: Exclude<Upload.ImageOptions, Rev.RequestOptions>;
+    }
+    interface ContentLink {
+        id: string;
+        isEnabled: boolean;
+        /**
+         * The name that appears to attendees and that appears on the flyout tab during the webcast.
+         */
+        name: string;
+        /**
+         * The third-party URL or embed code. Look for this on the application or website that you will be embedding. This can usually be found in its Admin or Settings section.
+         */
+        code: string;
+        /**
+         * Icon that is assigned to the flyout tab and is clicked to open.
+         */
+        icon: LiteralString<'abc-text' | 'barchart' | 'group-2' | 'group-3' | 'person-check' | 'person-record' | 'person-wave' | 'poll-chart' | 'end' | 'smile-face' | 'vote-box'>;
+    }
+    namespace ContentLink {
+        /** @interface */
+        type Request = Omit<ContentLink, 'id' | 'isEnabled'>;
+    }
+    interface ReactionsSettings {
+        /**
+         * Default=false. When true, the Live Emoji Reactions feature is enabled for the event.
+         */
+        enabled?: boolean;
+        /**
+         * List of emojis available for the event. If omitted or left empty the emojis will default to the standard set.
+         */
+        emojis?: Array<{
+            /** The unicode representation of the emoji character. */
+            character: string;
+            /** The name of the emoji. */
+            name: string;
+        }>;
+    }
+    namespace BulkDelete {
+        interface Response {
+            jobId: string;
+            count: number;
+            statusUrl: string;
+        }
+        interface Status {
+            jobId: string;
+            count: number;
+            status: LiteralString<'Initialized' | 'InProgress' | 'Completed'>;
+            processedCount: number;
+            failedCount: number;
+            remainingCount: number;
+        }
     }
 }
 /** @category Webcasts */
@@ -2981,6 +3091,10 @@ declare function parseLegacyOAuthRedirectResponse(url: string | URL | URLSearchP
 type API$c = ReturnType<typeof authAPIFactory>;
 /**
  * Authentication API methods
+ * Generally you won't need to call these methods directly - {@link RevClient#connect | RevClient} instances use them internally to maintain an authentication session.
+ *
+ * The exception is the {@link AuthAPI.buildOAuth2Authentication} and {@link AuthAPI.loginOAuth2} methods, which can be used when building an OAuth2 authentication flow.
+ *
  * @category Authentication
  * @group API
  * @see [Auth API Docs](https://revdocs.vbrick.com/reference/authenticateuser)
@@ -3116,7 +3230,7 @@ declare function channelAPIFactory(rev: RevClient): {
     list(start?: number, options?: Channel.SearchOptions): ChannelListRequest;
     addMembers(channelId: string, members: Channel.Member[]): Promise<void>;
     removeMembers(channelId: string, members: Array<string | Channel.Member>): Promise<void>;
-    uploadLogo(channelId: string, imageFile: Rev.FileUploadType, options?: Rev.UploadFileOptions): Promise<void>;
+    readonly uploadLogo: (channelId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions) => Promise<void>;
     /**
      *
      * @param {string} [searchText]
@@ -3331,6 +3445,7 @@ declare function recordingAPIFactory(rev: RevClient): {
  */
 type API$5 = ReturnType<typeof uploadAPIFactory>;
 /**
+ * Functions to upload binary content to Rev.
  * @category Videos
  * @group API
  * @see [Upload API Docs](https://revdocs.vbrick.com/reference/uploadvideo-1)
@@ -3367,12 +3482,12 @@ declare function uploadAPIFactory(rev: RevClient): {
      * @param options Additional `RequestInit` options, as well as customizing the contentType/contentLength/filename of the `file` in the POST upload form (only needed if they can't be inferred from input)
      * @returns the resulting video id
      */
-    video(file: Rev.FileUploadType, metadata?: Video.UploadMetadata, options?: Rev.UploadFileOptions): Promise<string>;
+    video(file: Rev.FileUploadType, metadata?: Video.UploadMetadata, options?: Upload.VideoOptions): Promise<string>;
     /**
      * Replace an existing video with an uploaded file
      * @see [API Docs](https://revdocs.vbrick.com/reference/replacevideo)
      */
-    replaceVideo(videoId: string, file: Rev.FileUploadType, options?: Rev.UploadFileOptions): Promise<void>;
+    replaceVideo(videoId: string, file: Rev.FileUploadType, options?: Upload.VideoOptions): Promise<void>;
     transcription(videoId: string, file: Rev.FileUploadType, language?: Transcription.SupportedLanguage, options?: Upload.TranscriptionOptions): Promise<void>;
     supplementalFile(videoId: string, file: Rev.FileUploadType, options?: Upload.SupplementalOptions): Promise<void>;
     /**
@@ -3384,9 +3499,17 @@ declare function uploadAPIFactory(rev: RevClient): {
      * @param options  additional upload + request options
      */
     chapters(videoId: string, chapters: Video.Chapter.Request[], action?: "append" | "replace", options?: Rev.RequestOptions): Promise<void>;
-    thumbnail(videoId: string, file: Rev.FileUploadType, options?: Rev.RequestOptions & Rev.UploadFileOptions): Promise<void>;
+    thumbnail(videoId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions): Promise<void>;
     presentationChapters(videoId: string, file: Rev.FileUploadType, options?: Upload.PresentationChaptersOptions): Promise<void>;
-    chapterLogo(channelId: string, file: Rev.FileUploadType, options?: Rev.UploadFileOptions): Promise<void>;
+    webcastPresentation(eventId: string, file: Rev.FileUploadType, options: Upload.PresentationChaptersOptions): Promise<void>;
+    webcastBackground(eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions): Promise<void>;
+    webcastProducerLayoutBackground(eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions): Promise<void>;
+    webcastBranding(eventId: string, request: Webcast.BrandingRequest, options?: Upload.ImageOptions): Promise<void>;
+    channelLogo(channelId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions): Promise<void>;
+    /**
+     * Upload a profile image for a given user. Only account admins can upload user profile image.
+     */
+    userProfileImage(userId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions): Promise<void>;
 };
 
 /** @ignore */
@@ -3423,12 +3546,12 @@ declare function userAPIFactory(rev: RevClient): {
     profile(requestOptions?: Rev.RequestOptions): Promise<User>;
     /**
      * get user details by username
-     * @deprecated use {@link details | user.details()} with `{lookupType: 'username'}`
+     * @deprecated use {@link UserAPI.details | user.details()} with `{lookupType: 'username'}`
      */
     getByUsername(username: string): Promise<User>;
     /**
      * get user details by email address
-     * @deprecated use {@link details | user.details()} with `{lookupType: 'email'}`
+     * @deprecated use {@link UserAPI.details | user.details()} with `{lookupType: 'email'}`
      */
     getByEmail(email: string): Promise<User>;
     /**
@@ -3487,6 +3610,8 @@ declare function userAPIFactory(rev: RevClient): {
      */
     markNotificationRead(notificationId?: string): Promise<void>;
     loginReport(sortField?: User.LoginReportSort, sortOrder?: Rev.SortDirection): Promise<User.LoginReportEntry[]>;
+    readonly uploadProfileImage: (userId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions) => Promise<void>;
+    deleteProfileImage(userId: string): Promise<void>;
 };
 
 declare function parseOptions(options: Video.VideoReportOptions): {
@@ -3653,8 +3778,8 @@ declare function videoAPIFactory(rev: RevClient): {
     supplementalFiles(videoId: string, options?: Rev.RequestOptions): Promise<Video.SupplementalFile[]>;
     thumbnailConfiguration(videoId: string, options?: Rev.RequestOptions): Promise<Video.ThumbnailConfiguration>;
     transcriptions(videoId: string, options?: Rev.RequestOptions): Promise<Transcription[]>;
-    upload: (file: Rev.FileUploadType, metadata?: Video.UploadMetadata, options?: Rev.UploadFileOptions) => Promise<string>;
-    replace: (videoId: string, file: Rev.FileUploadType, options?: Rev.UploadFileOptions) => Promise<void>;
+    upload: (file: Rev.FileUploadType, metadata?: Video.UploadMetadata, options?: Upload.VideoOptions) => Promise<string>;
+    replace: (videoId: string, file: Rev.FileUploadType, options?: Upload.VideoOptions) => Promise<void>;
     migrate(videoId: string, options: Video.MigrateRequest, requestOptions?: Rev.RequestOptions): Promise<void>;
     /**
      * search for videos, return as one big list. leave blank to get all videos in the account
@@ -3741,6 +3866,29 @@ declare function webcastAPIFactory(rev: RevClient): {
     create(event: Webcast.CreateRequest): Promise<string>;
     details(eventId: string, requestOptions?: Rev.RequestOptions): Promise<Webcast.Details>;
     edit(eventId: string, event: Webcast.CreateRequest): Promise<void>;
+    /**
+     * Partially edits the details of a webcast. You do not need to provide the fields that you are not changing.
+     * Webcast status determines which fields are modifiable and when.
+     *
+     * If the webcast pre-production or main event is in progress, only fields available for inline editing may be patched/edited.
+     *
+     * If the webcast main event has been run once, only fields available after the webcast has ended are available for editing. That includes all fields with the exception of start/end dates, lobbyTimeMinutes, preProduction, duration, userIds, and groupIds.
+     *
+     * If the webcast end time has passed and is Completed, only edits to linkedVideoId and redirectVod are allowed.
+     *
+     * Event Admins can be removed using their email addresses as path pointer for the fields 'EventAdminEmails' and 'EventAdmins', provided that all of the Event Admins associated with the webcast have email addresses. This is also applicable for the field 'Moderators'.
+     * @example
+     * ```js
+     * const rev = new RevClient(...config...);
+     * await rev.connect();
+     *
+     * // using eventadmins
+     * await rev.webcast.patch(eventId, [{ 'op': 'remove', 'path': '/EventAdmins/Email', 'value': 'x1@test.com' }]);
+     * // change shortcut
+     * await rev.webcast.patch(eventId, [{ 'op': 'replace', 'path': '/ShortcutName', 'value': 'weekly-meeting' }]);
+     * ```
+     */
+    patch(eventId: string, operations: Rev.PatchOperation[], options?: Rev.RequestOptions): Promise<void>;
     delete(eventId: string): Promise<void>;
     editAccess(eventId: string, entities: Webcast.EditAttendeesRequest): Promise<void>;
     attendees(eventId: string, runNumber?: number, options?: Rev.SearchOptions<Webcast.PostEventSession>): PostEventReportRequest;
@@ -3751,6 +3899,13 @@ declare function webcastAPIFactory(rev: RevClient): {
     reactions(eventId: string): Promise<Webcast.ReactionsSummary[]>;
     status(eventId: string, requestOptions?: Rev.RequestOptions): Promise<Webcast.Status>;
     isPublic(eventId: string, requestOptions?: Rev.RequestOptions): Promise<boolean>;
+    /**
+     * This endpoint deletes all events for a given date range or custom field query. The response returns a jobId and a count of webcasts to be deleted. The jobId can be used to check the status of the deletion.
+     * @param query Fields that are going to be used to search Webcasts that are to be deleted.
+     * @param options
+     */
+    bulkDelete(query: Pick<Webcast.SearchRequest, "startDate" | "endDate" | "customFields">, options?: Rev.RequestOptions): Promise<Webcast.BulkDelete.Response>;
+    bulkDeleteStatus(jobId: string): Promise<Webcast.BulkDelete.Status>;
     playbackUrls(eventId: string, { ip, userAgent }?: Webcast.PlaybackUrlRequest, options?: Rev.RequestOptions): Promise<Webcast.PlaybackUrlsResponse>;
     /**
      * @deprecated
@@ -3801,11 +3956,28 @@ declare function webcastAPIFactory(rev: RevClient): {
     updateGuestRegistration(eventId: string, registrationId: string, registration: GuestRegistration.Request): Promise<void>;
     patchGuestRegistration(eventId: string, registrationId: string, registration: Partial<GuestRegistration.Request>): Promise<void>;
     deleteGuestRegistration(eventId: string, registrationId: string): Promise<void>;
+    /**
+     * Resend email to external presenters for Producer type webcast.
+     * @param eventId id of the webcast
+     * @param email Email of the external presenter.
+     */
+    resendEmailToExternalPresenter(eventId: string, email: string): Promise<void>;
+    listEmbeddedEngagements(eventId: string): Promise<Webcast.ContentLink[]>;
+    addEmbeddedEngagement(eventId: string, contentLink: Webcast.ContentLink.Request): Promise<Webcast.ContentLink>;
+    setEmbeddedEngagementStatus(eventId: string, linkId: string, isEnabled: boolean): Promise<void>;
+    updateEmbeddedEngagement(eventId: string, contentLink: Webcast.ContentLink): Promise<Webcast.ContentLink>;
+    deleteEmbeddedEngagement(eventId: string, linkId: string): Promise<void>;
     listBanners(eventId: string): Promise<WebcastBanner[]>;
     addBanner(eventId: string, banner: WebcastBanner.Request): Promise<WebcastBanner>;
     setBannerStatus(eventId: string, bannerId: string, isEnabled: boolean): Promise<void>;
     updateBanner(eventId: string, banner: WebcastBanner): Promise<WebcastBanner>;
     deleteBanner(eventId: string, bannerId: string): Promise<void>;
+    readonly uploadBranding: (eventId: string, request: Webcast.BrandingRequest, options?: Upload.ImageOptions) => Promise<void>;
+    readonly uploadPresentation: (eventId: string, file: Rev.FileUploadType, options: Upload.PresentationChaptersOptions) => Promise<void>;
+    readonly uploadBackgroundImage: (eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions) => Promise<void>;
+    deleteBackgroundImage(eventId: string): Promise<void>;
+    readonly uploadProducerLayoutBackground: (eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions) => Promise<void>;
+    deleteProducerLayoutBackground(eventId: string): Promise<void>;
 };
 
 /**

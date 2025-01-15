@@ -1382,8 +1382,8 @@ function channelAPIFactory(rev) {
       });
       await rev.patch(`/api/v2/channels/${channelId}`, operations);
     },
-    async uploadLogo(channelId, imageFile, options) {
-      return rev.upload.chapterLogo(channelId, imageFile, options);
+    get uploadLogo() {
+      return rev.upload.channelLogo;
     },
     /**
      *
@@ -1877,7 +1877,7 @@ function uploadAPIFactory(rev) {
         ]
       };
       appendJSONToForm(form, "TranscriptionFiles", metadata);
-      rev.log("info", `Uploading transcription to ${videoId} (${lang} ${filePayload.filename} (${filePayload.contentType})`);
+      rev.log("info", `Uploading transcription to ${videoId} ${lang} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/transcription-files/${videoId}`, form, filePayload, requestOptions);
     },
     async supplementalFile(videoId, file, options = {}) {
@@ -1890,7 +1890,7 @@ function uploadAPIFactory(rev) {
         ]
       };
       appendJSONToForm(form, "SupplementalFiles", metadata);
-      rev.log("info", `Uploading supplemental content to ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+      rev.log("info", `Uploading supplemental content to ${videoId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/supplemental-files/${videoId}`, form, filePayload, requestOptions);
     },
     /**
@@ -1933,22 +1933,78 @@ function uploadAPIFactory(rev) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
       const form = new FormData();
       const filePayload = await appendFileToForm(form, "ThumbnailFile", file, uploadOptions);
-      rev.log("info", `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+      rev.log("info", `Uploading thumbnail for ${videoId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
     },
     async presentationChapters(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "application/vnd.ms-powerpoint");
       const form = new FormData();
       const filePayload = await appendFileToForm(form, "PresentationFile", file, uploadOptions);
-      rev.log("info", `Uploading presentation for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+      rev.log("info", `Uploading presentation for ${videoId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/video-presentations/${videoId}`, form, filePayload, requestOptions);
     },
-    async chapterLogo(channelId, file, options = {}) {
+    async webcastPresentation(eventId, file, options) {
+      const { uploadOptions, requestOptions } = splitOptions(options, "application/vnd.ms-powerpoint");
+      const form = new FormData();
+      const filePayload = await appendFileToForm(form, "PresentationFile", file, uploadOptions);
+      rev.log("info", `Uploading presentation for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/presentations/${eventId}`, form, filePayload, requestOptions);
+    },
+    async webcastBackground(eventId, file, options) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
       const form = new FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
-      rev.log("info", `Uploading channel logo for ${channelId} (${filePayload.filename} (${filePayload.contentType})`);
+      rev.log("info", `Uploading background image for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/background-image/${eventId}`, form, filePayload, requestOptions);
+    },
+    async webcastProducerLayoutBackground(eventId, file, options) {
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
+      const form = new FormData();
+      const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
+      rev.log("info", `Uploading producer layout background image for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/webcast-producer-bgimage/${eventId}`, form, filePayload, requestOptions);
+    },
+    async webcastBranding(eventId, request, options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
+      const form = new FormData();
+      const logoOptions = {
+        ...uploadOptions,
+        // make sure filename is by default unique
+        filename: "logo",
+        ...request.logoImageOptions ?? {}
+      };
+      const backgroundOptions = {
+        ...uploadOptions,
+        // make sure filename is by default unique
+        filename: "background",
+        ...request.logoImageOptions ?? {}
+      };
+      const logoImagePayload = await appendFileToForm(form, "LogoImageFile", request.logoImage, logoOptions);
+      const backgroundImagePayload = await appendFileToForm(form, "BackgroundImageFile", request.backgroundImage, backgroundOptions);
+      const meta = {
+        ...request.branding,
+        logoImageFilename: logoImagePayload.filename,
+        backgroundImageFilename: backgroundImagePayload.filename
+      };
+      appendJSONToForm(form, "Branding", meta);
+      rev.log("info", `Uploading webcast branding to ${eventId} (${meta.logoImageFilename} ${meta.backgroundImageFilename})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/webcast-branding/${eventId}`, form, uploadOptions, requestOptions);
+    },
+    async channelLogo(channelId, file, options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
+      const form = new FormData();
+      const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
+      rev.log("info", `Uploading channel logo for ${channelId} (${filePayload.filename} ${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/channel-logo/${channelId}`, form, filePayload, requestOptions);
+    },
+    /**
+     * Upload a profile image for a given user. Only account admins can upload user profile image.
+     */
+    async userProfileImage(userId, file, options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
+      const form = new FormData();
+      const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/profile-image/${userId}`, form, filePayload, requestOptions);
     }
   };
   return uploadAPI;
@@ -1990,14 +2046,14 @@ function userAPIFactory(rev) {
     },
     /**
      * get user details by username
-     * @deprecated use {@link details | user.details()} with `{lookupType: 'username'}`
+     * @deprecated use {@link UserAPI.details | user.details()} with `{lookupType: 'username'}`
      */
     async getByUsername(username) {
       return userAPI.details(username, { lookupType: "username" });
     },
     /**
      * get user details by email address
-     * @deprecated use {@link details | user.details()} with `{lookupType: 'email'}`
+     * @deprecated use {@link UserAPI.details | user.details()} with `{lookupType: 'email'}`
      */
     async getByEmail(email) {
       return userAPI.details(email, { lookupType: "email" });
@@ -2107,6 +2163,12 @@ function userAPIFactory(rev) {
       await rev.session.queueRequest("loginReport" /* GetUsersByLoginDate */);
       const { Users } = await rev.get("/api/v2/users/login-report", query, { responseType: "json" });
       return Users;
+    },
+    get uploadProfileImage() {
+      return rev.upload.userProfileImage;
+    },
+    deleteProfileImage(userId) {
+      return rev.delete(`/api/v2/users/${userId}/profile-image`);
     }
   };
   return userAPI;
@@ -2324,7 +2386,7 @@ function videoDownloadAPI(rev) {
       thumbnailSheetsUri = thumbnailSheet.thumbnailSheetsUri;
     } else if (thumbnailSheet?.videoId) {
       const { videoId, sheetIndex = "1" } = thumbnailSheet;
-      thumbnailSheetsUri = `/api/v2/videos/${videoId}/thumbnail-sheet/${sheetIndex}`;
+      thumbnailSheetsUri = `/api/v2/videos/${videoId}/thumbnail-sheets/${sheetIndex}`;
     }
     if (!thumbnailSheetsUri) {
       throw new TypeError("No thumbnail sheet specified to download");
@@ -2790,6 +2852,31 @@ function webcastAPIFactory(rev) {
     async edit(eventId, event) {
       return rev.put(`/api/v2/scheduled-events/${eventId}`, event);
     },
+    /**
+     * Partially edits the details of a webcast. You do not need to provide the fields that you are not changing.
+     * Webcast status determines which fields are modifiable and when.
+     *
+     * If the webcast pre-production or main event is in progress, only fields available for inline editing may be patched/edited.
+     *
+     * If the webcast main event has been run once, only fields available after the webcast has ended are available for editing. That includes all fields with the exception of start/end dates, lobbyTimeMinutes, preProduction, duration, userIds, and groupIds.
+     *
+     * If the webcast end time has passed and is Completed, only edits to linkedVideoId and redirectVod are allowed.
+     *
+     * Event Admins can be removed using their email addresses as path pointer for the fields 'EventAdminEmails' and 'EventAdmins', provided that all of the Event Admins associated with the webcast have email addresses. This is also applicable for the field 'Moderators'.
+     * @example
+     * ```js
+     * const rev = new RevClient(...config...);
+     * await rev.connect();
+     *
+     * // using eventadmins
+     * await rev.webcast.patch(eventId, [{ 'op': 'remove', 'path': '/EventAdmins/Email', 'value': 'x1@test.com' }]);
+     * // change shortcut
+     * await rev.webcast.patch(eventId, [{ 'op': 'replace', 'path': '/ShortcutName', 'value': 'weekly-meeting' }]);
+     * ```
+     */
+    async patch(eventId, operations, options) {
+      await rev.patch(`/api/v2/scheduled-events/${eventId}`, operations, options);
+    },
     // async patch - not yet implemented
     async delete(eventId) {
       return rev.delete(`/api/v2/scheduled-events/${eventId}`);
@@ -2826,6 +2913,18 @@ function webcastAPIFactory(rev) {
     async isPublic(eventId, requestOptions) {
       const response = await rev.request("GET", `/api/v2/scheduled-events/${eventId}/is-public`, void 0, { ...requestOptions, throwHttpErrors: false, responseType: "json" });
       return response.statusCode !== 401 && response.body?.isPublic;
+    },
+    /**
+     * This endpoint deletes all events for a given date range or custom field query. The response returns a jobId and a count of webcasts to be deleted. The jobId can be used to check the status of the deletion.
+     * @param query Fields that are going to be used to search Webcasts that are to be deleted.
+     * @param options
+     */
+    async bulkDelete(query, options) {
+      const { body } = await rev.request("DELETE", `/api/v2/scheduled-events`, query, options);
+      return body;
+    },
+    bulkDeleteStatus(jobId) {
+      return rev.get(`/api/v2/scheduled-events/delete-status/${jobId}`);
     },
     async playbackUrls(eventId, { ip, userAgent } = {}, options) {
       const query = ip ? { ip } : void 0;
@@ -2945,6 +3044,31 @@ function webcastAPIFactory(rev) {
     deleteGuestRegistration(eventId, registrationId) {
       return rev.delete(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
     },
+    /**
+     * Resend email to external presenters for Producer type webcast.
+     * @param eventId id of the webcast
+     * @param email Email of the external presenter.
+     */
+    resendEmailToExternalPresenter(eventId, email) {
+      return rev.post(`/api/v2/scheduled-events/${eventId}/presenter-resend-email?email=${encodeURIComponent(email)}`);
+    },
+    async listEmbeddedEngagements(eventId) {
+      const { contentLinks } = await rev.get(`/api/v2/scheduled-events/${eventId}/embedded-content/links`);
+      return contentLinks || [];
+    },
+    addEmbeddedEngagement(eventId, contentLink) {
+      return rev.post(`/api/v2/scheduled-events/${eventId}/embedded-content/link`, contentLink);
+    },
+    setEmbeddedEngagementStatus(eventId, linkId, isEnabled) {
+      return rev.put(`/api/v2/scheduled-events/${eventId}/embedded-content/links/${linkId}/status`, { isEnabled });
+    },
+    updateEmbeddedEngagement(eventId, contentLink) {
+      const { id, ...payload } = contentLink;
+      return rev.put(`/api/v2/scheduled-events/${eventId}/embedded-content/links/${id}`, payload);
+    },
+    deleteEmbeddedEngagement(eventId, linkId) {
+      return rev.delete(`/api/v2/scheduled-events/${eventId}/embedded-content/links/${linkId}`);
+    },
     async listBanners(eventId) {
       const { banners } = await rev.get(`/api/v2/scheduled-events/${eventId}/banners`);
       return banners || [];
@@ -2961,6 +3085,24 @@ function webcastAPIFactory(rev) {
     },
     deleteBanner(eventId, bannerId) {
       return rev.delete(`/api/v2/scheduled-events/${eventId}/banner/${bannerId}`);
+    },
+    get uploadBranding() {
+      return rev.upload.webcastBranding;
+    },
+    get uploadPresentation() {
+      return rev.upload.webcastPresentation;
+    },
+    get uploadBackgroundImage() {
+      return rev.upload.webcastBackground;
+    },
+    deleteBackgroundImage(eventId) {
+      return rev.delete(`/api/v2/scheduled-events/${eventId}/background-image`);
+    },
+    get uploadProducerLayoutBackground() {
+      return rev.upload.webcastProducerLayoutBackground;
+    },
+    deleteProducerLayoutBackground(eventId) {
+      return rev.delete(`/api/v2/scheduled-events/${eventId}/webcast-producer-bgimage`);
     }
   };
   return webcastAPI;
@@ -3086,6 +3228,7 @@ function environmentAPIFactory(rev) {
 
 // src/rev-session.ts
 var ONE_MINUTE2 = 1e3 * 60;
+var DEFAULT_EXPIRE_MINUTES = 10;
 var _credentials = Symbol("credentials");
 var SessionKeepAlive = class {
   constructor(session, options = {}) {
@@ -3208,8 +3351,8 @@ var SessionBase = class {
     } = await this._login();
     Object.assign(this, session);
     const expires = new Date(expiration);
-    if (expires.getTime() < this.expires.getTime()) {
-      this.expires.setUTCMinutes(this.expires.getUTCMinutes() + 10);
+    if (isNaN(expires.getTime()) || expires.getTime() < this.expires.getTime()) {
+      this.expires.setUTCMinutes(this.expires.getUTCMinutes() + DEFAULT_EXPIRE_MINUTES);
     } else {
       this.expires = expires;
     }
@@ -3469,9 +3612,10 @@ var AccessTokenSession = class extends SessionBase {
   // just verify user on login
   async _login() {
     await this.rev.auth.verifySession();
+    this.expires || (this.expires = new Date(Date.now() + 15 * 60 * 1e3));
     return {
       token: this.token || "",
-      expiration: this.expires?.toISOString(),
+      expiration: this.expires.toISOString(),
       issuer: "vbrick"
     };
   }
@@ -3500,13 +3644,13 @@ var PublicOnlySession = class extends SessionBase {
     return {
       token: this.token || "",
       // very long expiration
-      expiration: new Date(Date.now() + 24 * 60 * 60 * 1e3).toISOString(),
+      expiration: new Date(Date.now() + 24 * 60 * ONE_MINUTE2).toISOString(),
       issuer: "vbrick"
     };
   }
   async _extend() {
     return {
-      expiration: new Date(Date.now() + 24 * 60 * 60 * 1e3).toISOString()
+      expiration: new Date(Date.now() + 24 * 60 * ONE_MINUTE2).toISOString()
     };
   }
   async _logoff() {
@@ -3517,6 +3661,12 @@ var PublicOnlySession = class extends SessionBase {
       token: this.token || "",
       expiration: this.expires
     };
+  }
+  get isConnected() {
+    return true;
+  }
+  get isExpired() {
+    return false;
   }
 };
 function createSession(rev, credentials, keepAliveOptions, rateLimits) {
