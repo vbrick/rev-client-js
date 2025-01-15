@@ -7,6 +7,7 @@ This library is intended for use with **[VBrick Rev](https://vbrick.com)**.
 ## Documentation
 
 * [Readme](https://github.com/vbrick/rev-client-js)
+* [API Reference](https://vbrick.github.io/vbrick/rev-client-js)
 * [Changelog](https://github.com/vbrick/rev-client-js/CHANGELOG.md)
 
 ## Installation

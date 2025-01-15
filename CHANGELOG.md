@@ -9,11 +9,13 @@
   * Get Deleted Videos
   * Upload Channel Logo
   * Webcast Emoji Reactions
+* Added other missing webcast endpoints (upload background image, bulk delete, embedded engagement endpoints, etc.)
 
 ### Bugfixes
 
 * Correctly detect when `RevClient` is created as public-only (no auth) with the `new RevClient({ publicOnly: true })` option.
 * Fixed rare edge case where the session keepAlive would make repeated checks to verify the session is stable.
+* correct `upload.channelLogo` function name (was `upload.chapterLogo`)
 
 ### Breaking changes
 
