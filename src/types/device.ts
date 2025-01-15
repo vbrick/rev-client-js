@@ -316,7 +316,6 @@ export namespace Device {
         nearPort: number;
     }
 
-    /** @inline */
     export interface DmeHealthStatus {
         bootTime?: string; // date-time
         systemTime?: string; // date-time

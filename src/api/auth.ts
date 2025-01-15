@@ -9,6 +9,10 @@ export type API = ReturnType<typeof authAPIFactory>;
 
 /**
  * Authentication API methods
+ * Generally you won't need to call these methods directly - {@link RevClient#connect | RevClient} instances use them internally to maintain an authentication session.
+ *
+ * The exception is the {@link AuthAPI.buildOAuth2Authentication} and {@link AuthAPI.loginOAuth2} methods, which can be used when building an OAuth2 authentication flow.
+ *
  * @category Authentication
  * @group API
  * @see [Auth API Docs](https://revdocs.vbrick.com/reference/authenticateuser)

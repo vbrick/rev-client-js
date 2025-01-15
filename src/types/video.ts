@@ -630,9 +630,7 @@ export namespace Video {
             imageFile?: Rev.FileUploadType;
             /** set filename/contenttype or other options for appended file */
             uploadOptions?: Rev.UploadFileOptions & {
-                contentType?: 'image/gif'
-                            | 'image/jpeg'
-                            | 'image/png'
+                contentType?: LiteralString<'image/gif' | 'image/jpeg' | 'image/png'>
             };
         }
     }

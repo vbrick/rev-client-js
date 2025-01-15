@@ -4,14 +4,14 @@
   "entryPointStrategy": "resolve",
   "plugin": ["typedoc-plugin-missing-exports"],
   "gitRevision": "main",
-  "gitRemote": "upstream",
+  "gitRemote": "origin",
   "excludeInternal": true,
   "excludePrivate": true,
   "excludeProtected": true,
   "excludeExternals": true,
   "excludeReferences": true,
   "categoryOrder": ["Getting Started", "Authentication", "Videos", "Playlists", "Webcasts", "Users & Groups", "Channels", "Administration", "Devices", "Audit"],
-  "categorizeByGroup": true,
+  "categorizeByGroup": false,
   "outputs": [
     {
       "name": "html",
