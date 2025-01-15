@@ -5,6 +5,8 @@ import interop from './interop/polyfills';
 import { RateLimitEnum, RateLimitQueues, clearQueues, makeQueues } from './utils/rate-limit-queues';
 
 const ONE_MINUTE = 1000 * 60;
+// if no expiration default to expiring in 10 minutes
+const DEFAULT_EXPIRE_MINUTES = 10;
 
 // obsfucate credentials to avoid accidental disclosure
 const _credentials = Symbol('credentials');
@@ -167,9 +169,9 @@ abstract class SessionBase implements Rev.IRevSession {
         Object.assign(this, session);
 
         const expires = new Date(expiration);
-        // VERY edge case where old date could be returned - just assume 10 min expiration
-        if (expires.getTime() < this.expires.getTime()) {
-            this.expires.setUTCMinutes(this.expires.getUTCMinutes() + 10);
+        // if invalid date or date in past returned - just assume 10 min expiration
+        if (isNaN(expires.getTime()) || expires.getTime() < this.expires.getTime()) {
+            this.expires.setUTCMinutes(this.expires.getUTCMinutes() + DEFAULT_EXPIRE_MINUTES);
         } else {
             this.expires = expires;
         }
@@ -469,9 +471,11 @@ export class AccessTokenSession extends SessionBase {
     // just verify user on login
     async _login() {
         await this.rev.auth.verifySession();
+        // default to expiration 15 minutes in the future, which should be a reasonably safe option
+        this.expires ||= new Date(Date.now() + 15 * 60 * 1000);
         return {
             token: this.token || '',
-            expiration: this.expires?.toISOString(),
+            expiration: this.expires.toISOString(),
             issuer: 'vbrick'
         };
     }
@@ -502,13 +506,13 @@ export class PublicOnlySession extends SessionBase {
         return {
             token: this.token || '',
             // very long expiration
-            expiration: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            expiration: new Date(Date.now() + 24 * 60 * ONE_MINUTE).toISOString(),
             issuer: 'vbrick'
         };
     }
     async _extend() {
         return {
-            expiration: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+            expiration: new Date(Date.now() + 24 * 60 * ONE_MINUTE).toISOString()
         }
     }
     async _logoff() {
@@ -519,6 +523,12 @@ export class PublicOnlySession extends SessionBase {
             token: this.token || '',
             expiration: this.expires
         };
+    }
+    get isConnected() {
+        return true;
+    }
+    get isExpired() {
+        return false;
     }
 }
 
