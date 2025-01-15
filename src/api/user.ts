@@ -51,7 +51,7 @@ export default function userAPIFactory(rev: RevClient) {
     function details(userLookupValue: string, options?: User.DetailsOptions): Promise<User>;
     /**
      * @deprecated
-     * use {@link details | updated signature} `details(userLookupValue, {lookupType: 'userId' | 'username' | 'email'})` instead
+     * use {@link UserAPI.details | updated signature} `details(userLookupValue, {lookupType: 'userId' | 'username' | 'email'})` instead
      */
     function details(userLookupValue: string, type: 'userId' | 'email' | 'username'): Promise<User>;
     async function details(userLookupValue: string, options: User.DetailsLookup | User.DetailsOptions = {}) {
@@ -95,7 +95,7 @@ export default function userAPIFactory(rev: RevClient) {
         },
         /**
          * get user details by username
-         * @deprecated use {@link details | user.details()} with `{lookupType: 'username'}`
+         * @deprecated use {@link UserAPI.details | user.details()} with `{lookupType: 'username'}`
          */
         async getByUsername(username: string) {
             // equivalent to rev.get<User>(`/api/v2/users/${username}`, { type: 'username' });
@@ -103,7 +103,7 @@ export default function userAPIFactory(rev: RevClient) {
         },
         /**
          * get user details by email address
-         * @deprecated use {@link details | user.details()} with `{lookupType: 'email'}`
+         * @deprecated use {@link UserAPI.details | user.details()} with `{lookupType: 'email'}`
          */
         async getByEmail(email: string) {
             return userAPI.details(email, {lookupType: 'email'});
@@ -219,6 +219,12 @@ export default function userAPIFactory(rev: RevClient) {
             await rev.session.queueRequest(RateLimitEnum.GetUsersByLoginDate);
             const {Users} = await rev.get('/api/v2/users/login-report', query, { responseType: 'json' });
             return Users;
+        },
+        get uploadProfileImage() {
+            return rev.upload.userProfileImage;
+        },
+        deleteProfileImage(userId: string): Promise<void> {
+            return rev.delete(`/api/v2/users/${userId}/profile-image`);
         }
     };
     return userAPI;

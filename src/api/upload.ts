@@ -296,6 +296,7 @@ export default function uploadAPIFactory(rev: RevClient) {
             rev.log('info', `Uploading webcast branding to ${eventId} (${meta.logoImageFilename} ${meta.backgroundImageFilename})`);
 
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/webcast-branding/${eventId}`, form, uploadOptions, requestOptions);
+        },
         async channelLogo(channelId: string, file: Rev.FileUploadType, options: Upload.ImageOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
 
@@ -306,6 +307,18 @@ export default function uploadAPIFactory(rev: RevClient) {
             rev.log('info', `Uploading channel logo for ${channelId} (${filePayload.filename} ${filePayload.contentType})`);
 
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/channel-logo/${channelId}`, form, filePayload, requestOptions);
+        },
+        /**
+         * Upload a profile image for a given user. Only account admins can upload user profile image.
+         */
+        async userProfileImage(userId: string, file: Rev.FileUploadType, options: Upload.ImageOptions = {}) {
+            const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
+
+            const form = new FormData();
+
+            const filePayload = await appendFileToForm(form, 'ImageFile', file, uploadOptions);
+
+            await uploadMultipart(rev, 'POST', `/api/v2/uploads/profile-image/${userId}`, form, filePayload, requestOptions);
         }
     };
 
