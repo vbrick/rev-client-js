@@ -1,10 +1,31 @@
 import { isPlainObject, tryParseJson } from './utils';
 
+/**
+ * A custom error for parsing and handling Error HTTP responses from Rev.
+ * @category Getting Started
+ */
 export class RevError extends Error {
+    /**
+     * HTTP Status Code
+     */
     status: number;
+    /**
+     * Request URL/endpoint
+     */
     url: string;
+    /**
+     * Rev-specific error code
+     */
     code: string;
+    /**
+     * Additional error message returned by Rev API
+     */
     detail: string;
+    /**
+     * @hidden
+     * @param response
+     * @param body
+     */
     constructor(response: Response, body: { [key: string]: any; } | string) {
         const {
             status = 500,
@@ -47,12 +68,19 @@ export class RevError extends Error {
             }
         }
     }
+    /** @ignore */
     get name() {
         return 'RevError';
     }
+    /** @ignore */
     get [Symbol.toStringTag]() {
         return 'RevError';
     }
+    /**
+     * Consume a HTTP Response's body to create a new Error instance
+     * @param response
+     * @returns
+     */
     static async create(response: Response) {
         let body: any;
 
@@ -69,10 +97,30 @@ export class RevError extends Error {
     }
 }
 
+/**
+ * This error is not very common - when calling Search APIs this may be thrown if paging through search results takes too long.
+ * @category Utilities
+ */
 export class ScrollError extends Error {
+    /**
+     * HTTP Status Code
+     */
     status: number;
+
+    /**
+     * Rev-specific error code
+     */
     code: string;
+    /**
+     * Additional error message returned by Rev API
+     */
     detail: string;
+    /**
+     * @hidden
+     * @param status
+     * @param code
+     * @param detail
+     */
     constructor(status: number = 408, code: string = 'ScrollExpired', detail: string = 'Timeout while fetching all results in search request') {
         super('Search Scroll Expired');
         Error.captureStackTrace(this, this.constructor);
@@ -80,9 +128,11 @@ export class ScrollError extends Error {
         this.code = code;
         this.detail = detail;
     }
+    /** @ignore */
     get name() {
         return this.constructor.name;
     }
+    /** @ignore */
     get [Symbol.toStringTag]() {
         return this.constructor.name;
     }

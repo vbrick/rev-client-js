@@ -6,28 +6,167 @@ import { Rev } from './types';
 import { decodeBody } from './utils/request-utils';
 import { createSession } from './rev-session';
 
+/**
+ * @categoryDescription Getting Started
+ * @see {@link RevClient}, the main entry point for using this library
+ */
+
+/** @inline */
 type PayloadType = { [key: string]: any; } | Record<string, any> | any[];
 
+/**
+ * All API interactions are wrapped up in the `RevClient` class.
+ *
+ * @example
+ * ```js
+import {RevClient} from '/path/to/rev-client.js';
+
+// create client object
+const rev = new RevClient({
+    url: 'https://my.rev.url',
+    apiKey: 'my.user.apikey',
+    secret: 'my.user.secret',
+    // or can login via username + password
+    // username: 'my.username',
+    // password: 'my.password',
+    logEnabled: true, // turn on debug logging
+    keepAlive: true // automatically extend session
+    rateLimits: true // automatically enforce rate limiting (avoid 429 error responses)
+});
+
+(async () => {
+    // call login api and start session. will throw error if invalid login
+    await rev.connect();
+
+    // get details of current user
+    const currentUser = await rev.user.details('me');
+    console.log(currentUser);
+});
+```
+ *
+ * @category Getting Started
+ *
+ * @groupDescription APIs
+ * Methods to call the Rev APIs  are broken up into namespaces.
+ * They roughly match up to the categories in the [Rev API Docs](https://revdocs.vbrick.com/reference/developer-hub)
+ * Documentation for the individual api namespaces are broken out into separate pages:
+ * * `.admin`: {@link AdminAPI | admin api}
+ *
+ * * **`.admin`**: {@link AdminAPI | Admin Methods}
+ * * **`.audit`**: {@link AuditAPI | Audit Methods}
+ * * **`.auth`**: {@link AuthAPI | Auth Methods}
+ * * **`.category`**: {@link CategoryAPI | Category Methods}
+ * * **`.channel`**: {@link ChannelAPI | Channel Methods}
+ * * **`.device`**: {@link DeviceAPI | Device Methods}
+ * * **`.environment`**: {@link EnvironmentAPI | Environment Methods}
+ * * **`.group`**: {@link GroupAPI | Group Methods}
+ * * **`.playlist`**: {@link PlaylistAPI | Playlist Methods}
+ * * **`.recording`**: {@link RecordingAPI | Recording Methods}
+ * * **`.upload`**: {@link UploadAPI | Upload Methods}
+ * * **`.user`**: {@link UserAPI | User Methods}
+ * * **`.video`**: {@link VideoAPI | Video Methods}
+ * * **`.webcast`**: {@link WebcastAPI | Webcast Methods}
+ * * **`.zones`**: {@link ZoneAPI | Zone Methods}
+ *
+ *
+ * @groupDescription Session
+ * Methods to maintain the authentication session (accessToken)
+ *
+ * @groupDescription Request
+ * Methods to directly make (authenticated) HTTP requests
+ *
+ * @groupDescription Properties
+ * instance properties
+ *
+ * @groupDescription Internal
+ * for internal use
+ *
+ */
 export class RevClient {
+    /**
+     * The Rev tenant url (i.e. https://my.rev.url)
+     * @group Properties
+     */
     url: string;
+    /**
+     * turns on/off debug logging to console
+     * @group Internal
+     */
     logEnabled: boolean;
+    /**
+     ** This is an internal class that handles authentication and maintaining the session. It should not be used directly.
+     * @group Internal
+     */
     session: Rev.IRevSession;
-    readonly admin!: ReturnType<typeof api.admin>;
-    readonly audit!: ReturnType<typeof api.audit>;
-    readonly auth!: ReturnType<typeof api.auth>;
-    readonly category!: ReturnType<typeof api.category>;
-    readonly channel!: ReturnType<typeof api.channel>;
-    readonly device!: ReturnType<typeof api.device>;
-    readonly environment!: ReturnType<typeof api.environment>;
-    readonly group!: ReturnType<typeof api.group>;
-    readonly playlist!: ReturnType<typeof api.playlist>;
-    readonly recording!: ReturnType<typeof api.recording>;
-    readonly upload!: ReturnType<typeof api.upload>;
-    readonly user!: ReturnType<typeof api.user>;
-    readonly video!: ReturnType<typeof api.video>;
-    readonly webcast!: ReturnType<typeof api.webcast>;
-    readonly zones!: ReturnType<typeof api.zones>;
+    /**
+     * @group APIs
+     */
+    readonly admin!: api.AdminAPI;
+    /**
+     * @group APIs
+     */
+    readonly audit!: api.AuditAPI;
+    /**
+     * @group APIs
+     */
+    readonly auth!: api.AuthAPI;
+    /**
+     * @group APIs
+     */
+    readonly category!: api.CategoryAPI;
+    /**
+     * @group APIs
+     */
+    readonly channel!: api.ChannelAPI;
+    /**
+     * @group APIs
+     */
+    readonly device!: api.DeviceAPI;
+    /**
+     * @group APIs
+     */
+    readonly environment!: api.EnvironmentAPI;
+    /**
+     * @group APIs
+     */
+    readonly group!: api.GroupAPI;
+    /**
+     * @group APIs
+     */
+    readonly playlist!: api.PlaylistAPI;
+    /**
+     *
+     * @group APIs
+     */
+    readonly recording!: api.RecordingAPI;
+    /**
+     * @group APIs
+     */
+    readonly upload!: api.UploadAPI;
+    /**
+     * @group APIs
+     */
+    readonly user!: api.UserAPI;
+    /**
+     * @group APIs
+     */
+    readonly video!: api.VideoAPI;
+    /**
+     * @group APIs
+     */
+    readonly webcast!: api.WebcastAPI;
+    /**
+     * @group APIs
+     */
+    readonly zones!: api.ZoneAPI;
+    /**
+     * @internal
+     */
     private _streamPreference: Rev.RequestOptions['responseType'];
+    /**
+     *
+     * @param options The configuration options including target Rev URL and authentication credentials
+     */
     constructor(options: Rev.Options) {
         if (!isPlainObject(options) || !options.url) {
             throw new TypeError('Missing configuration options for client - url and username/password or apiKey/secret');
@@ -88,7 +227,16 @@ export class RevClient {
         });
     }
     /**
-     * make a REST request
+     * make a REST request.
+     * The Authorization http header for the current session will automatically be added.
+     *
+     * @group Request
+     * @param method HTTP Method
+     * @param endpoint API endpoint path
+     * @param data Request body if PUT/POST/PATCH or query parameters object if GET/DELETE/HEAD. objects/arrays are automatically stringified
+     * @param options additional request options, including additional HTTP Headers if necessary.
+     * @returns the decoded response body as well as statuscode/headers/and raw response
+     *
      */
     async request<T = any>(method: Rev.HTTPMethod, endpoint: string, data: any = undefined, options: Rev.RequestOptions = { }): Promise<Rev.Response<T>> {
         // support for dynamically loading fetch polyfill
@@ -158,7 +306,7 @@ export class RevClient {
             headers.set('Accept', 'application/json');
         }
         // set to JSON payload
-        if (shouldSetAsJSON) {
+        if (shouldSetAsJSON && fetchOptions.body) {
             headers.set('Content-Type', 'application/json');
         }
 
@@ -249,26 +397,73 @@ export class RevClient {
             response
         };
     }
+    /**
+     *
+     * Make a GET Request
+     * @group Request
+     * @param endpoint API path
+     * @param data Query parameters as json object
+     * @param options Additional request options
+     * @returns Depends on options.responseType/API response - usually JSON object except for binary download endpoints
+     */
     async get<T = any>(endpoint: string, data?: PayloadType, options?: Rev.RequestOptions): Promise<T> {
         const { body } = await this.request('GET', endpoint, data, options);
         return body;
     }
+    /**
+     *
+     * Make a POST Request
+     * @group Request
+     * @param endpoint API path
+     * @param data Request body
+     * @param options Additional request options
+     * @returns Depends on options.responseType/API response - usually JSON object
+     */
     async post<T = any>(endpoint: string, data?: PayloadType, options?: Rev.RequestOptions): Promise<T> {
         const { body } = await this.request('POST', endpoint, data, options);
         return body;
     }
+    /**
+     *
+     * Make a GET Request
+     * @group Request
+     * @param endpoint API path
+     * @param data Request body
+     * @param options Additional request options
+     * @returns Depends on options.responseType/API response - usually JSON object or void
+     */
     async put<T = any>(endpoint: string, data?: PayloadType, options?: Rev.RequestOptions): Promise<T> {
         const { body } = await this.request('PUT', endpoint, data, options);
         return body;
     }
+    /**
+     *
+     * Make a PATCH Request
+     * @group Request
+     * @param endpoint API path
+     * @param data Request body
+     * @param options Additional request options
+     * @returns
+     */
     async patch(endpoint: string, data?: PayloadType, options?: Rev.RequestOptions): Promise<void> {
         await this.request('PATCH', endpoint, data, options);
     }
+    /**
+     *
+     * Make a DELETE Request
+     * @group Request
+     * @param endpoint API path
+     * @param data query parameters as JSON object
+     * @param options Additional request options
+     * @returns
+     */
     async delete(endpoint: string, data?: PayloadType, options?: Rev.RequestOptions): Promise<void> {
         await this.request('DELETE', endpoint, data, options);
     }
     /**
+     *
      * authenticate with Rev
+     * @group Session
      */
     async connect() {
 
@@ -280,7 +475,9 @@ export class RevClient {
             (err: RevError) => ![401, 429].includes(err.status));
     }
     /**
+     *
      * end rev session
+     * @group Session
      */
     async disconnect() {
         try {
@@ -289,29 +486,63 @@ export class RevClient {
             this.log('warn', `Error in logoff, ignoring: ${error}`);
         }
     }
-    // this should get called every 15 minutes or so to extend the connection session
+    /**
+     *
+     * Call the Extend Session API to maintain the current session's expiration time
+     * Note that this API call is automatically handled unless `keepAlive: false` was specified in configuring the client.
+     * @group Session
+     */
     async extendSession() {
         return this.session.extend();
     }
     /**
+     *
      * Returns true/false based on if the session is currently valid
+     * @group Session
      * @returns Promise<boolean>
      */
     async verifySession() {
         return this.session.verify();
     }
+    /**
+     *
+     * Returns true if session is connected and token's expiration date is in the future
+     * @group Properties
+     */
     get isConnected() {
         return this.session.isConnected;
     }
+    /**
+     *
+     * the current session's `accessToken`
+     * @group Properties
+     */
     get token() {
         return this.session.token;
     }
+    /**
+     *
+     * `Date` value when current `accessToken` will expire
+     * @group Properties
+     */
     get sessionExpires() {
         return this.session.expires;
     }
+    /**
+     *
+     * get/set serialized session state (accessToken, expiration, and userId/apiKey)
+     * Useful if you need to create a new RevClient instance with the same accessToken
+     * @group Properties
+     */
     get sessionState() {
         return this.session.toJSON();
     }
+    /**
+     *
+     * get/set serialized session state (accessToken, expiration, and userId/apiKey)
+     * Useful if you need to create a new RevClient instance with the same accessToken
+     * @group Properties
+     */
     set sessionState(state: Rev.IRevSessionState) {
         this.session.token = `${state.token}`;
         this.session.expires = new Date(state.expiration);
@@ -321,6 +552,14 @@ export class RevClient {
             }
         }
     }
+    /**
+     *
+     * used internally to write debug log entries. Does nothing if `logEnabled` is `false`
+     * @group Internal
+     * @param severity
+     * @param args
+     * @returns
+     */
     log(severity: Rev.LogSeverity, ...args: any[]) {
         if (!this.logEnabled) {
             return;

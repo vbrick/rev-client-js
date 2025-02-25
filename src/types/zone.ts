@@ -1,3 +1,4 @@
+/** @category Administration */
 export interface Zone {
     id: string;
     parentZoneId?: string | null;
@@ -32,7 +33,7 @@ export interface Zone {
     }
     fallbackToSource: boolean;
 }
-
+/** @category Administration */
 export namespace Zone {
     export interface CreateRequest {
         id?: string;

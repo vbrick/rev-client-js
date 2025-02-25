@@ -1,8 +1,8 @@
 import { LiteralString } from './rev';
-import { Video } from '.';
+import { Video } from './video';
 
+/** @category Devices */
 export namespace Device {
-
     export type DeviceType = 'Dme' | 'Akamai' | 'AkamaiLive' | 'Custom' | 'Encoder' /*|'LdapConnector'*/;
 
     export type HealthStatusType = 'Uninitialized' | 'Initializing' | 'Healthy' | 'Warning' | 'Error' | 'Updating' | 'Normal' | 'Caution' | 'Alert';
@@ -79,6 +79,7 @@ export namespace Device {
     }
 
     /**
+     * @inline
      * Used to manually add video streams to the DME.
      */
     interface DmeVideoStream {
@@ -100,6 +101,7 @@ export namespace Device {
         isMulticast?: boolean;
     }
     /**
+     * @inline
      * Used to add an HLS stream, required for mobile devices.  This is not added by default.
      */
     interface DmeVideoStreamGroup {
@@ -113,6 +115,7 @@ export namespace Device {
         hasHls: boolean;
     }
 
+    /** @inline */
     interface OriginStats {
         segmentsFailed: number;
         playlistsFailed: number;
@@ -120,8 +123,13 @@ export namespace Device {
         segmentsReceived: number;
     }
 
+    /**
+     * @inline
+     * @ignore
+     */
     type HealthEnum = "Uninitialized" | "Normal" | "Caution" | "Alert";
 
+    /** @inline */
     interface MeshStatistics {
         clientHttpRequests?: number;
         clientHttpHits?: number;
@@ -152,6 +160,7 @@ export namespace Device {
         squidCpuUsage?: number;
     }
 
+    /** @inline */
     interface HLSDistribution {
         streamId: string;
         streamName: string;
@@ -175,6 +184,7 @@ export namespace Device {
         eventStarted: string; // date-time
     }
 
+    /** @inline */
     interface DmeRecordingStatus {
         id: string;
         streamName: string;
@@ -183,6 +193,7 @@ export namespace Device {
         status: string;
     }
 
+    /** @inline */
     interface DmeServiceStatus {
         name: string;
         active: string;
@@ -191,6 +202,7 @@ export namespace Device {
         memory: number;
     }
 
+    /** @inline */
     interface EnrichedStreamStatus {
         typeNumeric?: number;
         stateStartTime?: number;
@@ -221,6 +233,7 @@ export namespace Device {
         }[];
     }
 
+    /** @inline */
     interface PassthroughStreamStatus {
         reflectionData?: {
             playbackUrlPaths: {
@@ -274,6 +287,7 @@ export namespace Device {
         };
     }
 
+    /** @inline */
     interface HLSStreamStatus {
         masterStatus: string;
         cdn?: {
@@ -289,6 +303,7 @@ export namespace Device {
         isMasterSub?: number;
     }
 
+    /** @inline */
     interface MPSStreamStatus {
         status: string;
         packetsDropped: number;

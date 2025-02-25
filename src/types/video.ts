@@ -1,6 +1,7 @@
-import type { AccessControl, Category, Admin, Rev } from '.';
+import type { AccessControl, Category, Admin, Rev } from './index';
 import { LiteralString } from './rev';
 
+/** @category Videos */
 export namespace Video {
     export type AccessControl = LiteralString<"AllUsers" | "Public" | "Private" | "Channels">;
     export type ApprovalStatus = LiteralString<'Approved' | 'PendingApproval' | 'Rejected' | 'RequiresApproval' | 'SubmittedApproval'>;
@@ -20,6 +21,8 @@ export namespace Video {
     export type MetadataGenerationField = LiteralString<"description" | "title" | "tags" | "all" | "chapters">;
 
     export type MetadataGenerationStatus = LiteralString<"NotStarted" | "InProgress" | "Success" | "Failed">;
+
+    export type RemovedVideoState = LiteralString<"Deleted" | "ChangedToPrivate" | "ChangedToInactive" | "ChangedToUnlisted">;
 
     export interface LinkedUrl {
         Url: string;
@@ -398,11 +401,11 @@ export namespace Video {
          * list of category IDs separated by commas. pass blank to get uncategorized only
          */
         categories?: string;
-        /** list of uploader names separated by commas */
+        /** Use the first and last name of the uploader or an exact match of the uploader's username. Note that partial matches may still be returned. For example, uploaders=\"john doe\" will retrieve all videos uploaded by a user with the first and last name \"john doe\". To return an exact match, you must use the uploaderIds query string */
         uploaders?: string;
         /** list of uploader IDs separated by commas */
         uploaderIds?: string;
-        /** Include the first name and last name of the owner. Note that partial matches may be returned. Example: owners="john doe" is going to retrieve all videos owned by the user with first name and last name = "john doe". To return an exact result you must use the ownerIds query string. */
+        /** Retrieve videos owned by users by searching with the username as the search criterion. Example: owners=johndoe,janedoe */
         owners?: string;
         /** Owner GUIDs to get specific videos owner by these users. Example: ownerIds=abc, xyz */
         ownerIds?: string;
@@ -416,6 +419,11 @@ export namespace Video {
 
         exactMatch?: boolean;
         unlisted?: LiteralString<'unlisted' | 'listed' | 'all'>;
+
+        /**
+         * If provided, videos will be filtered by access control
+         */
+        accessControl?: AccessControl;
 
         /**
          * If provided, the query results are fetched on the provided searchField only.
@@ -622,9 +630,7 @@ export namespace Video {
             imageFile?: Rev.FileUploadType;
             /** set filename/contenttype or other options for appended file */
             uploadOptions?: Rev.UploadFileOptions & {
-                contentType?: 'image/gif'
-                            | 'image/jpeg'
-                            | 'image/png'
+                contentType?: LiteralString<'image/gif' | 'image/jpeg' | 'image/png'>
             };
         }
     }
@@ -709,14 +715,50 @@ export namespace Video {
          */
         videoId?: string
     }
+
+    export interface ThumbnailConfiguration {
+        /** Total number of horizontal tiles making up the thumbsheet. */
+        horizontalTiles: number
+        /** Total number of vertical tiles making up the thumbsheet. */
+        verticalTiles: number
+        /** Seconds per frame. */
+        spf: number
+        /** Total number of thumbnails contained in the sheet. */
+        totalThumbnails: number
+        /** Thumbnail sheet width in pixels. */
+        sheetWidth: number
+        /** Thumbnail sheet height in pixels. */
+        sheetHeight: number
+        /** Uri to thumbnail sheet instance. */
+        thumbnailSheetsUri: string
+        /** Number of thumbnail sheets. */
+        numSheets: number
+    }
+
+    export interface RemovedVideosQuery {
+        fromDate?: string;
+        toDate?: string;
+        state?: RemovedVideoState
+    }
+
+    export interface RemovedVideoItem {
+        /** Video ID */
+        id: string;
+        state: RemovedVideoState;
+        accountId: string;
+        /** ISO Date */
+        when: string;
+    }
 }
 
+/** @category Videos */
 export interface Transcription {
     downloadUrl: string,
     fileSize: number;
     filename: string;
     locale: string;
 }
+/** @category Videos */
 export namespace Transcription {
     export type SupportedLanguage = LiteralString<"da" | "de" | "el" | "en" | "en-gb" | "es" | "es-419" | "es-es" | "fi" | "fr" | "fr-ca" | "id" | "it" | "ja" | "ko" | "nl" | "no" | "pl" | "pt" | "pt-br" | "ru" | "sv" | "th" | "tr" | "zh" | "zh-tw" | "zh-cmn-hans" | "cs" | "en-au" | "hi" | "lt" | "so" | "hmn" | "my" | "cnh" | "kar" | "ku-kmr" | "ne" | "sw" | "af" | "sq" | "am" | "az" | "bn" | "bs" | "bg" | "hr" | "et" | "ka" | "ht" | "ha" | "hu" | "lv" | "ms" | "ro" | "sr" | "sk" | "sl" | "tl" | "ta" | "uk" | "vi">
     export type TranslateSource = Extract<SupportedLanguage, 'en' | 'en-gb' | 'fr' | 'de' | 'pt-br' | 'es' | 'zh-cmn-hans'>;
@@ -747,6 +789,7 @@ export namespace Transcription {
     }
 }
 
+/** @category Videos */
 export interface ExternalAccess {
     /**
      * email address this token is associated with
@@ -782,6 +825,7 @@ export interface ExternalAccess {
    */
   message: string
 }
+/** @category Videos */
 export namespace ExternalAccess {
     export interface Request {
         /** List of email adddresses to add/remove/renew/revoke external access for */

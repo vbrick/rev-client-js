@@ -1,4 +1,4 @@
-
+/** @category Administration */
 export interface Category {
     categoryId: string;
     name: string;
@@ -7,9 +7,16 @@ export interface Category {
     restricted?: boolean;
 }
 
+/**
+ * @category Administration
+ */
 export namespace Category {
     export type ListItem = Omit<Category, "parentCategoryId">;
 
+    /**
+     * @ignore
+     * @inline
+     */
     interface BaseCategory {
         categoryId: string;
         name: string;
@@ -58,6 +65,7 @@ export namespace Category {
         parentCategoryId?: string;
     }
 
+    /** @inline */
     type Parent = BaseCategory & { parentCategory: null | Parent; };
 
     export interface CreateResponse extends BaseCategory {

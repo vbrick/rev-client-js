@@ -9,19 +9,25 @@ export type { Channel } from './channel';
 export type { Device } from './device';
 export type { Group } from './group';
 export type { Rev } from './rev';
+export type { Upload } from './upload';
 export type { User } from './user';
 export type { Video, ExternalAccess, Transcription } from './video';
 export type { Playlist } from './playlist';
 export type { Recording } from './recording';
-export type { Webcast, GuestRegistration } from './webcast';
+export type { Webcast, GuestRegistration, WebcastBanner } from './webcast';
 export type { Zone } from './zone';
 
-
+/**
+ * @category Users & Groups
+ */
 export interface Role {
     id: string;
     name: Role.RoleType;
 }
 
+/**
+ * @category Users & Groups
+ */
 export namespace Role {
     export type RoleType = LiteralString<'AccountAdmin' | 'MediaAdmin' | 'EventAdmin' | 'EventHost' | 'InternalEventHost' | 'MediaContributor' | 'InternalMediaContributor' | 'MediaViewer' | 'TeamCreator' | 'CategoryCreator' | 'VodAnalyst' | 'EventAnalyst' | 'RevIqUser' | 'ChannelCreator' | 'MediaUploader' | 'InternalMediaUploader'>;
     export type RoleName = LiteralString<'Account Admin' | 'Media Admin' | 'Media Contributor' | 'Media Viewer' | 'Event Admin' | 'Event Host' | 'Channel Creator' | 'Category Creator' | 'Internal Event Host' | 'Internal Media Contributor' | 'VOD Analyst' | 'Event Analyst' | 'Rev IQ User' | 'Media Uploader' | 'Internal Media Uploader'>;
@@ -33,6 +39,7 @@ export namespace Role {
     };
 }
 
+/** @category Webcasts */
 export interface RegistrationField {
     id: string;
     name: string;
@@ -42,6 +49,7 @@ export interface RegistrationField {
     includeInAllWebcasts: boolean;
 }
 
+/** @category Webcasts */
 export namespace RegistrationField {
     export interface Request {
         name: string;

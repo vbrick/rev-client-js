@@ -1,4 +1,4 @@
-export {default as rateLimit} from './rate-limit';
+export {default as rateLimit, type RateLimitOptions} from './rate-limit';
 export {RateLimitEnum, RateLimits} from './rate-limit-queues';
 
 export * from './is-utils';

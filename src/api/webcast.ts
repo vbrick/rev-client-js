@@ -1,17 +1,31 @@
-import { Rev } from '..';
+import { Rev } from '../index';
 import type { RevClient } from '../rev-client';
-import { Webcast, GuestRegistration, Banner } from '../types/webcast';
+import { Webcast, GuestRegistration, WebcastBanner } from '../types/webcast';
 import { SearchRequest } from '../utils/request-utils';
-import { titleCase } from '../utils';
+import { titleCase } from '../utils/index';
 import { PostEventReportRequest, RealtimeReportRequest } from './webcast-report-request';
 import { mergeHeaders } from '../utils/merge-headers';
 
+/**
+ * @category Webcasts
+ */
 type RealtimeSession<T extends Webcast.RealtimeRequest | undefined> = T extends { attendeeDetails: 'All' }
     ? Webcast.RealtimeSessionDetail
     : T extends { attendeeDetails: 'Counts' }
     ? never
     : Webcast.RealtimeSession;
 
+/** @ignore */
+export type API = ReturnType<typeof webcastAPIFactory>;
+/**
+ * Webcast API methods
+ * @category Webcasts
+ * @group API
+ * @see [Webcast API Docs](https://revdocs.vbrick.com/reference/createevent)
+ */
+export interface WebcastAPI extends API {};
+
+/** @ignore */
 export default function webcastAPIFactory(rev: RevClient) {
     const webcastAPI = {
         async list(options: Webcast.ListRequest = { }, requestOptions?: Rev.RequestOptions): Promise<Webcast[]> {
@@ -36,6 +50,31 @@ export default function webcastAPIFactory(rev: RevClient) {
         },
         async edit(eventId: string, event: Webcast.CreateRequest): Promise<void> {
             return rev.put(`/api/v2/scheduled-events/${eventId}`, event);
+        },
+        /**
+         * Partially edits the details of a webcast. You do not need to provide the fields that you are not changing.
+         * Webcast status determines which fields are modifiable and when.
+         *
+         * If the webcast pre-production or main event is in progress, only fields available for inline editing may be patched/edited.
+         *
+         * If the webcast main event has been run once, only fields available after the webcast has ended are available for editing. That includes all fields with the exception of start/end dates, lobbyTimeMinutes, preProduction, duration, userIds, and groupIds.
+         *
+         * If the webcast end time has passed and is Completed, only edits to linkedVideoId and redirectVod are allowed.
+         *
+         * Event Admins can be removed using their email addresses as path pointer for the fields 'EventAdminEmails' and 'EventAdmins', provided that all of the Event Admins associated with the webcast have email addresses. This is also applicable for the field 'Moderators'.
+         * @example
+         * ```js
+         * const rev = new RevClient(...config...);
+         * await rev.connect();
+         *
+         * // using eventadmins
+         * await rev.webcast.patch(eventId, [{ 'op': 'remove', 'path': '/EventAdmins/Email', 'value': 'x1@test.com' }]);
+         * // change shortcut
+         * await rev.webcast.patch(eventId, [{ 'op': 'replace', 'path': '/ShortcutName', 'value': 'weekly-meeting' }]);
+         * ```
+         */
+        async patch(eventId: string, operations: Rev.PatchOperation[], options?: Rev.RequestOptions) {
+            await rev.patch(`/api/v2/scheduled-events/${eventId}`, operations, options);
         },
         // async patch - not yet implemented
         async delete(eventId: string): Promise<void> {
@@ -74,12 +113,28 @@ export default function webcastAPIFactory(rev: RevClient) {
             const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
             return rev.get(`/api/v2/scheduled-events/${eventId}/comments`, query, { responseType: 'json' });
         },
+        async reactions(eventId: string): Promise<Webcast.ReactionsSummary[]> {
+            return rev.get(`/api/v2/scheduled-events/${eventId}/reactions`, undefined, { responseType: 'json' });
+        },
         async status(eventId: string, requestOptions?: Rev.RequestOptions): Promise<Webcast.Status> {
             return rev.get(`/api/v2/scheduled-events/${eventId}/status`, undefined, requestOptions);
         },
         async isPublic(eventId: string, requestOptions?: Rev.RequestOptions): Promise<boolean> {
             const response = await rev.request('GET', `/api/v2/scheduled-events/${eventId}/is-public`, undefined, { ...requestOptions, throwHttpErrors: false, responseType: 'json' });
             return response.statusCode !== 401 && response.body?.isPublic;
+        },
+        /**
+         * This endpoint deletes all events for a given date range or custom field query. The response returns a jobId and a count of webcasts to be deleted. The jobId can be used to check the status of the deletion.
+         * @param query Fields that are going to be used to search Webcasts that are to be deleted.
+         * @param options
+         */
+        async bulkDelete(query: Pick<Webcast.SearchRequest, 'startDate' | 'endDate' | 'customFields'>, options?: Rev.RequestOptions): Promise<Webcast.BulkDelete.Response> {
+            // using rev.request because rev.delete assumes no response from endpoint
+            const {body} = await rev.request('DELETE', `/api/v2/scheduled-events`, query, options);
+            return body;
+        },
+        bulkDeleteStatus(jobId: string): Promise<Webcast.BulkDelete.Status> {
+            return rev.get(`/api/v2/scheduled-events/delete-status/${jobId}`);
         },
         async playbackUrls(eventId: string, {ip, userAgent}: Webcast.PlaybackUrlRequest = { }, options?: Rev.RequestOptions): Promise<Webcast.PlaybackUrlsResponse> {
             const query = ip ? { ip } : undefined;
@@ -143,6 +198,34 @@ export default function webcastAPIFactory(rev: RevClient) {
             return rev.get(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
         },
         /**
+         * Mute attendee for a specified webcast
+         */
+        async muteAttendee(eventId: string, userId: string, runNumber?: number): Promise<void> {
+            const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+            await rev.put(`/api/v2/scheduled-events/${eventId}/users/${userId}/mute`, query);
+        },
+        /**
+         * Unmute attendee for a specified webcast
+         */
+        async unmuteAttendee(eventId: string, userId: string, runNumber?: number): Promise<void> {
+            const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+            await rev.delete(`/api/v2/scheduled-events/${eventId}/users/${userId}/mute`, query);
+        },
+        /**
+         * Hide specific comment for a specified webcast
+         */
+        async hideComment(eventId: string, commentId: string, runNumber?: number): Promise<void> {
+            const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+            await rev.put(`/api/v2/scheduled-events/${eventId}/comments/${commentId}/hide`, query);
+        },
+        /**
+         * Unhide specific comment for a specified webcast
+         */
+        async unhideComment(eventId: string, commentId: string, runNumber?: number): Promise<void> {
+            const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+            await rev.delete(`/api/v2/scheduled-events/${eventId}/comments/${commentId}/hide`, query);
+        },
+        /**
          * Register one attendee/guest user for an upcoming Public webcast. Make sure you first enable Public webcast pre-registration before adding registrations.
          * @param eventId
          * @param registration
@@ -178,23 +261,66 @@ export default function webcastAPIFactory(rev: RevClient) {
         deleteGuestRegistration(eventId: string, registrationId: string): Promise<void> {
             return rev.delete(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
         },
-        async listBanners(eventId: string): Promise<Banner[]> {
+        /**
+         * Resend email to external presenters for Producer type webcast.
+         * @param eventId id of the webcast
+         * @param email Email of the external presenter.
+         */
+        resendEmailToExternalPresenter(eventId: string, email: string): Promise<void> {
+            return rev.post(`/api/v2/scheduled-events/${eventId}/presenter-resend-email?email=${encodeURIComponent(email)}`);
+        },
+        async listEmbeddedEngagements(eventId: string): Promise<Webcast.ContentLink[]> {
+            const {contentLinks} = await rev.get(`/api/v2/scheduled-events/${eventId}/embedded-content/links`);
+            return contentLinks || [];
+        },
+        addEmbeddedEngagement(eventId: string, contentLink: Webcast.ContentLink.Request): Promise<Webcast.ContentLink> {
+            return rev.post(`/api/v2/scheduled-events/${eventId}/embedded-content/link`, contentLink);
+        },
+        setEmbeddedEngagementStatus(eventId: string, linkId: string, isEnabled: boolean): Promise<void> {
+            return rev.put(`/api/v2/scheduled-events/${eventId}/embedded-content/links/${linkId}/status`, {isEnabled});
+        },
+        updateEmbeddedEngagement(eventId: string, contentLink: Webcast.ContentLink): Promise<Webcast.ContentLink> {
+            const {id, ...payload} = contentLink;
+            return rev.put(`/api/v2/scheduled-events/${eventId}/embedded-content/links/${id}`, payload);
+        },
+        deleteEmbeddedEngagement(eventId: string, linkId: string) {
+            return rev.delete(`/api/v2/scheduled-events/${eventId}/embedded-content/links/${linkId}`);
+        },
+        async listBanners(eventId: string): Promise<WebcastBanner[]> {
             const {banners} = await rev.get(`/api/v2/scheduled-events/${eventId}/banners`);
             return banners || [];
         },
-        addBanner(eventId: string, banner: Banner.Request): Promise<Banner> {
+        addBanner(eventId: string, banner: WebcastBanner.Request): Promise<WebcastBanner> {
             return rev.post(`/api/v2/scheduled-events/${eventId}/banner`, banner);
         },
         setBannerStatus(eventId: string, bannerId: string, isEnabled: boolean): Promise<void> {
             return rev.put(`/api/v2/scheduled-events/${eventId}/banner/${bannerId}/status`, {isEnabled});
         },
-        updateBanner(eventId: string, banner: Banner): Promise<Banner> {
+        updateBanner(eventId: string, banner: WebcastBanner): Promise<WebcastBanner> {
             // separate id from the banner data
             const {id, ...payload} = banner;
             return rev.put(`/api/v2/scheduled-events/${eventId}/banner/${id}`, payload);
         },
         deleteBanner(eventId: string, bannerId: string): Promise<void> {
             return rev.delete(`/api/v2/scheduled-events/${eventId}/banner/${bannerId}`);
+        },
+        get uploadBranding() {
+            return rev.upload.webcastBranding;
+        },
+        get uploadPresentation() {
+            return rev.upload.webcastPresentation;
+        },
+        get uploadBackgroundImage() {
+            return rev.upload.webcastBackground;
+        },
+        deleteBackgroundImage(eventId: string) {
+            return rev.delete(`/api/v2/scheduled-events/${eventId}/background-image`);
+        },
+        get uploadProducerLayoutBackground() {
+            return rev.upload.webcastProducerLayoutBackground;
+        },
+        deleteProducerLayoutBackground(eventId: string) {
+            return rev.delete(`/api/v2/scheduled-events/${eventId}/webcast-producer-bgimage`);
         }
     };
 

@@ -1,3 +1,4 @@
+/** @category Authentication */
 export namespace Auth {
     export interface LoginResponse {
         token: string;
@@ -33,6 +34,7 @@ export namespace Auth {
     }
 }
 
+/** @category Authentication */
 export namespace OAuth {
     export interface Config {
         /**

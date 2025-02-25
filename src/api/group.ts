@@ -1,7 +1,19 @@
 import type { RevClient } from '../rev-client';
-import type { Group, Rev, User } from '../types';
+import type { Group, Rev, User } from '../types/index';
 import { SearchRequest } from '../utils/request-utils';
 
+/** @ignore */
+export type API = ReturnType<typeof groupAPIFactory>;
+
+/**
+ * Group API methods
+ * @category Users & Groups
+ * @group API
+ * @see [Group API Docs](https://revdocs.vbrick.com/reference/getgroups-1)
+ */
+export interface GroupAPI extends API {}
+
+/** @ignore */
 export default function groupAPIFactory(rev: RevClient) {
     const groupAPI = {
         /**

@@ -1,7 +1,18 @@
 import type { RevClient } from '../rev-client';
-import type { AccessControl, Channel, Rev } from '../types';
+import type { AccessControl, Channel, Rev } from '../types/index';
 import { SearchRequest } from '../utils/request-utils';
 
+/** @ignore */
+export type API = ReturnType<typeof channelAPIFactory>;
+/**
+ * Channel API methods
+ * @category Channels
+ * @group API
+ * @see [Channel API Docs](https://revdocs.vbrick.com/reference/getchannels)
+ */
+export interface ChannelAPI extends API {};
+
+/** @ignore */
 export default function channelAPIFactory(rev: RevClient) {
     const channelAPI = {
         async create(channel: Channel.CreateRequest): Promise<string> {
@@ -40,6 +51,9 @@ export default function channelAPIFactory(rev: RevClient) {
 
             await rev.patch(`/api/v2/channels/${channelId}`, operations);
         },
+        get uploadLogo() {
+            return rev.upload.channelLogo;
+        },
         /**
          *
          * @param {string} [searchText]
@@ -61,6 +75,7 @@ export default function channelAPIFactory(rev: RevClient) {
     return channelAPI;
 }
 
+/** @category Channels */
 export class ChannelListRequest implements Rev.ISearchRequest<Channel.SearchHit> {
     currentPage: number;
     current: number;

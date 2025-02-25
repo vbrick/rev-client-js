@@ -1,10 +1,20 @@
 import type { RevClient } from '../rev-client';
-import { Rev, Video } from '../types';
+import { Rev, Video } from '../types/index';
 import type { Playlist } from '../types/playlist';
 import { isPlainObject } from '../utils';
-import { SearchRequest } from '../utils/request-utils';
 import { PlaylistDetailsRequest } from './playlist-details-request';
 
+/** @ignore */
+export type API = ReturnType<typeof playlistAPIFactory>;
+/**
+ * Playlist API methods
+ * @category Playlists
+ * @group API
+ * @see [Playlist API Docs](https://revdocs.vbrick.com/reference/getplaylists)
+ */
+export interface PlaylistAPI extends API {}
+
+/** @ignore */
 export default function playlistAPIFactory(rev: RevClient) {
     const playlistAPI = {
         async create(name: string, videos: string[] | Video.SearchOptions): Promise<string> {

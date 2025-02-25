@@ -1,6 +1,17 @@
 import type { RevClient } from '../rev-client';
-import type { Category } from '../types';
+import type { Category } from '../types/index';
 
+/** @ignore */
+export type API = ReturnType<typeof categoryAPIFactory>;
+/**
+ * Category API methods
+ * @category Administration
+ * @group API
+ * @see [Category API Docs](https://revdocs.vbrick.com/reference/getcategories)
+ */
+export interface CategoryAPI extends API {}
+
+/** @ignore */
 export default function categoryAPIFactory(rev: RevClient) {
     const categoryAPI = {
         async create(category: Category.CreateRequest): Promise<Category.CreateResponse> {

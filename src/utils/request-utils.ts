@@ -1,6 +1,6 @@
 import { ScrollError } from '../rev-error';
 import type { RevClient } from '../rev-client';
-import type { Rev } from '../types';
+import type { Rev } from '../types/index';
 import { IPageResponse, PagedRequest } from './paged-request';
 
 export async function decodeBody(response: Response, acceptType?: string | null) {
@@ -25,9 +25,10 @@ export async function decodeBody(response: Response, acceptType?: string | null)
 /**
  * Interface to iterate through results from API endpoints that return results in pages.
  * Use in one of three ways:
- * 1) Get all results as an array: await request.exec() == <array>
- * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
- * 3) Use for await to get all results one at a time: for await (let hit of request) { }
+ * 1) Get all results as an array: `await request.exec() == <array>`
+ * 2) Get each page of results: `await request.nextPage() == { current, total, items: <array> }`
+ * 3) Use for await to get all results one at a time: `for await (let hit of request) { }`
+ * @category Utilities
  */
 export class SearchRequest<T> extends PagedRequest<T> {
     declare options: Required<Rev.SearchOptions<T>>;

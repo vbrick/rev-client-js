@@ -1,5 +1,15 @@
 import type { RevClient } from '../rev-client';
 
+/** @ignore */
+export type API = ReturnType<typeof environmentAPIFactory>;
+/**
+ * @see [Environment API Docs](https://revdocs.vbrick.com/reference/user-location)
+ * @category Utilities
+ * @group API
+ */
+export interface EnvironmentAPI extends API {};
+
+/** @ignore */
 export default function environmentAPIFactory(rev: RevClient) {
     let accountId = '';
     let version = '';

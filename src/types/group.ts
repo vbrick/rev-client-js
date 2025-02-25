@@ -1,7 +1,7 @@
-import { Role } from '.';
+import { Role } from './index';
 
+/** @category Users & Groups */
 export namespace Group {
-
     export interface Details {
         groupName: string;
         groupId: string;

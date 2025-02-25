@@ -1,14 +1,19 @@
-import { Rev } from '.';
+import { Rev } from './rev';
 import { PagedRequest } from '../utils/paged-request';
 
+/**
+ * @category Audit
+ */
 export namespace Audit {
-
     export interface Options<T extends Audit.Entry = Audit.Entry> extends Rev.SearchOptions<T> {
         fromDate?: string | Date,
         toDate?: string | Date;
         beforeRequest?: (request: PagedRequest<T>) => Promise<void>;
     }
 
+    /**
+     * Individual Audit entry. This is converted from the raw CSV response lines
+     */
     export interface Entry<EntityKey extends string = string> {
         messageKey: string;
         entityKey: EntityKey;
@@ -22,6 +27,10 @@ export namespace Audit {
     export type UserAccessEntry = Entry<'Network.UserAccess'>;
     export type UserEntry = Entry<'Network.User'>;
     export type GroupEntry = Entry<'Network.Group'>;
+    /**
+     * @ignore
+     * @inline
+     */
     type DeviceKeys = 'Devices:DmeDevice' | 'Devices:EncoderDevice' | 'Devices:CustomDevice' | 'Devices:LdapConnectorDevice' | 'Devices:AkamaiDevice';
     export type DeviceEntry = Entry<DeviceKeys>;
     export type VideoEntry = Entry<'Media:Video'>;

@@ -1,5 +1,8 @@
 import rateLimit, {ThrottledFunction} from "./rate-limit";
 
+/**
+ * @inline
+ */
 export enum RateLimitEnum {
     Get = 'get',
     Post = 'post',

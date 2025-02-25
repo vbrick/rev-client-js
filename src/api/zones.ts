@@ -1,6 +1,20 @@
 import type { RevClient } from '../rev-client';
 import { Zone } from '../types/zone';
 
+/**
+ * @ignore
+ */
+export type API = ReturnType<typeof zonesAPIFactory>;
+
+/**
+ * Zone-related API methods
+ * @category Administration
+ * @group API
+ * @see [Zones API Docs](https://revdocs.vbrick.com/reference/getzones)
+ */
+export interface ZoneAPI extends API {}
+
+/** @ignore */
 export default function zonesAPIFactory(rev: RevClient) {
     const zonesAPI = {
         async list(): Promise<{ defaultZone: Zone, zones: Zone[]; }> {

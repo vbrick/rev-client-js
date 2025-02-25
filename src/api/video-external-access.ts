@@ -4,6 +4,7 @@ import { isPlainObject } from "../utils";
 import type {RevClient} from "../rev-client";
 import { SearchRequest } from "../utils/request-utils";
 
+/** @ignore */
 export function videoExternalAccessAPI(rev: RevClient) {
     return {
         /**

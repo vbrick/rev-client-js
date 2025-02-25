@@ -1,8 +1,19 @@
 import type { RevClient } from '../rev-client';
-import type { Audit, Rev } from '../types';
+import type { Audit, Rev } from '../types/index';
 import { RateLimitEnum, makeQueue, normalizeRateLimitOptions } from '../utils/rate-limit-queues';
 import { AuditRequest } from './audit-request';
 
+/** @ignore */
+export type API = ReturnType<typeof auditAPIFactory>;
+/**
+ * The Audit API methods
+ * @category Audit
+ * @group API
+ * @see [Audit API Docs](https://revdocs.vbrick.com/reference/getuseraccessauditdetails)
+ */
+export interface AuditAPI extends API {}
+
+/** @ignore */
 export default function auditAPIFactory(rev: RevClient, optRateLimits?: Rev.Options['rateLimits']) {
     // The Audit API endpoints each have their own bucket of limits, so we keep track of each one here
 

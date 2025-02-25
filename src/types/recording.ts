@@ -1,5 +1,6 @@
-import { Video } from '.';
+import { Video } from './video';
 
+/** @category Videos */
 export namespace Recording {
     export interface PresentationProfileRequest {
         presentationProfileId: string,

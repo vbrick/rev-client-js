@@ -1,5 +1,9 @@
 import { Rev } from '../types/rev';
 
+/**
+ * A page of results returned from `.nextPage()`
+ * @category Utilities
+ */
 export interface IPageResponse<T> {
     items: T[],
     done: boolean,
@@ -11,15 +15,20 @@ export interface IPageResponse<T> {
 /**
  * Interface to iterate through results from API endpoints that return results in pages.
  * Use in one of three ways:
- * 1) Get all results as an array: await request.exec() == <array>
- * 2) Get each page of results: await request.nextPage() == { current, total, items: <array> }
- * 3) Use for await to get all results one at a time: for await (let hit of request) { }
+ * 1) Get all results as an array: `await request.exec() == <array>`
+ * 2) Get each page of results: `await request.nextPage() == { current, total, items: <array> }`
+ * 3) Use for await to get all results one at a time: `for await (let hit of request) { }`
+ * @category Utilities
  */
 export abstract class PagedRequest<ItemType> implements Rev.ISearchRequest<ItemType> {
     current: number;
     total: number | undefined;
     done: boolean;
     options: Required<Rev.SearchOptions<ItemType>>;
+    /**
+     * @hidden
+     * @param options
+     */
     constructor(options: Rev.SearchOptions<ItemType> = {}) {
         this.options = {
             maxResults: Infinity,
@@ -158,6 +167,10 @@ export abstract class PagedRequest<ItemType> implements Rev.ISearchRequest<ItemT
         }
         return results;
     }
+    /**
+     * Supports iterating through results using for await...
+     * @see [MDN Docs](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of)
+     */
     async* [Symbol.asyncIterator]() {
         const {signal} = this.options;
         do {

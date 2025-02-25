@@ -199,7 +199,9 @@ var polyfills = {
   createAbortError(message) {
     return new DOMException(message, "AbortError");
   },
-  fetch: globalThis.fetch,
+  fetch(...args) {
+    return globalThis.fetch(...args);
+  },
   FormData: globalThis.FormData,
   File: globalThis.File,
   Headers: globalThis.Headers,
@@ -425,6 +427,11 @@ function tryParseJson(val) {
 
 // src/rev-error.ts
 var RevError = class _RevError extends Error {
+  /**
+   * @hidden
+   * @param response
+   * @param body
+   */
   constructor(response, body) {
     const {
       status = 500,
@@ -463,12 +470,19 @@ var RevError = class _RevError extends Error {
       }
     }
   }
+  /** @ignore */
   get name() {
     return "RevError";
   }
+  /** @ignore */
   get [Symbol.toStringTag]() {
     return "RevError";
   }
+  /**
+   * Consume a HTTP Response's body to create a new Error instance
+   * @param response
+   * @returns
+   */
   static async create(response) {
     let body;
     try {
@@ -483,6 +497,12 @@ var RevError = class _RevError extends Error {
   }
 };
 var ScrollError = class extends Error {
+  /**
+   * @hidden
+   * @param status
+   * @param code
+   * @param detail
+   */
   constructor(status = 408, code = "ScrollExpired", detail = "Timeout while fetching all results in search request") {
     super("Search Scroll Expired");
     Error.captureStackTrace(this, this.constructor);
@@ -490,9 +510,11 @@ var ScrollError = class extends Error {
     this.code = code;
     this.detail = detail;
   }
+  /** @ignore */
   get name() {
     return this.constructor.name;
   }
+  /** @ignore */
   get [Symbol.toStringTag]() {
     return this.constructor.name;
   }
@@ -500,6 +522,10 @@ var ScrollError = class extends Error {
 
 // src/utils/paged-request.ts
 var PagedRequest = class {
+  /**
+   * @hidden
+   * @param options
+   */
   constructor(options = {}) {
     this.options = {
       maxResults: Infinity,
@@ -616,6 +642,10 @@ var PagedRequest = class {
     }
     return results;
   }
+  /**
+   * Supports iterating through results using for await...
+   * @see [MDN Docs](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/for-await...of)
+   */
   async *[Symbol.asyncIterator]() {
     const { signal } = this.options;
     do {
@@ -907,6 +937,13 @@ function parseEntry(line) {
   };
 }
 var AuditRequest = class extends PagedRequest {
+  /**
+   * @hidden
+   * @param rev
+   * @param endpoint
+   * @param label
+   * @param options
+   */
   constructor(rev, endpoint, label = "audit records", { toDate, fromDate, beforeRequest, ...options } = {}) {
     super({
       onProgress: (items, current, total) => {
@@ -1189,8 +1226,6 @@ function authAPIFactory(rev) {
      * generate the Authorization URL for the OAuth2 flow as well as the codeVerifier for the
      * subsequent Access Token request. You *must* store the codeVerifier somehow (i.e. serverside database matched to user's state/cookies/session, or on browser SessionStorage) to be able to complete the OAuth2 login flow.
      * @param config OAuth signing settings, retrieved from Rev Admin -> Security -> API Keys page
-     * @param oauthSecret Secret from Rev Admin -> Security. This is a DIFFERENT value from the
-     *                    User Secret used for API login. Do not expose client-side!
      * @param state optional state to pass back to redirectUri once complete
      * @param verifier the code_verifier to use when generating the code challenge. Can be any string 43-128 characters in length, just these characters: [A-Za-z0-9._~-]. If not provided then code will automatically generate a suitable value
      * @returns A valid oauth flow URL + the code_verifier to save for later verification
@@ -1347,6 +1382,9 @@ function channelAPIFactory(rev) {
       });
       await rev.patch(`/api/v2/channels/${channelId}`, operations);
     },
+    get uploadLogo() {
+      return rev.upload.channelLogo;
+    },
     /**
      *
      * @param {string} [searchText]
@@ -1443,26 +1481,58 @@ var ChannelListRequest = class {
 // src/api/device.ts
 function deviceAPIFactory(rev) {
   const deviceAPI = {
+    /**
+     * Get a list of all DMEs
+     * @returns
+     */
     async listDMEs() {
       const response = await rev.get("/api/v2/devices/dmes");
       return response.devices;
     },
+    /**
+     * Get a list of devices that can be used for Zoning configuration
+     * @returns
+     */
     async listZoneDevices() {
       const response = await rev.get("/api/v2/zonedevices");
       return response.devices;
     },
+    /**
+     * Get a list of the Presentation Profiles defined in Rev
+     * @returns
+     */
     async listPresentationProfiles() {
       return rev.get("/api/v2/presentation-profiles");
     },
+    /**
+     * Create a new DME in Rev
+     * @param dme
+     * @returns
+     */
     async add(dme) {
       return rev.post("/api/v2/devices/dmes", dme);
     },
+    /**
+     * Get details about the specified DME's health
+     * @param deviceId
+     * @returns
+     */
     async healthStatus(deviceId) {
       return rev.get(`/api/v2/devices/dmes/${deviceId}/health-status`);
     },
+    /**
+     * Remove a DME from Rev
+     * @param deviceId
+     * @returns
+     */
     async delete(deviceId) {
       return rev.delete(`/api/v2/devices/dmes/${deviceId}`);
     },
+    /**
+     * Have Rev send a reboot request to the specified DME
+     * @param deviceId
+     * @returns
+     */
     async rebootDME(deviceId) {
       return rev.put(`/api/v2/devices/dmes/${deviceId}`);
     }
@@ -1565,6 +1635,13 @@ function getSummaryFromResponse(response, hitsKey) {
   return summary;
 }
 var PlaylistDetailsRequest = class extends SearchRequest {
+  /**
+   * @hidden
+   * @param rev
+   * @param playlistId
+   * @param query
+   * @param options
+   */
   constructor(rev, playlistId, query = {}, options = {}) {
     const searchDefinition = {
       endpoint: `/api/v2/playlists/${playlistId}`,
@@ -1729,8 +1806,33 @@ function uploadAPIFactory(rev) {
   const { FormData } = polyfills_default;
   const uploadAPI = {
     /**
-     * Upload a video, and returns the resulting video ID
-     */
+             * Upload a video, and returns the resulting video ID
+             * @see [API Docs](https://revdocs.vbrick.com/reference/uploadvideo-1)
+             *
+             * @example
+             * ```js
+            const rev = new RevClient(...config...);
+            await rev.connect();
+    
+            // if browser - pass in File
+            const file = fileInputElement.files[0];
+            // if nodejs - can pass in path to file instead
+            // const file = "/path/to/local/video.mp4";
+            // upload returns resulting ID when complete
+            const videoId = await rev.upload.video(file, {
+                uploader: 'username.of.uploader',
+                title: 'video uploaded via the API',
+                //categories: [EXISTING_REV_CATEGORY_NAME],
+                unlisted: true,
+                isActive: true
+                /// ...any additional metadata
+            });
+            ```
+             * @param file A File/Blob. if using nodejs you can also pass in the path to a file
+             * @param metadata metadata to add to video (title, etc.) - see API docs
+             * @param options Additional `RequestInit` options, as well as customizing the contentType/contentLength/filename of the `file` in the POST upload form (only needed if they can't be inferred from input)
+             * @returns the resulting video id
+             */
     async video(file, metadata = { uploader: rev.session.username ?? "" }, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "video/mp4");
       const form = new FormData();
@@ -1749,6 +1851,10 @@ function uploadAPIFactory(rev) {
       const { videoId } = await uploadMultipart(rev, "POST", "/api/v2/uploads/videos", form, filePayload, requestOptions);
       return videoId;
     },
+    /**
+     * Replace an existing video with an uploaded file
+     * @see [API Docs](https://revdocs.vbrick.com/reference/replacevideo)
+     */
     async replaceVideo(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "video/mp4");
       const form = new FormData();
@@ -1771,7 +1877,7 @@ function uploadAPIFactory(rev) {
         ]
       };
       appendJSONToForm(form, "TranscriptionFiles", metadata);
-      rev.log("info", `Uploading transcription to ${videoId} (${lang} ${filePayload.filename} (${filePayload.contentType})`);
+      rev.log("info", `Uploading transcription to ${videoId} ${lang} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/transcription-files/${videoId}`, form, filePayload, requestOptions);
     },
     async supplementalFile(videoId, file, options = {}) {
@@ -1784,7 +1890,7 @@ function uploadAPIFactory(rev) {
         ]
       };
       appendJSONToForm(form, "SupplementalFiles", metadata);
-      rev.log("info", `Uploading supplemental content to ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+      rev.log("info", `Uploading supplemental content to ${videoId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/supplemental-files/${videoId}`, form, filePayload, requestOptions);
     },
     /**
@@ -1827,15 +1933,78 @@ function uploadAPIFactory(rev) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
       const form = new FormData();
       const filePayload = await appendFileToForm(form, "ThumbnailFile", file, uploadOptions);
-      rev.log("info", `Uploading thumbnail for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+      rev.log("info", `Uploading thumbnail for ${videoId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
     },
     async presentationChapters(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "application/vnd.ms-powerpoint");
       const form = new FormData();
       const filePayload = await appendFileToForm(form, "PresentationFile", file, uploadOptions);
-      rev.log("info", `Uploading presentation for ${videoId} (${filePayload.filename} (${filePayload.contentType})`);
+      rev.log("info", `Uploading presentation for ${videoId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/video-presentations/${videoId}`, form, filePayload, requestOptions);
+    },
+    async webcastPresentation(eventId, file, options) {
+      const { uploadOptions, requestOptions } = splitOptions(options, "application/vnd.ms-powerpoint");
+      const form = new FormData();
+      const filePayload = await appendFileToForm(form, "PresentationFile", file, uploadOptions);
+      rev.log("info", `Uploading presentation for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/presentations/${eventId}`, form, filePayload, requestOptions);
+    },
+    async webcastBackground(eventId, file, options) {
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
+      const form = new FormData();
+      const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
+      rev.log("info", `Uploading background image for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/background-image/${eventId}`, form, filePayload, requestOptions);
+    },
+    async webcastProducerLayoutBackground(eventId, file, options) {
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
+      const form = new FormData();
+      const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
+      rev.log("info", `Uploading producer layout background image for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/webcast-producer-bgimage/${eventId}`, form, filePayload, requestOptions);
+    },
+    async webcastBranding(eventId, request, options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
+      const form = new FormData();
+      const logoOptions = {
+        ...uploadOptions,
+        // make sure filename is by default unique
+        filename: "logo",
+        ...request.logoImageOptions ?? {}
+      };
+      const backgroundOptions = {
+        ...uploadOptions,
+        // make sure filename is by default unique
+        filename: "background",
+        ...request.logoImageOptions ?? {}
+      };
+      const logoImagePayload = await appendFileToForm(form, "LogoImageFile", request.logoImage, logoOptions);
+      const backgroundImagePayload = await appendFileToForm(form, "BackgroundImageFile", request.backgroundImage, backgroundOptions);
+      const meta = {
+        ...request.branding,
+        logoImageFilename: logoImagePayload.filename,
+        backgroundImageFilename: backgroundImagePayload.filename
+      };
+      appendJSONToForm(form, "Branding", meta);
+      rev.log("info", `Uploading webcast branding to ${eventId} (${meta.logoImageFilename} ${meta.backgroundImageFilename})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/webcast-branding/${eventId}`, form, uploadOptions, requestOptions);
+    },
+    async channelLogo(channelId, file, options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
+      const form = new FormData();
+      const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
+      rev.log("info", `Uploading channel logo for ${channelId} (${filePayload.filename} ${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/channel-logo/${channelId}`, form, filePayload, requestOptions);
+    },
+    /**
+     * Upload a profile image for a given user. Only account admins can upload user profile image.
+     */
+    async userProfileImage(userId, file, options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
+      const form = new FormData();
+      const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/profile-image/${userId}`, form, filePayload, requestOptions);
     }
   };
   return uploadAPI;
@@ -1877,22 +2046,22 @@ function userAPIFactory(rev) {
     },
     /**
      * get user details by username
-     * @deprecated - use details(username, {lookupType: 'username'})
+     * @deprecated use {@link UserAPI.details | user.details()} with `{lookupType: 'username'}`
      */
     async getByUsername(username) {
       return userAPI.details(username, { lookupType: "username" });
     },
     /**
      * get user details by email address
-     * @deprecated - use details(email, 'email')
+     * @deprecated use {@link UserAPI.details | user.details()} with `{lookupType: 'email'}`
      */
     async getByEmail(email) {
       return userAPI.details(email, { lookupType: "email" });
     },
     /**
      * Check if user exists in the system. Instead of throwing on a 401/403 error if
-     * user does not exist it returns false. Returns user details if does exist,
-     * instead of just true
+     * user does not exist it returns `false`. Returns {@link User | user details} if does exist,
+     * instead of just `true`
      * @param userLookupValue userId, username, or email
      * @param type
      * @returns User if exists, otherwise false
@@ -1994,6 +2163,12 @@ function userAPIFactory(rev) {
       await rev.session.queueRequest("loginReport" /* GetUsersByLoginDate */);
       const { Users } = await rev.get("/api/v2/users/login-report", query, { responseType: "json" });
       return Users;
+    },
+    get uploadProfileImage() {
+      return rev.upload.userProfileImage;
+    },
+    deleteProfileImage(userId) {
+      return rev.delete(`/api/v2/users/${userId}/profile-image`);
     }
   };
   return userAPI;
@@ -2068,6 +2243,12 @@ function parseDates(startArg, endArg) {
   return { startDate, endDate };
 }
 var VideoReportRequest = class extends PagedRequest {
+  /**
+   * @hidden
+   * @param rev
+   * @param options
+   * @param endpoint
+   */
   constructor(rev, options = {}, endpoint = "/api/v2/videos/report") {
     super(parseOptions(options));
     this._endpoint = endpoint;
@@ -2197,12 +2378,29 @@ function videoDownloadAPI(rev) {
     const { body } = await rev.request("GET", thumbnailUrl, void 0, { responseType: "blob", ...options });
     return body;
   }
+  async function downloadThumbnailSheet(thumbnailSheet, options) {
+    let thumbnailSheetsUri = "";
+    if (typeof thumbnailSheet === "string") {
+      thumbnailSheetsUri = thumbnailSheet;
+    } else if (thumbnailSheet && typeof thumbnailSheet === "object" && "thumbnailSheetsUri" in thumbnailSheet) {
+      thumbnailSheetsUri = thumbnailSheet.thumbnailSheetsUri;
+    } else if (thumbnailSheet?.videoId) {
+      const { videoId, sheetIndex = "1" } = thumbnailSheet;
+      thumbnailSheetsUri = `/api/v2/videos/${videoId}/thumbnail-sheets/${sheetIndex}`;
+    }
+    if (!thumbnailSheetsUri) {
+      throw new TypeError("No thumbnail sheet specified to download");
+    }
+    const { body } = await rev.request("GET", thumbnailSheetsUri, void 0, { responseType: "blob", ...options });
+    return body;
+  }
   return {
     download,
     downloadChapter,
     downloadSupplemental,
     downloadThumbnail,
-    downloadTranscription
+    downloadTranscription,
+    downloadThumbnailSheet
   };
 }
 
@@ -2278,11 +2476,18 @@ function videoAPIFactory(rev) {
     },
     /**
      * get processing status of a video
-     * @param videoId
+     * @see [API Docs](https://revdocs.vbrick.com/reference/getvideostatus)
      */
     async status(videoId, options) {
       return rev.get(`/api/v2/videos/${videoId}/status`, void 0, options);
     },
+    /**
+     * get details of a video
+     * @see [API Docs](https://revdocs.vbrick.com/reference/getvideosdetails)
+     * @param videoId
+     * @param options
+     * @returns
+     */
     async details(videoId, options) {
       await rev.session.queueRequest("videoDetails" /* GetVideoDetails */);
       return rev.get(`/api/v2/videos/${videoId}/details`, void 0, options);
@@ -2313,6 +2518,10 @@ function videoAPIFactory(rev) {
     //         : fileId
     //     await rev.delete(`/api/v2/videos/${videoId}/supplemental-files`, { fileIds });
     // },
+    async thumbnailConfiguration(videoId, options) {
+      const { thumbnailCfg } = await rev.get(`/api/v2/videos/${videoId}/thumbnail-config`, void 0, options);
+      return thumbnailCfg;
+    },
     async transcriptions(videoId, options) {
       const { transcriptionFiles } = await rev.get(`/api/v2/videos/${videoId}/transcription-files`, void 0, options);
       return transcriptionFiles;
@@ -2394,6 +2603,19 @@ function videoAPIFactory(rev) {
     ...videoDownloadAPI(rev),
     ...videoReportAPI(rev),
     ...videoExternalAccessAPI(rev),
+    listDeleted(query = {}, options = {}) {
+      const searchDefinition = {
+        endpoint: "/api/v2/videos/deleted",
+        totalKey: "totalVideos",
+        hitsKey: "deletedVideos",
+        async request(endpoint, query2, options2) {
+          await rev.session.queueRequest("searchVideos" /* SearchVideos */);
+          return rev.get(endpoint, query2, options2);
+        }
+      };
+      const request = new SearchRequest(rev, searchDefinition, query, options);
+      return request;
+    },
     /**
      * @deprecated Use edit() API instead
      */
@@ -2521,6 +2743,13 @@ function getSummaryFromResponse2(response, hitsKey) {
   return summary;
 }
 var RealtimeReportRequest = class extends SearchRequest {
+  /**
+   * @hidden
+   * @param rev
+   * @param eventId
+   * @param query
+   * @param options
+   */
   constructor(rev, eventId, query = {}, options = {}) {
     const searchDefinition = {
       endpoint: `/api/v2/scheduled-events/${eventId}/real-time/attendees`,
@@ -2549,6 +2778,12 @@ var RealtimeReportRequest = class extends SearchRequest {
   }
 };
 var PostEventReportRequest = class extends SearchRequest {
+  /**
+   * @hidden
+   * @param rev
+   * @param query
+   * @param options
+   */
   constructor(rev, query, options = {}) {
     const { eventId, runNumber } = query;
     const runQuery = runNumber && runNumber >= 0 ? { runNumber } : {};
@@ -2617,6 +2852,31 @@ function webcastAPIFactory(rev) {
     async edit(eventId, event) {
       return rev.put(`/api/v2/scheduled-events/${eventId}`, event);
     },
+    /**
+     * Partially edits the details of a webcast. You do not need to provide the fields that you are not changing.
+     * Webcast status determines which fields are modifiable and when.
+     *
+     * If the webcast pre-production or main event is in progress, only fields available for inline editing may be patched/edited.
+     *
+     * If the webcast main event has been run once, only fields available after the webcast has ended are available for editing. That includes all fields with the exception of start/end dates, lobbyTimeMinutes, preProduction, duration, userIds, and groupIds.
+     *
+     * If the webcast end time has passed and is Completed, only edits to linkedVideoId and redirectVod are allowed.
+     *
+     * Event Admins can be removed using their email addresses as path pointer for the fields 'EventAdminEmails' and 'EventAdmins', provided that all of the Event Admins associated with the webcast have email addresses. This is also applicable for the field 'Moderators'.
+     * @example
+     * ```js
+     * const rev = new RevClient(...config...);
+     * await rev.connect();
+     *
+     * // using eventadmins
+     * await rev.webcast.patch(eventId, [{ 'op': 'remove', 'path': '/EventAdmins/Email', 'value': 'x1@test.com' }]);
+     * // change shortcut
+     * await rev.webcast.patch(eventId, [{ 'op': 'replace', 'path': '/ShortcutName', 'value': 'weekly-meeting' }]);
+     * ```
+     */
+    async patch(eventId, operations, options) {
+      await rev.patch(`/api/v2/scheduled-events/${eventId}`, operations, options);
+    },
     // async patch - not yet implemented
     async delete(eventId) {
       return rev.delete(`/api/v2/scheduled-events/${eventId}`);
@@ -2644,12 +2904,27 @@ function webcastAPIFactory(rev) {
       const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
       return rev.get(`/api/v2/scheduled-events/${eventId}/comments`, query, { responseType: "json" });
     },
+    async reactions(eventId) {
+      return rev.get(`/api/v2/scheduled-events/${eventId}/reactions`, void 0, { responseType: "json" });
+    },
     async status(eventId, requestOptions) {
       return rev.get(`/api/v2/scheduled-events/${eventId}/status`, void 0, requestOptions);
     },
     async isPublic(eventId, requestOptions) {
       const response = await rev.request("GET", `/api/v2/scheduled-events/${eventId}/is-public`, void 0, { ...requestOptions, throwHttpErrors: false, responseType: "json" });
       return response.statusCode !== 401 && response.body?.isPublic;
+    },
+    /**
+     * This endpoint deletes all events for a given date range or custom field query. The response returns a jobId and a count of webcasts to be deleted. The jobId can be used to check the status of the deletion.
+     * @param query Fields that are going to be used to search Webcasts that are to be deleted.
+     * @param options
+     */
+    async bulkDelete(query, options) {
+      const { body } = await rev.request("DELETE", `/api/v2/scheduled-events`, query, options);
+      return body;
+    },
+    bulkDeleteStatus(jobId) {
+      return rev.get(`/api/v2/scheduled-events/delete-status/${jobId}`);
     },
     async playbackUrls(eventId, { ip, userAgent } = {}, options) {
       const query = ip ? { ip } : void 0;
@@ -2711,6 +2986,34 @@ function webcastAPIFactory(rev) {
       return rev.get(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
     },
     /**
+     * Mute attendee for a specified webcast
+     */
+    async muteAttendee(eventId, userId, runNumber) {
+      const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+      await rev.put(`/api/v2/scheduled-events/${eventId}/users/${userId}/mute`, query);
+    },
+    /**
+     * Unmute attendee for a specified webcast
+     */
+    async unmuteAttendee(eventId, userId, runNumber) {
+      const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+      await rev.delete(`/api/v2/scheduled-events/${eventId}/users/${userId}/mute`, query);
+    },
+    /**
+     * Hide specific comment for a specified webcast
+     */
+    async hideComment(eventId, commentId, runNumber) {
+      const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+      await rev.put(`/api/v2/scheduled-events/${eventId}/comments/${commentId}/hide`, query);
+    },
+    /**
+     * Unhide specific comment for a specified webcast
+     */
+    async unhideComment(eventId, commentId, runNumber) {
+      const query = (runNumber ?? -1) >= 0 ? { runNumber } : {};
+      await rev.delete(`/api/v2/scheduled-events/${eventId}/comments/${commentId}/hide`, query);
+    },
+    /**
      * Register one attendee/guest user for an upcoming Public webcast. Make sure you first enable Public webcast pre-registration before adding registrations.
      * @param eventId
      * @param registration
@@ -2741,6 +3044,31 @@ function webcastAPIFactory(rev) {
     deleteGuestRegistration(eventId, registrationId) {
       return rev.delete(`/api/v2/scheduled-events/${eventId}/registrations/${registrationId}`);
     },
+    /**
+     * Resend email to external presenters for Producer type webcast.
+     * @param eventId id of the webcast
+     * @param email Email of the external presenter.
+     */
+    resendEmailToExternalPresenter(eventId, email) {
+      return rev.post(`/api/v2/scheduled-events/${eventId}/presenter-resend-email?email=${encodeURIComponent(email)}`);
+    },
+    async listEmbeddedEngagements(eventId) {
+      const { contentLinks } = await rev.get(`/api/v2/scheduled-events/${eventId}/embedded-content/links`);
+      return contentLinks || [];
+    },
+    addEmbeddedEngagement(eventId, contentLink) {
+      return rev.post(`/api/v2/scheduled-events/${eventId}/embedded-content/link`, contentLink);
+    },
+    setEmbeddedEngagementStatus(eventId, linkId, isEnabled) {
+      return rev.put(`/api/v2/scheduled-events/${eventId}/embedded-content/links/${linkId}/status`, { isEnabled });
+    },
+    updateEmbeddedEngagement(eventId, contentLink) {
+      const { id, ...payload } = contentLink;
+      return rev.put(`/api/v2/scheduled-events/${eventId}/embedded-content/links/${id}`, payload);
+    },
+    deleteEmbeddedEngagement(eventId, linkId) {
+      return rev.delete(`/api/v2/scheduled-events/${eventId}/embedded-content/links/${linkId}`);
+    },
     async listBanners(eventId) {
       const { banners } = await rev.get(`/api/v2/scheduled-events/${eventId}/banners`);
       return banners || [];
@@ -2757,6 +3085,24 @@ function webcastAPIFactory(rev) {
     },
     deleteBanner(eventId, bannerId) {
       return rev.delete(`/api/v2/scheduled-events/${eventId}/banner/${bannerId}`);
+    },
+    get uploadBranding() {
+      return rev.upload.webcastBranding;
+    },
+    get uploadPresentation() {
+      return rev.upload.webcastPresentation;
+    },
+    get uploadBackgroundImage() {
+      return rev.upload.webcastBackground;
+    },
+    deleteBackgroundImage(eventId) {
+      return rev.delete(`/api/v2/scheduled-events/${eventId}/background-image`);
+    },
+    get uploadProducerLayoutBackground() {
+      return rev.upload.webcastProducerLayoutBackground;
+    },
+    deleteProducerLayoutBackground(eventId) {
+      return rev.delete(`/api/v2/scheduled-events/${eventId}/webcast-producer-bgimage`);
     }
   };
   return webcastAPI;
@@ -2882,6 +3228,7 @@ function environmentAPIFactory(rev) {
 
 // src/rev-session.ts
 var ONE_MINUTE2 = 1e3 * 60;
+var DEFAULT_EXPIRE_MINUTES = 10;
 var _credentials = Symbol("credentials");
 var SessionKeepAlive = class {
   constructor(session, options = {}) {
@@ -2908,8 +3255,9 @@ var SessionKeepAlive = class {
       keepAliveInterval: interval,
       extendThresholdMilliseconds: threshold
     } = this.extendOptions;
+    const MIN_INTERVAL_MS = 5 * 1e3;
     const timeTillExpiration = expires.getTime() - Date.now();
-    return Math.max(0, Math.min(timeTillExpiration - threshold, interval));
+    return Math.max(MIN_INTERVAL_MS, Math.min(timeTillExpiration - threshold, interval));
   }
   async _poll() {
     const { _session: session } = this;
@@ -3003,8 +3351,8 @@ var SessionBase = class {
     } = await this._login();
     Object.assign(this, session);
     const expires = new Date(expiration);
-    if (expires.getTime() < this.expires.getTime()) {
-      this.expires.setUTCMinutes(this.expires.getUTCMinutes() + 10);
+    if (isNaN(expires.getTime()) || expires.getTime() < this.expires.getTime()) {
+      this.expires.setUTCMinutes(this.expires.getUTCMinutes() + DEFAULT_EXPIRE_MINUTES);
     } else {
       this.expires = expires;
     }
@@ -3264,14 +3612,46 @@ var AccessTokenSession = class extends SessionBase {
   // just verify user on login
   async _login() {
     await this.rev.auth.verifySession();
+    this.expires || (this.expires = new Date(Date.now() + 15 * 60 * 1e3));
     return {
       token: this.token || "",
-      expiration: this.expires?.toISOString(),
+      expiration: this.expires.toISOString(),
       issuer: "vbrick"
     };
   }
   async _extend() {
     return this.rev.auth.extendSession();
+  }
+  async _logoff() {
+    return;
+  }
+  toJSON() {
+    return {
+      token: this.token || "",
+      expiration: this.expires
+    };
+  }
+  get isConnected() {
+    return true;
+  }
+  get isExpired() {
+    return false;
+  }
+};
+var PublicOnlySession = class extends SessionBase {
+  async _login() {
+    this.rev.log("debug", "Using client with no authentication (publicOnly) - non-public endpoints will return 401");
+    return {
+      token: this.token || "",
+      // very long expiration
+      expiration: new Date(Date.now() + 24 * 60 * ONE_MINUTE2).toISOString(),
+      issuer: "vbrick"
+    };
+  }
+  async _extend() {
+    return {
+      expiration: new Date(Date.now() + 24 * 60 * ONE_MINUTE2).toISOString()
+    };
   }
   async _logoff() {
     return;
@@ -3329,7 +3709,9 @@ function createSession(rev, credentials, keepAliveOptions, rateLimits) {
     if (userId) {
       session.userId = userId;
     }
-  } else if (hasSession || publicOnly) {
+  } else if (publicOnly) {
+    session = new PublicOnlySession(rev, creds, false, rateLimits);
+  } else if (hasSession) {
     session = new AccessTokenSession(rev, creds, keepAliveOptions, rateLimits);
   } else {
     throw new TypeError("Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)");
@@ -3343,6 +3725,10 @@ function createSession(rev, credentials, keepAliveOptions, rateLimits) {
 
 // src/rev-client.ts
 var RevClient = class {
+  /**
+   *
+   * @param options The configuration options including target Rev URL and authentication credentials
+   */
   constructor(options) {
     if (!isPlainObject(options) || !options.url) {
       throw new TypeError("Missing configuration options for client - url and username/password or apiKey/secret");
@@ -3395,7 +3781,16 @@ var RevClient = class {
     });
   }
   /**
-   * make a REST request
+   * make a REST request.
+   * The Authorization http header for the current session will automatically be added.
+   *
+   * @group Request
+   * @param method HTTP Method
+   * @param endpoint API endpoint path
+   * @param data Request body if PUT/POST/PATCH or query parameters object if GET/DELETE/HEAD. objects/arrays are automatically stringified
+   * @param options additional request options, including additional HTTP Headers if necessary.
+   * @returns the decoded response body as well as statuscode/headers/and raw response
+   *
    */
   async request(method, endpoint, data = void 0, options = {}) {
     if (shouldInitialize()) await onInitialize();
@@ -3447,7 +3842,7 @@ var RevClient = class {
     if (!headers.has("Accept")) {
       headers.set("Accept", "application/json");
     }
-    if (shouldSetAsJSON) {
+    if (shouldSetAsJSON && fetchOptions.body) {
       headers.set("Content-Type", "application/json");
     }
     this.log("debug", `Request ${method} ${endpoint}`);
@@ -3528,26 +3923,73 @@ var RevClient = class {
       response
     };
   }
+  /**
+   *
+   * Make a GET Request
+   * @group Request
+   * @param endpoint API path
+   * @param data Query parameters as json object
+   * @param options Additional request options
+   * @returns Depends on options.responseType/API response - usually JSON object except for binary download endpoints
+   */
   async get(endpoint, data, options) {
     const { body } = await this.request("GET", endpoint, data, options);
     return body;
   }
+  /**
+   *
+   * Make a POST Request
+   * @group Request
+   * @param endpoint API path
+   * @param data Request body
+   * @param options Additional request options
+   * @returns Depends on options.responseType/API response - usually JSON object
+   */
   async post(endpoint, data, options) {
     const { body } = await this.request("POST", endpoint, data, options);
     return body;
   }
+  /**
+   *
+   * Make a GET Request
+   * @group Request
+   * @param endpoint API path
+   * @param data Request body
+   * @param options Additional request options
+   * @returns Depends on options.responseType/API response - usually JSON object or void
+   */
   async put(endpoint, data, options) {
     const { body } = await this.request("PUT", endpoint, data, options);
     return body;
   }
+  /**
+   *
+   * Make a PATCH Request
+   * @group Request
+   * @param endpoint API path
+   * @param data Request body
+   * @param options Additional request options
+   * @returns
+   */
   async patch(endpoint, data, options) {
     await this.request("PATCH", endpoint, data, options);
   }
+  /**
+   *
+   * Make a DELETE Request
+   * @group Request
+   * @param endpoint API path
+   * @param data query parameters as JSON object
+   * @param options Additional request options
+   * @returns
+   */
   async delete(endpoint, data, options) {
     await this.request("DELETE", endpoint, data, options);
   }
   /**
+   *
    * authenticate with Rev
+   * @group Session
    */
   async connect() {
     await retry(
@@ -3557,7 +3999,9 @@ var RevClient = class {
     );
   }
   /**
+   *
    * end rev session
+   * @group Session
    */
   async disconnect() {
     try {
@@ -3566,29 +4010,63 @@ var RevClient = class {
       this.log("warn", `Error in logoff, ignoring: ${error}`);
     }
   }
-  // this should get called every 15 minutes or so to extend the connection session
+  /**
+   *
+   * Call the Extend Session API to maintain the current session's expiration time
+   * Note that this API call is automatically handled unless `keepAlive: false` was specified in configuring the client.
+   * @group Session
+   */
   async extendSession() {
     return this.session.extend();
   }
   /**
+   *
    * Returns true/false based on if the session is currently valid
+   * @group Session
    * @returns Promise<boolean>
    */
   async verifySession() {
     return this.session.verify();
   }
+  /**
+   *
+   * Returns true if session is connected and token's expiration date is in the future
+   * @group Properties
+   */
   get isConnected() {
     return this.session.isConnected;
   }
+  /**
+   *
+   * the current session's `accessToken`
+   * @group Properties
+   */
   get token() {
     return this.session.token;
   }
+  /**
+   *
+   * `Date` value when current `accessToken` will expire
+   * @group Properties
+   */
   get sessionExpires() {
     return this.session.expires;
   }
+  /**
+   *
+   * get/set serialized session state (accessToken, expiration, and userId/apiKey)
+   * Useful if you need to create a new RevClient instance with the same accessToken
+   * @group Properties
+   */
   get sessionState() {
     return this.session.toJSON();
   }
+  /**
+   *
+   * get/set serialized session state (accessToken, expiration, and userId/apiKey)
+   * Useful if you need to create a new RevClient instance with the same accessToken
+   * @group Properties
+   */
   set sessionState(state) {
     this.session.token = `${state.token}`;
     this.session.expires = new Date(state.expiration);
@@ -3598,6 +4076,14 @@ var RevClient = class {
       }
     }
   }
+  /**
+   *
+   * used internally to write debug log entries. Does nothing if `logEnabled` is `false`
+   * @group Internal
+   * @param severity
+   * @param args
+   * @returns
+   */
   log(severity, ...args) {
     if (!this.logEnabled) {
       return;
@@ -3609,9 +4095,30 @@ var RevClient = class {
 
 // src/index.ts
 var utils = {
+  /**
+   * Rate-limit a function - useful to throttle the number of API requests made in a minute
+   * @example
+   * ```js
+   * const {utils} = import '@vbrick/rev-client'
+   * const lock = utils.rateLimit(() => {}, { perSecond: 1 });
+   * for (let i = 0; i < 10; i++) {
+   *   await lock();
+   *   console.log(`${i}: this will only be called once per second`);
+   * }
+   * ```
+   */
   rateLimit: rate_limit_default,
+  /**
+   * Get a valid file extension for a given mimetype (used for uploading videos/transcriptions/etc)
+   */
   getExtensionForMime,
+  /**
+   * Get a valid mimetype for a given file extension (used for uploading videos/transcriptions/etc)
+   */
   getMimeForExtension,
+  /**
+   * ADVANCED - Override the underlying classes used in making requests. This is for internal use only and shouldn't typically be used.
+   */
   setPolyfills
 };
 var src_default = RevClient;
