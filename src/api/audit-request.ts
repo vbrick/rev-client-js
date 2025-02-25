@@ -72,7 +72,7 @@ export class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
             let items = parseCSV(body)
                 .map(line => parseEntry<T>(line));
 
-            const total = parseInt(headers.get('totalRecords') || '', 10);
+            const remaining = parseInt(headers.get('totalRecords') || '', 10);
 
             Object.assign(this.params, {
                 nextContinuationToken: headers.get('nextContinuationToken') || undefined,
@@ -84,7 +84,8 @@ export class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
 
             return {
                 items,
-                total,
+                // totalRecords for subsequent requests is the count return from current fromDate, rather than total for starting date range
+                total: Math.max(this.total || 0, remaining),
                 done
             } as IPageResponse<T>;
         }
