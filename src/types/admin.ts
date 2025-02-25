@@ -64,7 +64,7 @@ export namespace Admin {
             fullName: string;
             username: string;
         }
-        usage: LiteralString<'Transcription' | 'Translation' | 'UserTagging' | 'MetadataGeneration'>;
+        usage: LiteralString<'Transcription' | 'Translation' | 'UserTagging' | 'MetadataGeneration' | 'AudioGeneration'>;
         credits: number;
         languages: string[];
         when: string;

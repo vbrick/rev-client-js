@@ -24,6 +24,8 @@ export namespace Video {
 
     export type RemovedVideoState = LiteralString<"Deleted" | "ChangedToPrivate" | "ChangedToInactive" | "ChangedToUnlisted">;
 
+    export type AudioTrackStatus = LiteralString<"Ready" | "Pending" | "Processing" | "Adding" | "Updating" | "Deleting" | "AddingFailed">
+
     export interface LinkedUrl {
         Url: string;
         EncodingType: EncodingType;
@@ -158,7 +160,7 @@ export namespace Video {
             /**
              * Language code. View Supported Languages for source languages in Technical Requirements.
              */
-            transcribeLanguageId: string;
+            transcribeLanguageId: Transcription.SupportedLanguage;
             /**
              * Creates AI-generated metadata for a given video based on the type specified. You must specify the field type you want to generate (description/title/tags/chapters).
              * This feature requires English transcription and must also be enabled for your Rev account.
@@ -171,7 +173,7 @@ export namespace Video {
          * List of category IDs. If you use categoryIds and they do not exist/are incorrect, the request is rejected. The request is also rejected if you do not have contribute rights to a restricted category and you attempt to add/edit or otherwise modify it.
          */
         categories?: string;
-        audioTracks?: Array<{ track: number, languageId: string }>;
+        audioTracks?: Array<AudioTrack.Request>;
         expirationDate?: string;
         expirationAction?: Video.ExpirationAction;
         linkedUrl?: Video.LinkedUrl
@@ -312,13 +314,7 @@ export namespace Video {
         userTags: Array<{ userId: string, displayName: string; }>;
 
         duration: string;
-        audioTracks: Array<{
-            track: number;
-            isDefault: boolean;
-            languageId: string;
-            languageName: string;
-            status: Transcription.Status
-        }>;
+        audioTracks: Array<AudioTrack>;
         overallProgress: number;
         isProcessing: boolean;
         transcodeFailed: boolean;
@@ -569,6 +565,23 @@ export namespace Video {
         browserCounts: Array<{ key: string, value: number }>
     }
 
+    export interface AudioTrack {
+        track: number;
+        isDefault: boolean;
+        languageId: AudioTrack.Language;
+        languageName: string;
+        status: AudioTrackStatus;
+    }
+    export namespace AudioTrack {
+        export type Language = Transcription.SupportedLanguage | 'und'
+        export interface Request {
+            track: number;
+            languageId: AudioTrack.Language;
+            isDefault?: boolean;
+            status?: AudioTrackStatus;
+        }
+    }
+
     export interface Comment {
         id: string;
         text: string;
@@ -761,7 +774,7 @@ export interface Transcription {
 /** @category Videos */
 export namespace Transcription {
     export type SupportedLanguage = LiteralString<"da" | "de" | "el" | "en" | "en-gb" | "es" | "es-419" | "es-es" | "fi" | "fr" | "fr-ca" | "id" | "it" | "ja" | "ko" | "nl" | "no" | "pl" | "pt" | "pt-br" | "ru" | "sv" | "th" | "tr" | "zh" | "zh-tw" | "zh-cmn-hans" | "cs" | "en-au" | "hi" | "lt" | "so" | "hmn" | "my" | "cnh" | "kar" | "ku-kmr" | "ne" | "sw" | "af" | "sq" | "am" | "az" | "bn" | "bs" | "bg" | "hr" | "et" | "ka" | "ht" | "ha" | "hu" | "lv" | "ms" | "ro" | "sr" | "sk" | "sl" | "tl" | "ta" | "uk" | "vi">
-    export type TranslateSource = Extract<SupportedLanguage, 'en' | 'en-gb' | 'fr' | 'de' | 'pt-br' | 'es' | 'zh-cmn-hans'>;
+    export type TranslateSource = Extract<SupportedLanguage, 'en' | 'en-gb' | 'fr' | 'de' | 'pt-br' | 'es' | 'zh-cmn-hans' | 'hi' | 'nl' | 'it'>;
     export type ServiceType = LiteralString<'Vbrick' | 'Manual'>
     export type StatusEnum = LiteralString<'NotStarted' | 'Preparing' | 'InProgress' | 'Success' | 'Failed'>;
     export interface Request {
@@ -781,7 +794,7 @@ export namespace Transcription {
         videoId: string;
         title: string;
         sourceLanguage: Transcription.TranslateSource;
-        targetLanguages: Array<{
+        translations: Array<{
             language: Transcription.SupportedLanguage;
             transcriptionId: string;
             status: Transcription.StatusEnum;
