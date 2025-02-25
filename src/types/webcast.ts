@@ -80,6 +80,10 @@ export namespace Webcast {
           * List of custom fields to use when searching for events. All of the fields provided are concatenated as AND in the search request. The value to the property 'Value' is required.
           */
         customFields?: Admin.CustomField.Request[];
+        /**
+         * An optional search term boolean value (true or false) indicating whether to include or exclude events tagged as featured.
+         */
+        isFeatured?: boolean;
     }
 
     export interface CreateRequest {
@@ -187,6 +191,10 @@ export namespace Webcast {
         viewerIdEnabled?: boolean;
 
         reactionsSettings?: ReactionsSettings;
+        /**
+         * Default=false. If enabled by admins on the branding page, featured events will show on the home page carousel to viewers with permission. Featured events will not show in the featured carousel once the event has ended.
+         */
+        isFeatured?: boolean;
 
         /**
          * Default=false. If accessControl is set to Public and 'EDIT PUBLIC REG. PAGE CONSENT VERBIAGE' is enabled on the account. When true, you can customize the consent verbiage for public attendees.
@@ -271,7 +279,7 @@ export namespace Webcast {
          */
         presenterIds?: string[];
 
-        brandingSettings: Webcast.BrandingSettings;
+        brandingSettings: Webcast.BrandingSettings | null;
 
         autoplay?: boolean;
 
@@ -279,7 +287,7 @@ export namespace Webcast {
         registrationFields: RegistrationField[];
         customFields?: Admin.CustomField[];
         emailToPreRegistrants?: boolean;
-        attendeeJoinMethod: LiteralString<'Anonymous' | 'Registration'>;
+        attendeeJoinMethod?: LiteralString<'Anonymous' | 'Registration'>;
         embeddedContent: {
             isEnabled: boolean;
             contentLinks: Webcast.ContentLink[];
@@ -299,6 +307,10 @@ export namespace Webcast {
             imageUrls: Array<{ url: string; scaleSize: string; }>
         }>;
         reactionsSettings: ReactionsSettings;
+        /**
+         * Default=false. If enabled by admins on the branding page, featured events will show on the home page carousel to viewers with permission. Featured events will not show in the featured carousel once the event has ended.
+         */
+        isFeatured: boolean;
         isCustomConsentEnabled?: boolean;
         consentVerbiage?: string;
     }
@@ -454,6 +466,8 @@ export namespace Webcast {
         status: LiteralString<'Completed' | 'Scheduled' | 'Starting' | 'InProgress' | 'Broadcasting' | 'Deleted' | 'Recording' | 'RecordingStarting' | 'RecordingStopping' | 'VideoSourceStarting'>;
         slideUrl: string;
         isPreProduction: boolean;
+        sbmlResponse?: string;
+        reason?: string;
     }
 
     export interface PlaybackUrlRequest {
