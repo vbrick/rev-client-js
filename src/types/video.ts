@@ -580,6 +580,12 @@ export namespace Video {
             isDefault?: boolean;
             status?: AudioTrackStatus;
         }
+        export interface PatchRequest {
+            op: Rev.PatchOperation['op'];
+            languageId?: AudioTrack.Language;
+            track?: number;
+            value?: Pick<AudioTrack.Request, 'languageId' | 'isDefault'>;
+        }
     }
 
     export interface Comment {
