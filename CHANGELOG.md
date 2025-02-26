@@ -1,3 +1,12 @@
+## 0.23.1
+
+* Update types for Rev 7.63
+* Add `video.patchAudioTracks` helper for use with the new [Audio Track Generation](https://revdocs.vbrick.com/reference/change-log-v763#audio-track-generation-support) feature
+
+### Bugfixes
+
+* Fix audit pager to always report the correct `total` number of results
+
 ## 0.23.0
 
 ### Features
