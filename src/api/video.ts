@@ -275,6 +275,7 @@ export default function videoAPIFactory(rev: RevClient) {
          * @param language - language to use, for example 'en'
          * @param trackIndex - index of audio track - if not supplied then update default or first index
          * @param options
+         * @deprecated - use `video.patchAudioTracks(video, [{ op: 'replace', track: 0, value: { languageId: 'en', isDefault: true } }])`
          */
         async setAudioLanguage(video: string | Video.Details, language: Transcription.SupportedLanguage, trackIndex?: number, options?: Rev.RequestOptions): Promise<void> {
             const {id, audioTracks = []} = typeof video === 'string' ? { id: video } : video;
@@ -285,6 +286,153 @@ export default function videoAPIFactory(rev: RevClient) {
                 value: { track: index, languageId: language }
             };
             await videoAPI.patch(id, [op], options);
+        },
+        /**
+         * Helper - updating audioTracks or generating new ones requires some specific formatting and making sure that the track indexes are correct. This wraps up the logic of converting tasks into the correct PATCH operations
+         * NOTE: Adding audio tracks will use RevIQ credits to generate the new audio.
+         * @param video videoId or Video Details object. If videoId is passed then the Get Video Details API will automatically be called to get the latest audioTrack data
+         * @param operations List of updates to audio tracks.
+         * @param options
+         * @returns {Promise<void>}
+         * @example
+         * ```js
+         * const rev = new RevClient(...config...);
+         * await rev.connect();
+         * const videoId = '<guid>'
+         *
+         * // helper generator function - used to call status apis until a timeout
+         * async function * pollEvery(intervalSeconds = 15, maxSeconds = 900) {
+         *     for (let attempt = 0, maxAttempts = maxSeconds / intervalSeconds; attempt < maxAttempts; attempt += 1) {
+         *         await new Promise(done => setTimeout(done, intervalSeconds * 1000));
+         *         yield attempt;
+         *     }
+         * }
+         *
+         * // helper function to generate translation/transcription of a video
+         * // NOTE: Uses Rev IQ Credits
+         * async function transcribeOrTranslate(videoId, languageId, sourceLanguageId) {
+         *     // call translate or transcribe based on if 3rd arg is passed
+         *     const response = sourceLanguageId
+         *         ? await rev.video.translate(videoId, sourceLanguageId, languageId)
+         *         : await rev.video.transcribe(videoId, languageId);
+         *
+         *     // get the id and status depending on if translate or transcribe
+         *     let {transcriptionId, status} = sourceLanguageId
+         *         ? response.translations[0]
+         *         : response;
+         *
+         *     for await (let attempt of pollEvery(5)) {
+         *         status = (await rev.video.transcriptionStatus(videoId, transcriptionId)).status;
+         *         if (['Success', 'Failed'].includes(status)) {
+         *             break;
+         *         } else {
+         *             console.log(`Waiting for transcription to ${languageId} (${attempt}) - ${status}`);
+         *         }
+         *     }
+         *     if (status === 'Success') {
+         *         console.log('Transcription complete');
+         *     } else {
+         *         throw new Error(`Transcription incomplete (${status})`);
+         *     }
+         * }
+         *
+         * // get details of video
+         * let details = await rev.video.details(videoId);
+         * console.log('Initial audio tracks:', details.audioTracks);
+         *
+         * // set language of first audio track to English (Great Britain) and as the default (if no language set)
+         * if (details.audioTracks[0].languageId === 'und') {
+         *     console.warn('Setting language of default audio track');
+         *     await rev.video.patchAudioTracks(details, [{ op: 'replace', track: 0, value: { languageId: 'en-gb', isDefault: true } }]);
+         * }
+         *
+         * // make sure there's a transcription on the video. If not then add one
+         * let transcriptions = await rev.video.transcriptions(videoId);
+         * if (transcriptions.length === 0) {
+         *   console.warn('A transcription is required for generating audio. Submitting job for transcription now');
+         *   await transcribeOrTranslate(videoId, 'en-gb');
+         *   transcriptions = await rev.video.transcriptions(videoId);
+         * }
+         *
+         * // check if existing spanish translation
+         * if (!transcriptions.some(t => t.locale === 'es')) {
+         *     console.warn('A translation to target language is required for generating audio. Submitting job for translation now');
+         *     await transcribeOrTranslate(videoId, 'es', transcriptions[0].locale);
+         * }
+         *
+         * // start generating a spanish version of the audio
+         * console.log('Generating Spanish audio track');
+         * await rev.video.patchAudioTracks(details, [{ op: 'add', value: { languageId: 'es' }}]);
+         *
+         * // wait for audio generation to complete
+         * for await (let attempt of pollEvery(15)) {
+         *     details = await rev.video.details(videoId);
+         *     const audioTrack = details.audioTracks.find(t => t.languageId === 'es');
+         *     const isFinalState = ['Ready', 'AddingFailed'].includes(audioTrack?.status);
+         *     if (isFinalState) {
+         *         console.log('audio processing completed', audioTrack);
+         *         break;
+         *     } else {
+         *         console.log(`Waiting for audio generation to complete (${attempt}) - ${audioTrack?.status}`);
+         *     }
+         * }
+         *
+         * console.log('Final audio tracks:', details.audioTracks);
+         *
+         * // Finally, if you want to delete the spanish version:
+         * // WARNING: This is destructive and will remove the audio track
+         * //await rev.video.patchAudioTracks(details, [{ op: 'remove', languageId: 'es' }]);
+         *
+         *
+         * ```
+         *
+         */
+        async patchAudioTracks(video: string | Pick<Video.Details, 'id' | 'audioTracks'>, operations: Video.AudioTrack.PatchRequest[], options?: Rev.RequestOptions) {
+            const {id, audioTracks} = typeof video === 'string'
+                ? await rev.video.details(video)
+                : video;
+
+            // convert audioTracks to Map and remove languageName
+            const request: Map<number, Video.AudioTrack.Request> = new Map(audioTracks.map(({ languageName, ...t }) => [t.track, t]));
+
+            for (let { op, languageId, track, value } of operations) {
+                if (op === 'add') {
+                    languageId ??= value?.languageId;
+                    if (!languageId) throw new TypeError('value languageId is required when adding audioTrack');
+                    const audioTrack: Video.AudioTrack.Request = {
+                        isDefault: value?.isDefault ?? false,
+                        languageId,
+                        track: request.size,
+                        status: 'Adding'
+                    };
+                    request.set(audioTrack.track, audioTrack);
+                    continue;
+                }
+
+                let existing = track != undefined && request.has(track)
+                    ? request.get(track)
+                    : [...request.values()].find(t => t.languageId === languageId);
+
+                if (!existing && audioTracks.length === 1) {
+                    existing = request.get(audioTracks[0].track);
+                }
+                if (!existing) {
+                    throw new Error(`Attempt to ${op} audioTrack language ${languageId} ${track}, but no matching track found`);
+                }
+                // update existing entry in list
+                Object.assign(existing, {
+                    ...value,
+                    status: op === 'remove' ? 'Deleting' : 'Updating'
+                });
+            }
+
+            const payload: Rev.PatchOperation = {
+                op: 'replace',
+                path: '/audioTracks',
+                value: [...request.values()]
+            };
+
+            return videoAPI.patch(id, [payload], options);
         },
         /**
          * Helper - wait for video transcode to complete.

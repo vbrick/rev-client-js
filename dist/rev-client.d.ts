@@ -525,6 +525,7 @@ declare namespace Video {
     type MetadataGenerationField = LiteralString<"description" | "title" | "tags" | "all" | "chapters">;
     type MetadataGenerationStatus = LiteralString<"NotStarted" | "InProgress" | "Success" | "Failed">;
     type RemovedVideoState = LiteralString<"Deleted" | "ChangedToPrivate" | "ChangedToInactive" | "ChangedToUnlisted">;
+    type AudioTrackStatus = LiteralString<"Ready" | "Pending" | "Processing" | "Adding" | "Updating" | "Deleting" | "AddingFailed">;
     interface LinkedUrl {
         Url: string;
         EncodingType: EncodingType;
@@ -647,7 +648,7 @@ declare namespace Video {
             /**
              * Language code. View Supported Languages for source languages in Technical Requirements.
              */
-            transcribeLanguageId: string;
+            transcribeLanguageId: Transcription.SupportedLanguage;
             /**
              * Creates AI-generated metadata for a given video based on the type specified. You must specify the field type you want to generate (description/title/tags/chapters).
              * This feature requires English transcription and must also be enabled for your Rev account.
@@ -660,10 +661,7 @@ declare namespace Video {
          * List of category IDs. If you use categoryIds and they do not exist/are incorrect, the request is rejected. The request is also rejected if you do not have contribute rights to a restricted category and you attempt to add/edit or otherwise modify it.
          */
         categories?: string;
-        audioTracks?: Array<{
-            track: number;
-            languageId: string;
-        }>;
+        audioTracks?: Array<AudioTrack.Request>;
         expirationDate?: string;
         expirationAction?: Video.ExpirationAction;
         linkedUrl?: Video.LinkedUrl;
@@ -806,13 +804,7 @@ declare namespace Video {
             displayName: string;
         }>;
         duration: string;
-        audioTracks: Array<{
-            track: number;
-            isDefault: boolean;
-            languageId: string;
-            languageName: string;
-            status: Transcription.Status;
-        }>;
+        audioTracks: Array<AudioTrack>;
         overallProgress: number;
         isProcessing: boolean;
         transcodeFailed: boolean;
@@ -1047,6 +1039,28 @@ declare namespace Video {
             value: number;
         }>;
     }
+    interface AudioTrack {
+        track: number;
+        isDefault: boolean;
+        languageId: AudioTrack.Language;
+        languageName: string;
+        status: AudioTrackStatus;
+    }
+    namespace AudioTrack {
+        type Language = Transcription.SupportedLanguage | 'und';
+        interface Request {
+            track: number;
+            languageId: AudioTrack.Language;
+            isDefault?: boolean;
+            status?: AudioTrackStatus;
+        }
+        interface PatchRequest {
+            op: Rev.PatchOperation['op'];
+            languageId?: AudioTrack.Language;
+            track?: number;
+            value?: Pick<AudioTrack.Request, 'languageId' | 'isDefault'>;
+        }
+    }
     interface Comment {
         id: string;
         text: string;
@@ -1222,7 +1236,7 @@ interface Transcription {
 /** @category Videos */
 declare namespace Transcription {
     type SupportedLanguage = LiteralString<"da" | "de" | "el" | "en" | "en-gb" | "es" | "es-419" | "es-es" | "fi" | "fr" | "fr-ca" | "id" | "it" | "ja" | "ko" | "nl" | "no" | "pl" | "pt" | "pt-br" | "ru" | "sv" | "th" | "tr" | "zh" | "zh-tw" | "zh-cmn-hans" | "cs" | "en-au" | "hi" | "lt" | "so" | "hmn" | "my" | "cnh" | "kar" | "ku-kmr" | "ne" | "sw" | "af" | "sq" | "am" | "az" | "bn" | "bs" | "bg" | "hr" | "et" | "ka" | "ht" | "ha" | "hu" | "lv" | "ms" | "ro" | "sr" | "sk" | "sl" | "tl" | "ta" | "uk" | "vi">;
-    type TranslateSource = Extract<SupportedLanguage, 'en' | 'en-gb' | 'fr' | 'de' | 'pt-br' | 'es' | 'zh-cmn-hans'>;
+    type TranslateSource = Extract<SupportedLanguage, 'en' | 'en-gb' | 'fr' | 'de' | 'pt-br' | 'es' | 'zh-cmn-hans' | 'hi' | 'nl' | 'it'>;
     type ServiceType = LiteralString<'Vbrick' | 'Manual'>;
     type StatusEnum = LiteralString<'NotStarted' | 'Preparing' | 'InProgress' | 'Success' | 'Failed'>;
     interface Request {
@@ -1242,7 +1256,7 @@ declare namespace Transcription {
         videoId: string;
         title: string;
         sourceLanguage: Transcription.TranslateSource;
-        targetLanguages: Array<{
+        translations: Array<{
             language: Transcription.SupportedLanguage;
             transcriptionId: string;
             status: Transcription.StatusEnum;
@@ -1368,7 +1382,7 @@ declare namespace Admin {
             fullName: string;
             username: string;
         };
-        usage: LiteralString<'Transcription' | 'Translation' | 'UserTagging' | 'MetadataGeneration'>;
+        usage: LiteralString<'Transcription' | 'Translation' | 'UserTagging' | 'MetadataGeneration' | 'AudioGeneration'>;
         credits: number;
         languages: string[];
         when: string;
@@ -2258,6 +2272,10 @@ declare namespace Webcast {
           * List of custom fields to use when searching for events. All of the fields provided are concatenated as AND in the search request. The value to the property 'Value' is required.
           */
         customFields?: Admin.CustomField.Request[];
+        /**
+         * An optional search term boolean value (true or false) indicating whether to include or exclude events tagged as featured.
+         */
+        isFeatured?: boolean;
     }
     interface CreateRequest {
         title: string;
@@ -2356,6 +2374,10 @@ declare namespace Webcast {
         viewerIdEnabled?: boolean;
         reactionsSettings?: ReactionsSettings;
         /**
+         * Default=false. If enabled by admins on the branding page, featured events will show on the home page carousel to viewers with permission. Featured events will not show in the featured carousel once the event has ended.
+         */
+        isFeatured?: boolean;
+        /**
          * Default=false. If accessControl is set to Public and 'EDIT PUBLIC REG. PAGE CONSENT VERBIAGE' is enabled on the account. When true, you can customize the consent verbiage for public attendees.
          */
         isCustomConsentEnabled?: boolean;
@@ -2436,13 +2458,13 @@ declare namespace Webcast {
          * Internal user Ids. Only used when 'Producer' selected as a videoSourceType.
          */
         presenterIds?: string[];
-        brandingSettings: Webcast.BrandingSettings;
+        brandingSettings: Webcast.BrandingSettings | null;
         autoplay?: boolean;
         presentationFileDownloadAllowed: boolean;
         registrationFields: RegistrationField[];
         customFields?: Admin.CustomField[];
         emailToPreRegistrants?: boolean;
-        attendeeJoinMethod: LiteralString<'Anonymous' | 'Registration'>;
+        attendeeJoinMethod?: LiteralString<'Anonymous' | 'Registration'>;
         embeddedContent: {
             isEnabled: boolean;
             contentLinks: Webcast.ContentLink[];
@@ -2465,6 +2487,10 @@ declare namespace Webcast {
             }>;
         }>;
         reactionsSettings: ReactionsSettings;
+        /**
+         * Default=false. If enabled by admins on the branding page, featured events will show on the home page carousel to viewers with permission. Featured events will not show in the featured carousel once the event has ended.
+         */
+        isFeatured: boolean;
         isCustomConsentEnabled?: boolean;
         consentVerbiage?: string;
     }
@@ -2609,6 +2635,8 @@ declare namespace Webcast {
         status: LiteralString<'Completed' | 'Scheduled' | 'Starting' | 'InProgress' | 'Broadcasting' | 'Deleted' | 'Recording' | 'RecordingStarting' | 'RecordingStopping' | 'VideoSourceStarting'>;
         slideUrl: string;
         isPreProduction: boolean;
+        sbmlResponse?: string;
+        reason?: string;
     }
     interface PlaybackUrlRequest {
         ip?: string;
@@ -3690,8 +3718,110 @@ declare function videoAPIFactory(rev: RevClient): {
      * @param language - language to use, for example 'en'
      * @param trackIndex - index of audio track - if not supplied then update default or first index
      * @param options
+     * @deprecated - use `video.patchAudioTracks(video, [{ op: 'replace', track: 0, value: { languageId: 'en', isDefault: true } }])`
      */
     setAudioLanguage(video: string | Video.Details, language: Transcription.SupportedLanguage, trackIndex?: number, options?: Rev.RequestOptions): Promise<void>;
+    /**
+     * Helper - updating audioTracks or generating new ones requires some specific formatting and making sure that the track indexes are correct. This wraps up the logic of converting tasks into the correct PATCH operations
+     * NOTE: Adding audio tracks will use RevIQ credits to generate the new audio.
+     * @param video videoId or Video Details object. If videoId is passed then the Get Video Details API will automatically be called to get the latest audioTrack data
+     * @param operations List of updates to audio tracks.
+     * @param options
+     * @returns {Promise<void>}
+     * @example
+     * ```js
+     * const rev = new RevClient(...config...);
+     * await rev.connect();
+     * const videoId = '<guid>'
+     *
+     * // helper generator function - used to call status apis until a timeout
+     * async function * pollEvery(intervalSeconds = 15, maxSeconds = 900) {
+     *     for (let attempt = 0, maxAttempts = maxSeconds / intervalSeconds; attempt < maxAttempts; attempt += 1) {
+     *         await new Promise(done => setTimeout(done, intervalSeconds * 1000));
+     *         yield attempt;
+     *     }
+     * }
+     *
+     * // helper function to generate translation/transcription of a video
+     * // NOTE: Uses Rev IQ Credits
+     * async function transcribeOrTranslate(videoId, languageId, sourceLanguageId) {
+     *     // call translate or transcribe based on if 3rd arg is passed
+     *     const response = sourceLanguageId
+     *         ? await rev.video.translate(videoId, sourceLanguageId, languageId)
+     *         : await rev.video.transcribe(videoId, languageId);
+     *
+     *     // get the id and status depending on if translate or transcribe
+     *     let {transcriptionId, status} = sourceLanguageId
+     *         ? response.translations[0]
+     *         : response;
+     *
+     *     for await (let attempt of pollEvery(5)) {
+     *         status = (await rev.video.transcriptionStatus(videoId, transcriptionId)).status;
+     *         if (['Success', 'Failed'].includes(status)) {
+     *             break;
+     *         } else {
+     *             console.log(`Waiting for transcription to ${languageId} (${attempt}) - ${status}`);
+     *         }
+     *     }
+     *     if (status === 'Success') {
+     *         console.log('Transcription complete');
+     *     } else {
+     *         throw new Error(`Transcription incomplete (${status})`);
+     *     }
+     * }
+     *
+     * // get details of video
+     * let details = await rev.video.details(videoId);
+     * console.log('Initial audio tracks:', details.audioTracks);
+     *
+     * // set language of first audio track to English (Great Britain) and as the default (if no language set)
+     * if (details.audioTracks[0].languageId === 'und') {
+     *     console.warn('Setting language of default audio track');
+     *     await rev.video.patchAudioTracks(details, [{ op: 'replace', track: 0, value: { languageId: 'en-gb', isDefault: true } }]);
+     * }
+     *
+     * // make sure there's a transcription on the video. If not then add one
+     * let transcriptions = await rev.video.transcriptions(videoId);
+     * if (transcriptions.length === 0) {
+     *   console.warn('A transcription is required for generating audio. Submitting job for transcription now');
+     *   await transcribeOrTranslate(videoId, 'en-gb');
+     *   transcriptions = await rev.video.transcriptions(videoId);
+     * }
+     *
+     * // check if existing spanish translation
+     * if (!transcriptions.some(t => t.locale === 'es')) {
+     *     console.warn('A translation to target language is required for generating audio. Submitting job for translation now');
+     *     await transcribeOrTranslate(videoId, 'es', transcriptions[0].locale);
+     * }
+     *
+     * // start generating a spanish version of the audio
+     * console.log('Generating Spanish audio track');
+     * await rev.video.patchAudioTracks(details, [{ op: 'add', value: { languageId: 'es' }}]);
+     *
+     * // wait for audio generation to complete
+     * for await (let attempt of pollEvery(15)) {
+     *     details = await rev.video.details(videoId);
+     *     const audioTrack = details.audioTracks.find(t => t.languageId === 'es');
+     *     const isFinalState = ['Ready', 'AddingFailed'].includes(audioTrack?.status);
+     *     if (isFinalState) {
+     *         console.log('audio processing completed', audioTrack);
+     *         break;
+     *     } else {
+     *         console.log(`Waiting for audio generation to complete (${attempt}) - ${audioTrack?.status}`);
+     *     }
+     * }
+     *
+     * console.log('Final audio tracks:', details.audioTracks);
+     *
+     * // Finally, if you want to delete the spanish version:
+     * // WARNING: This is destructive and will remove the audio track
+     * //await rev.video.patchAudioTracks(details, [{ op: 'remove', languageId: 'es' }]);
+     *
+     *
+     * ```
+     *
+     */
+    patchAudioTracks(video: string | Pick<Video.Details, "id" | "audioTracks">, operations: Video.AudioTrack.PatchRequest[], options?: Rev.RequestOptions): Promise<void>;
     /**
      * Helper - wait for video transcode to complete.
      * This doesn't indicate that a video is playable, rather that all transcoding jobs are complete
