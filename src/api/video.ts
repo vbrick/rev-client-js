@@ -275,6 +275,7 @@ export default function videoAPIFactory(rev: RevClient) {
          * @param language - language to use, for example 'en'
          * @param trackIndex - index of audio track - if not supplied then update default or first index
          * @param options
+         * @deprecated - use `video.patchAudioTracks(video, [{ op: 'replace', track: 0, value: { languageId: 'en', isDefault: true } }])`
          */
         async setAudioLanguage(video: string | Video.Details, language: Transcription.SupportedLanguage, trackIndex?: number, options?: Rev.RequestOptions): Promise<void> {
             const {id, audioTracks = []} = typeof video === 'string' ? { id: video } : video;
