@@ -294,6 +294,7 @@ export class RevClient {
             } else if (isPlainObject(data)) {
                 // add values to query string of URL
                 for (let [key, value] of Object.entries(data)) {
+                    if (value instanceof Date) value = value.toISOString();
                     url.searchParams.append(key, value);
                 }
             } else {

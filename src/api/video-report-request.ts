@@ -168,7 +168,7 @@ export function videoReportAPI(rev: RevClient) {
     function summaryStatistics(videoId: string, startDate: Date | string, endDate: Date | string, options?: Rev.RequestOptions): Promise<Video.SummaryStatistics>;
     function summaryStatistics(videoId: string, startDate?: Date | string, endDate: Date | string | undefined = new Date(), options?: Rev.RequestOptions): Promise<Video.SummaryStatistics> {
         const payload = startDate
-            ? { after: new Date(startDate).toISOString(), before: new Date(endDate ?? Date.now()) }
+            ? { after: new Date(startDate).toISOString(), before: asValidDate(endDate, new Date()).toISOString() }
             : undefined;
         return rev.get(`/api/v2/videos/${videoId}/summary-statistics`, payload, options);
     }
