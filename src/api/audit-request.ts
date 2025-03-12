@@ -42,6 +42,12 @@ export class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
         label: string = 'audit records',
         {toDate, fromDate, beforeRequest, ...options}: Audit.Options<T> = {}
     ) {
+        if (!toDate && 'endDate' in options) {
+            throw new TypeError('Audit API uses toDate param instead of endDate');
+        }
+        if (!fromDate && 'startDate' in options) {
+            throw new TypeError('Audit API uses fromDate param instead of startDate');
+        }
         super({
             onProgress: (items: T[], current: number, total?: number | undefined) => {
                 rev.log('debug', `loading ${label}, ${current} of ${total}...`);
