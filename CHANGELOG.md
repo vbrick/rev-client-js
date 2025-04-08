@@ -1,3 +1,12 @@
+## 0.23.3
+
+* Bugfix (**node.js only**): properly catch error when attempting to upload binary files with invalid paths.
+
+## 0.23.2
+
+* Ensure search endpoints convert `Date` params to ISO strings
+* Throw error if audit endpoints are called with `startDate/endDate` instead of expected `fromDate/toDate`
+
 ## 0.23.1
 
 * Update types for Rev 7.63
