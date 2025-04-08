@@ -893,12 +893,12 @@ declare namespace Video {
         /** Owner GUIDs to get specific videos owner by these users. Example: ownerIds=abc, xyz */
         ownerIds?: string;
         status?: LiteralString<'active' | 'inactive'>;
-        fromPublishedDate?: string;
-        toPublishedDate?: string;
-        fromUploadDate?: string;
-        toUploadDate?: string;
-        fromModifiedDate?: string;
-        toModifiedDate?: string;
+        fromPublishedDate?: string | Date;
+        toPublishedDate?: string | Date;
+        fromUploadDate?: string | Date;
+        toUploadDate?: string | Date;
+        fromModifiedDate?: string | Date;
+        toModifiedDate?: string | Date;
         exactMatch?: boolean;
         unlisted?: LiteralString<'unlisted' | 'listed' | 'all'>;
         /**
@@ -1007,15 +1007,15 @@ declare namespace Video {
     }
     interface VideoReportOptions extends Rev.SearchOptions<VideoReportEntry> {
         videoIds?: string | string[] | undefined;
-        startDate?: string;
-        endDate?: string;
+        startDate?: string | Date;
+        endDate?: string | Date;
         incrementDays?: number;
         sortDirection?: Rev.SortDirection;
     }
     interface UniqueSessionReportOptions extends Rev.SearchOptions<VideoReportEntry> {
         userId?: string;
-        startDate?: string;
-        endDate?: string;
+        startDate?: string | Date;
+        endDate?: string | Date;
         incrementDays?: number;
         sortDirection?: Rev.SortDirection;
     }
@@ -2921,12 +2921,12 @@ interface Role {
 declare namespace Role {
     type RoleType = LiteralString<'AccountAdmin' | 'MediaAdmin' | 'EventAdmin' | 'EventHost' | 'InternalEventHost' | 'MediaContributor' | 'InternalMediaContributor' | 'MediaViewer' | 'TeamCreator' | 'CategoryCreator' | 'VodAnalyst' | 'EventAnalyst' | 'RevIqUser' | 'ChannelCreator' | 'MediaUploader' | 'InternalMediaUploader'>;
     type RoleName = LiteralString<'Account Admin' | 'Media Admin' | 'Media Contributor' | 'Media Viewer' | 'Event Admin' | 'Event Host' | 'Channel Creator' | 'Category Creator' | 'Internal Event Host' | 'Internal Media Contributor' | 'VOD Analyst' | 'Event Analyst' | 'Rev IQ User' | 'Media Uploader' | 'Internal Media Uploader'>;
-    interface Details {
+    type Details = {
         id: string;
         name: string;
         description: string;
         roleType: Role.RoleType;
-    }
+    };
 }
 /** @category Webcasts */
 interface RegistrationField {
@@ -3406,8 +3406,8 @@ declare class PlaylistDetailsRequest extends SearchRequest<Video.Details> {
         videos: Video.Details[];
         playlistName: string;
         searchFilter: Video.SearchOptions | undefined;
-        id: string;
         name: string;
+        id: string;
         playbackUrl: string;
         playlistType: (string & Record<never, never>) | "Static" | "Dynamic";
         playlistId: string;

@@ -8,6 +8,9 @@ var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __typeError = (msg) => {
   throw TypeError(msg);
 };
+var __esm = (fn2, res) => function __init() {
+  return fn2 && (res = (0, fn2[__getOwnPropNames(fn2)[0]])(fn2 = 0)), res;
+};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -34,54 +37,7 @@ var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read fr
 var __privateAdd = (obj, member, value) => member.has(obj) ? __typeError("Cannot add the same private member more than once") : member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
 var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 
-// src/index-nodefetch.cts
-var index_nodefetch_exports = {};
-__export(index_nodefetch_exports, {
-  RevClient: () => RevClient,
-  RevError: () => RevError,
-  ScrollError: () => ScrollError,
-  utils: () => utils
-});
-module.exports = __toCommonJS(index_nodefetch_exports);
-
 // src/utils/file-utils.ts
-var mimeTypes = {
-  ".7z": "application/x-7z-compressed",
-  ".asf": "video/x-ms-asf",
-  ".avi": "video/x-msvideo",
-  ".csv": "text/csv",
-  ".doc": "application/msword",
-  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".f4v": "video/x-f4v",
-  ".flv": "video/x-flv",
-  ".gif": "image/gif",
-  ".jpg": "image/jpeg",
-  ".m4a": "audio/mp4",
-  ".m4v": "video/x-m4v",
-  ".mkv": "video/x-matroska",
-  ".mov": "video/quicktime",
-  ".mp3": "audio/mpeg",
-  ".mp4": "video/mp4",
-  ".mpg": "video/mpeg",
-  ".pdf": "application/pdf",
-  ".png": "image/png",
-  ".ppt": "application/vnd.ms-powerpoint",
-  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  ".rar": "application/x-rar-compressed",
-  ".srt": "application/x-subrip",
-  ".svg": "image/svg+xml",
-  ".swf": "application/x-shockwave-flash",
-  ".ts": "video/mp2t",
-  ".txt": "text/plain",
-  ".wmv": "video/x-ms-wmv",
-  ".xls": "application/vnd.ms-excel",
-  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  ".zip": "application/zip",
-  ".mks": "video/x-matroska",
-  ".mts": "model/vnd.mts",
-  ".vtt": "text/vtt",
-  ".wma": "audio/x-ms-wma"
-};
 function getMimeForExtension(extension = "", defaultType = "video/mp4") {
   extension = extension.toLowerCase();
   if (extension && extension in mimeTypes) {
@@ -111,9 +67,51 @@ function sanitizeUploadOptions(filename = "upload", contentType = "", defaultCon
   }
   return { filename, contentType };
 }
+var mimeTypes;
+var init_file_utils = __esm({
+  "src/utils/file-utils.ts"() {
+    "use strict";
+    mimeTypes = {
+      ".7z": "application/x-7z-compressed",
+      ".asf": "video/x-ms-asf",
+      ".avi": "video/x-msvideo",
+      ".csv": "text/csv",
+      ".doc": "application/msword",
+      ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ".f4v": "video/x-f4v",
+      ".flv": "video/x-flv",
+      ".gif": "image/gif",
+      ".jpg": "image/jpeg",
+      ".m4a": "audio/mp4",
+      ".m4v": "video/x-m4v",
+      ".mkv": "video/x-matroska",
+      ".mov": "video/quicktime",
+      ".mp3": "audio/mpeg",
+      ".mp4": "video/mp4",
+      ".mpg": "video/mpeg",
+      ".pdf": "application/pdf",
+      ".png": "image/png",
+      ".ppt": "application/vnd.ms-powerpoint",
+      ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      ".rar": "application/x-rar-compressed",
+      ".srt": "application/x-subrip",
+      ".svg": "image/svg+xml",
+      ".swf": "application/x-shockwave-flash",
+      ".ts": "video/mp2t",
+      ".txt": "text/plain",
+      ".wmv": "video/x-ms-wmv",
+      ".xls": "application/vnd.ms-excel",
+      ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ".zip": "application/zip",
+      ".mks": "video/x-matroska",
+      ".mts": "model/vnd.mts",
+      ".vtt": "text/vtt",
+      ".wma": "audio/x-ms-wma"
+    };
+  }
+});
 
 // src/utils/is-utils.ts
-var { toString: _toString } = Object.prototype;
 function isPlainObject(val) {
   if (_toString.call(val) !== "[object Object]") {
     return false;
@@ -127,73 +125,15 @@ function isBlobLike(val) {
 function titleCase(val) {
   return `${val[0]}${val.slice(1)}`;
 }
+var _toString;
+var init_is_utils = __esm({
+  "src/utils/is-utils.ts"() {
+    "use strict";
+    ({ toString: _toString } = Object.prototype);
+  }
+});
 
 // src/utils/multipart-utils.ts
-var uploadParser = {
-  async string(value, options) {
-    const url = value instanceof URL ? value : new URL(value, "invalid://");
-    if (!/^data|blob|file/.test(url.protocol)) {
-      throw new TypeError("Only Blob / DateURI URLs are supported");
-    }
-    if (options.disableExternalResources && url.protocol === "file:") {
-      throw new Error("file: protocol not allowed");
-    }
-    const file = await (await polyfills_default.fetch(url)).blob();
-    return uploadParser.blob(file, options);
-  },
-  async stream(value, options) {
-    const { contentType } = options;
-    if (!(value instanceof ReadableStream)) {
-      throw new TypeError("Only Blob / Files are supported for file uploads. Pass a File/Blob object");
-    }
-    const response = new Response(value, {
-      headers: contentType ? { "content-type": contentType } : {}
-    });
-    return uploadParser.response(response, options);
-  },
-  async response(response, options) {
-    const { body, headers } = response;
-    if (!response.ok || !body) {
-      const err = await RevError.create(response);
-      throw err;
-    }
-    return uploadParser.blob(
-      await response.blob(),
-      options
-    );
-  },
-  async blob(value, options) {
-    let {
-      filename = value.name ?? "upload",
-      contentType = value.type ?? "",
-      defaultContentType
-    } = options;
-    const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
-    if (value.type !== sanitized.contentType && typeof value.slice === "function") {
-      value = new File([value], sanitized.filename, { type: sanitized.contentType });
-    }
-    return {
-      file: value,
-      options: {
-        ...options,
-        ...value.size && { contentLength: value.size },
-        ...sanitized
-      }
-    };
-  },
-  async parse(value, options) {
-    if (typeof value === "string" || value instanceof URL) {
-      return uploadParser.string(value, options);
-    }
-    if (value instanceof polyfills_default.Response) {
-      return uploadParser.response(value, options);
-    }
-    if (!isBlobLike(value)) {
-      throw new TypeError("Only Blob / Files are supported for file uploads. Pass a File/Blob object");
-    }
-    return uploadParser.blob(value, options);
-  }
-};
 function appendJSONToForm(form, fieldName, data) {
   form.append(fieldName, JSON.stringify(data));
 }
@@ -215,8 +155,91 @@ async function uploadMultipart(rev, method, endpoint, form, uploadOptions, optio
   const { body } = await rev.request(method, endpoint, data, options);
   return body;
 }
+var uploadParser;
+var init_multipart_utils = __esm({
+  "src/utils/multipart-utils.ts"() {
+    "use strict";
+    init_polyfills();
+    init_rev_error();
+    init_file_utils();
+    init_is_utils();
+    uploadParser = {
+      async string(value, options) {
+        const url = value instanceof URL ? value : new URL(value, "invalid://");
+        if (!/^data|blob|file/.test(url.protocol)) {
+          throw new TypeError("Only Blob / DateURI URLs are supported");
+        }
+        if (options.disableExternalResources && url.protocol === "file:") {
+          throw new Error("file: protocol not allowed");
+        }
+        const file = await (await polyfills_default.fetch(url)).blob();
+        return uploadParser.blob(file, options);
+      },
+      async stream(value, options) {
+        const { contentType } = options;
+        if (!(value instanceof ReadableStream)) {
+          throw new TypeError("Only Blob / Files are supported for file uploads. Pass a File/Blob object");
+        }
+        const response = new Response(value, {
+          headers: contentType ? { "content-type": contentType } : {}
+        });
+        return uploadParser.response(response, options);
+      },
+      async response(response, options) {
+        const { body, headers } = response;
+        if (!response.ok || !body) {
+          const err = await RevError.create(response);
+          throw err;
+        }
+        return uploadParser.blob(
+          await response.blob(),
+          options
+        );
+      },
+      async blob(value, options) {
+        let {
+          filename = value.name ?? "upload",
+          contentType = value.type ?? "",
+          defaultContentType
+        } = options;
+        const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
+        if (value.type !== sanitized.contentType && typeof value.slice === "function") {
+          value = new File([value], sanitized.filename, { type: sanitized.contentType });
+        }
+        return {
+          file: value,
+          options: {
+            ...options,
+            ...value.size && { contentLength: value.size },
+            ...sanitized
+          }
+        };
+      },
+      async parse(value, options) {
+        if (typeof value === "string" || value instanceof URL) {
+          return uploadParser.string(value, options);
+        }
+        if (value instanceof polyfills_default.Response) {
+          return uploadParser.response(value, options);
+        }
+        if (!isBlobLike(value)) {
+          throw new TypeError("Only Blob / Files are supported for file uploads. Pass a File/Blob object");
+        }
+        return uploadParser.blob(value, options);
+      }
+    };
+  }
+});
 
 // src/interop/polyfills.ts
+var polyfills_exports = {};
+__export(polyfills_exports, {
+  default: () => polyfills_default,
+  onInitialize: () => onInitialize,
+  polyfills: () => polyfills,
+  setPolyfills: () => setPolyfills,
+  shouldInitialize: () => shouldInitialize
+});
 function randomValues(byteLength) {
   const values = crypto.getRandomValues(new Uint8Array(byteLength / 2));
   return Array.from(values).map((c) => c.toString(16).padStart(2, "0")).join("");
@@ -239,38 +262,6 @@ async function hmacSign(message, secret) {
   const signed = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(message));
   return btoa(String.fromCharCode(...new Uint8Array(signed)));
 }
-var polyfills = {
-  AbortController: globalThis.AbortController,
-  AbortSignal: globalThis.AbortSignal,
-  createAbortError(message) {
-    return new DOMException(message, "AbortError");
-  },
-  fetch(...args) {
-    return globalThis.fetch(...args);
-  },
-  FormData: globalThis.FormData,
-  File: globalThis.File,
-  Headers: globalThis.Headers,
-  Request: globalThis.Request,
-  Response: globalThis.Response,
-  uploadParser,
-  randomValues,
-  sha256Hash,
-  hmacSign,
-  beforeFileUploadRequest(form, headers, uploadOptions, options) {
-    return form;
-  },
-  asPlatformStream(stream) {
-    return stream;
-  },
-  asWebStream(stream) {
-    return stream;
-  }
-};
-var polyfills_default = polyfills;
-var isPendingInitialize = false;
-var initializePromise = void 0;
-var pendingInitialize = [];
 function shouldInitialize() {
   return !!isPendingInitialize;
 }
@@ -297,9 +288,47 @@ function setPolyfills(overrideCallback) {
   pendingInitialize.push(overrideCallback);
   isPendingInitialize = true;
 }
+var polyfills, polyfills_default, isPendingInitialize, initializePromise, pendingInitialize;
+var init_polyfills = __esm({
+  "src/interop/polyfills.ts"() {
+    "use strict";
+    init_multipart_utils();
+    polyfills = {
+      AbortController: globalThis.AbortController,
+      AbortSignal: globalThis.AbortSignal,
+      createAbortError(message) {
+        return new DOMException(message, "AbortError");
+      },
+      fetch(...args) {
+        return globalThis.fetch(...args);
+      },
+      FormData: globalThis.FormData,
+      File: globalThis.File,
+      Headers: globalThis.Headers,
+      Request: globalThis.Request,
+      Response: globalThis.Response,
+      uploadParser,
+      randomValues,
+      sha256Hash,
+      hmacSign,
+      beforeFileUploadRequest(form, headers, uploadOptions, options) {
+        return form;
+      },
+      asPlatformStream(stream) {
+        return stream;
+      },
+      asWebStream(stream) {
+        return stream;
+      }
+    };
+    polyfills_default = polyfills;
+    isPendingInitialize = false;
+    initializePromise = void 0;
+    pendingInitialize = [];
+  }
+});
 
 // src/utils/rate-limit.ts
-var ONE_MINUTE = 60 * 1e3;
 function rateLimit(fn2, options = {}) {
   if (fn2 && typeof fn2 === "object") {
     options = Object.assign({}, fn2, options);
@@ -381,22 +410,17 @@ function rateLimit(fn2, options = {}) {
   signal?.addEventListener("abort", abortHandler);
   return throttled;
 }
-var rate_limit_default = rateLimit;
+var ONE_MINUTE, rate_limit_default;
+var init_rate_limit = __esm({
+  "src/utils/rate-limit.ts"() {
+    "use strict";
+    init_polyfills();
+    ONE_MINUTE = 60 * 1e3;
+    rate_limit_default = rateLimit;
+  }
+});
 
 // src/utils/rate-limit-queues.ts
-var defaultRateLimits = {
-  ["get" /* Get */]: 24e3,
-  ["post" /* Post */]: 3600,
-  ["searchVideos" /* SearchVideos */]: 120,
-  ["uploadVideo" /* UploadVideo */]: 30,
-  ["updateVideo" /* UpdateVideoMetadata */]: 30,
-  ["videoDetails" /* GetVideoDetails */]: 2e3,
-  ["attendeesRealtime" /* GetWebcastAttendeesRealtime */]: 2,
-  ["auditEndpoint" /* AuditEndpoints */]: 60,
-  ["loginReport" /* GetUsersByLoginDate */]: 10,
-  ["viewReport" /* GetVideoViewReport */]: 120
-};
-var fn = () => Promise.resolve();
 function normalizeRateLimitOptions(rateLimits) {
   return {
     // include defaults if true or object
@@ -422,6 +446,26 @@ function clearQueues(rateLimits, message) {
   const fns = Object.values(rateLimits);
   fns.forEach((fn2) => fn2.abort?.(message));
 }
+var defaultRateLimits, fn;
+var init_rate_limit_queues = __esm({
+  "src/utils/rate-limit-queues.ts"() {
+    "use strict";
+    init_rate_limit();
+    defaultRateLimits = {
+      ["get" /* Get */]: 24e3,
+      ["post" /* Post */]: 3600,
+      ["searchVideos" /* SearchVideos */]: 120,
+      ["uploadVideo" /* UploadVideo */]: 30,
+      ["updateVideo" /* UpdateVideoMetadata */]: 30,
+      ["videoDetails" /* GetVideoDetails */]: 2e3,
+      ["attendeesRealtime" /* GetWebcastAttendeesRealtime */]: 2,
+      ["auditEndpoint" /* AuditEndpoints */]: 60,
+      ["loginReport" /* GetUsersByLoginDate */]: 10,
+      ["viewReport" /* GetVideoViewReport */]: 120
+    };
+    fn = () => Promise.resolve();
+  }
+});
 
 // src/utils/index.ts
 function asValidDate(val, defaultValue) {
@@ -470,101 +514,427 @@ function tryParseJson(val) {
   }
   return null;
 }
+var init_utils = __esm({
+  "src/utils/index.ts"() {
+    "use strict";
+    init_rate_limit();
+    init_rate_limit_queues();
+    init_is_utils();
+  }
+});
 
 // src/rev-error.ts
-var RevError = class _RevError extends Error {
-  /**
-   * @hidden
-   * @param response
-   * @param body
-   */
-  constructor(response, body) {
-    const {
-      status = 500,
-      statusText = "",
-      url
-    } = response;
-    super(`${status} ${statusText}`);
-    if ("captureStackTrace" in Error) {
-      Error.captureStackTrace(this, this.constructor);
-    }
-    this.status = status;
-    this.url = url;
-    this.code = `${status}`;
-    this.detail = statusText;
-    if (isPlainObject(body)) {
-      if (body.code) {
-        this.code = body.code;
-      }
-      if (body.detail) {
-        this.detail = body.detail;
-      }
-    } else if (typeof body === "string") {
-      body = body.trim();
-      if (body.startsWith("{")) {
-        const { code, detail } = tryParseJson(body) || {};
-        if (code) {
-          this.code = code;
+var RevError, ScrollError;
+var init_rev_error = __esm({
+  "src/rev-error.ts"() {
+    "use strict";
+    init_utils();
+    RevError = class _RevError extends Error {
+      /**
+       * @hidden
+       * @param response
+       * @param body
+       */
+      constructor(response, body) {
+        const {
+          status = 500,
+          statusText = "",
+          url
+        } = response;
+        super(`${status} ${statusText}`);
+        if ("captureStackTrace" in Error) {
+          Error.captureStackTrace(this, this.constructor);
         }
-        if (detail) {
-          this.detail = detail;
+        this.status = status;
+        this.url = url;
+        this.code = `${status}`;
+        this.detail = statusText;
+        if (isPlainObject(body)) {
+          if (body.code) {
+            this.code = body.code;
+          }
+          if (body.detail) {
+            this.detail = body.detail;
+          }
+        } else if (typeof body === "string") {
+          body = body.trim();
+          if (body.startsWith("{")) {
+            const { code, detail } = tryParseJson(body) || {};
+            if (code) {
+              this.code = code;
+            }
+            if (detail) {
+              this.detail = detail;
+            }
+          } else if (this.status === 429) {
+            this.detail = "Too Many Requests";
+          } else if (/^(<!DOCTYPE|<html)/.test(body)) {
+            this.detail = body.replace(/.*<body>\s+/s, "").replace(/<\/body>.*/s, "").slice(0, 256);
+          }
         }
-      } else if (this.status === 429) {
-        this.detail = "Too Many Requests";
-      } else if (/^(<!DOCTYPE|<html)/.test(body)) {
-        this.detail = body.replace(/.*<body>\s+/s, "").replace(/<\/body>.*/s, "").slice(0, 256);
       }
+      /** @ignore */
+      get name() {
+        return "RevError";
+      }
+      /** @ignore */
+      get [Symbol.toStringTag]() {
+        return "RevError";
+      }
+      /**
+       * Consume a HTTP Response's body to create a new Error instance
+       * @param response
+       * @returns
+       */
+      static async create(response) {
+        let body;
+        try {
+          body = await response.text();
+        } catch (err) {
+          body = {
+            code: "Unknown",
+            detail: `Unable to parse error response body: ${err}`
+          };
+        }
+        return new _RevError(response, body);
+      }
+    };
+    ScrollError = class extends Error {
+      /**
+       * @hidden
+       * @param status
+       * @param code
+       * @param detail
+       */
+      constructor(status = 408, code = "ScrollExpired", detail = "Timeout while fetching all results in search request") {
+        super("Search Scroll Expired");
+        Error.captureStackTrace(this, this.constructor);
+        this.status = status;
+        this.code = code;
+        this.detail = detail;
+      }
+      /** @ignore */
+      get name() {
+        return this.constructor.name;
+      }
+      /** @ignore */
+      get [Symbol.toStringTag]() {
+        return this.constructor.name;
+      }
+    };
+  }
+});
+
+// src/interop/node-multipart-utils.ts
+async function getLengthFromStream(source, timeoutSeconds = 15) {
+  const {
+    length,
+    contentLength,
+    headers = {},
+    path: filepath
+  } = source;
+  if (isFinite(length)) {
+    return length;
+  }
+  if (isFinite(contentLength)) {
+    return contentLength;
+  }
+  if (headers?.["content-length"]) {
+    const headerLength = parseInt(headers["content-length"], 10);
+    if (isFinite(headerLength)) {
+      return headerLength;
     }
   }
-  /** @ignore */
-  get name() {
-    return "RevError";
+  if (filepath) {
+    return statFile(filepath, timeoutSeconds);
   }
-  /** @ignore */
-  get [Symbol.toStringTag]() {
-    return "RevError";
+}
+async function statFile(filepath, timeoutSeconds = 15) {
+  let timer;
+  const timeout = new Promise((done) => {
+    timer = setTimeout(done, timeoutSeconds * 1e3, {});
+  });
+  try {
+    const stat = await Promise.race([
+      import_node_fs.promises.stat(filepath),
+      timeout
+    ]);
+    return stat?.size;
+  } catch (err) {
+  } finally {
+    clearTimeout(timer);
   }
-  /**
-   * Consume a HTTP Response's body to create a new Error instance
-   * @param response
-   * @returns
-   */
-  static async create(response) {
-    let body;
-    try {
-      body = await response.text();
-    } catch (err) {
-      body = {
-        code: "Unknown",
-        detail: `Unable to parse error response body: ${err}`
-      };
-    }
-    return new _RevError(response, body);
+}
+function getFilename(file) {
+  if (typeof file === "string") {
+    return import_node_path.default.basename(file);
   }
-};
-var ScrollError = class extends Error {
-  /**
-   * @hidden
-   * @param status
-   * @param code
-   * @param detail
-   */
-  constructor(status = 408, code = "ScrollExpired", detail = "Timeout while fetching all results in search request") {
-    super("Search Scroll Expired");
-    Error.captureStackTrace(this, this.constructor);
-    this.status = status;
-    this.code = code;
-    this.detail = detail;
+  const { path: _path, filename, name } = file;
+  const streamPath = _path || filename || name;
+  if (streamPath && typeof streamPath === "string") {
+    return import_node_path.default.basename(streamPath);
   }
-  /** @ignore */
-  get name() {
-    return this.constructor.name;
+}
+var import_node_fs, import_node_path, import_node_stream, import_web, import_node_url, import_promises, LOCAL_PROTOCOLS, FETCH_PROTOCOLS, uploadParser2, _a, _stream, FileFromStream;
+var init_node_multipart_utils = __esm({
+  "src/interop/node-multipart-utils.ts"() {
+    "use strict";
+    import_node_fs = require("fs");
+    import_node_path = __toESM(require("path"), 1);
+    import_node_stream = require("stream");
+    import_web = require("stream/web");
+    import_node_url = require("url");
+    init_rev_error();
+    init_utils();
+    init_file_utils();
+    init_polyfills();
+    import_promises = require("stream/promises");
+    LOCAL_PROTOCOLS = ["blob:", "data:"];
+    FETCH_PROTOCOLS = ["http:", "https:", ...LOCAL_PROTOCOLS];
+    uploadParser2 = {
+      async string(value, options) {
+        const url = value instanceof URL ? value : URL.canParse(value) ? new URL(value) : (0, import_node_url.pathToFileURL)(value);
+        if (options.disableExternalResources && !LOCAL_PROTOCOLS.includes(url.protocol)) {
+          throw new Error(`${url.protocol} protocol not allowed`);
+        }
+        if (FETCH_PROTOCOLS.includes(url.protocol)) {
+          return uploadParser2.response(
+            await polyfills_default.fetch(url, options),
+            options
+          );
+        }
+        const filepath = url.protocol === "file:" ? url : value;
+        const readStream = (0, import_node_fs.createReadStream)(filepath);
+        return Promise.race([
+          uploadParser2.stream(
+            readStream,
+            {
+              filename: import_node_path.default.basename(`${value}`),
+              ...options
+            }
+          ),
+          // will throw error if filepath cannot be accessed
+          (0, import_promises.finished)(readStream)
+        ]);
+      },
+      async blob(value, options) {
+        let {
+          filename = getFilename(value),
+          contentType,
+          contentLength,
+          useChunkedTransfer = false,
+          defaultContentType
+        } = options;
+        const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
+        if (value.type !== sanitized.contentType && typeof value.slice === "function") {
+          value = new File([value], sanitized.filename, { type: sanitized.contentType });
+        }
+        return {
+          file: value,
+          options: {
+            ...options,
+            ...value.size && { contentLength: value.size },
+            ...sanitized
+          }
+        };
+      },
+      async stream(value, options) {
+        let {
+          filename = getFilename(value),
+          contentType,
+          contentLength,
+          defaultContentType,
+          useChunkedTransfer = false
+        } = options;
+        const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
+        if (!useChunkedTransfer) {
+          contentLength || (contentLength = await getLengthFromStream(value));
+        }
+        const file = new FileFromStream(value, sanitized.filename, {
+          type: sanitized.contentType,
+          size: contentLength
+        });
+        return {
+          file,
+          options: {
+            ...options,
+            contentLength,
+            ...sanitized
+          }
+        };
+      },
+      async response(response, options) {
+        const { body, headers } = response;
+        if (!response.ok || !body) {
+          const err = await RevError.create(response);
+          throw err;
+        }
+        let { contentLength } = options;
+        if (!headers.get("content-encoding")) {
+          contentLength || (contentLength = parseInt(headers.get("content-length") || "") || void 0);
+        }
+        const contentType = headers.get("content-type");
+        return uploadParser2.stream(body, {
+          ...contentType && { contentType },
+          ...options,
+          ...contentLength ? { contentLength } : { useChunkedTransfer: true }
+        });
+      },
+      async parse(value, options) {
+        if (typeof value === "string" || value instanceof URL) {
+          return uploadParser2.string(value, options);
+        }
+        if (value instanceof polyfills_default.Response) {
+          return uploadParser2.response(value, options);
+        }
+        if (isBlobLike(value) && !value[Symbol.asyncIterator]) {
+          return uploadParser2.blob(value, options);
+        }
+        return uploadParser2.stream(value, options);
+      }
+    };
+    _a = Symbol.toStringTag;
+    FileFromStream = class {
+      constructor(stream, fileName = "", options) {
+        __privateAdd(this, _stream);
+        this[_a] = "File";
+        __privateSet(this, _stream, stream);
+        this.name = fileName;
+        this.type = options?.type ?? "";
+        this.size = options?.size ?? NaN;
+        this.lastModified = options?.lastModified ?? Date.now();
+      }
+      stream() {
+        return __privateGet(this, _stream);
+      }
+    };
+    _stream = new WeakMap();
   }
-  /** @ignore */
-  get [Symbol.toStringTag]() {
-    return this.constructor.name;
+});
+
+// src/interop/node-polyfills.ts
+var node_polyfills_exports = {};
+__export(node_polyfills_exports, {
+  default: () => node_polyfills_default
+});
+function randomValues2(byteLength) {
+  return (0, import_node_crypto.randomBytes)(byteLength).toString("base64url");
+}
+async function sha256Hash2(value) {
+  return (0, import_node_crypto.createHash)("sha256").update(value).digest().toString("base64url");
+}
+async function hmacSign2(message, secret) {
+  const hmac = (0, import_node_crypto.createHmac)("sha256", secret);
+  const signature = hmac.update(message).digest("base64");
+  return signature;
+}
+var import_form_data_encoder, import_node_crypto, import_node_stream2, import_web2, AbortError, node_polyfills_default;
+var init_node_polyfills = __esm({
+  "src/interop/node-polyfills.ts"() {
+    "use strict";
+    import_form_data_encoder = require("form-data-encoder");
+    import_node_crypto = require("crypto");
+    import_node_stream2 = require("stream");
+    import_web2 = require("stream/web");
+    init_node_multipart_utils();
+    AbortError = class extends Error {
+      constructor(message) {
+        super(message);
+        this.type = "aborted";
+        this.code = 20;
+        this.ABORT_ERR = 20;
+        Error.captureStackTrace(this, this.constructor);
+      }
+      get name() {
+        return this.constructor.name;
+      }
+      get [Symbol.toStringTag]() {
+        return this.constructor.name;
+      }
+    };
+    node_polyfills_default = (polyfills2) => {
+      Object.assign(polyfills2, {
+        createAbortError(message) {
+          return new AbortError(message);
+        },
+        FormData,
+        randomValues: randomValues2,
+        sha256Hash: sha256Hash2,
+        hmacSign: hmacSign2,
+        uploadParser: uploadParser2,
+        beforeFileUploadRequest(form, headers, uploadOptions, options) {
+          const encoder = new import_form_data_encoder.FormDataEncoder(form);
+          Object.assign(options, {
+            body: encoder,
+            // needed for undici error thrown when body is stream
+            // https://fetch.spec.whatwg.org/#dom-requestinit-duplex
+            duplex: "half"
+          });
+          for (let [key, value] of Object.entries(encoder.headers)) {
+            headers.set(key, value);
+          }
+          headers.delete("transfer-encoding");
+          return void 0;
+        },
+        asPlatformStream(stream) {
+          if (!stream) return stream;
+          return stream instanceof import_web2.ReadableStream ? import_node_stream2.Readable.fromWeb(stream) : stream;
+        },
+        asWebStream(stream) {
+          return !stream || stream instanceof import_web2.ReadableStream ? stream : import_node_stream2.Readable.toWeb(import_node_stream2.Readable.from(stream));
+        }
+      });
+    };
   }
-};
+});
+
+// src/interop/node-fetch-commonjs.ts
+var node_fetch_commonjs_exports = {};
+__export(node_fetch_commonjs_exports, {
+  default: () => node_fetch_commonjs_default
+});
+function beforeFileUploadRequest(form, headers, uploadOptions, options) {
+  const encoder = new import_form_data_encoder2.FormDataEncoder(form);
+  if (uploadOptions.useChunkedTransfer) {
+    headers.set("transfer-encoding", "chunked");
+  }
+  options.body = import_node_stream3.Readable.from(encoder);
+  for (let [key, value] of Object.entries(encoder.headers)) {
+    headers.set(key, value);
+  }
+  return void 0;
+}
+var import_form_data_encoder2, import_node_stream3, node_fetch_commonjs_default;
+var init_node_fetch_commonjs = __esm({
+  "src/interop/node-fetch-commonjs.ts"() {
+    "use strict";
+    import_form_data_encoder2 = require("form-data-encoder");
+    import_node_stream3 = require("stream");
+    node_fetch_commonjs_default = async (polyfills2) => {
+      const { default: fetch, FormData: FormData2, File: File2, Blob } = await import("node-fetch");
+      Object.assign(polyfills2, {
+        fetch,
+        FormData: FormData2,
+        File: File2,
+        Blob,
+        beforeFileUploadRequest
+      });
+    };
+  }
+});
+
+// src/index-nodefetch.cts
+var index_nodefetch_exports = {};
+__export(index_nodefetch_exports, {
+  RevClient: () => RevClient3,
+  RevError: () => RevError,
+  ScrollError: () => ScrollError,
+  utils: () => utils
+});
+module.exports = __toCommonJS(index_nodefetch_exports);
+
+// src/utils/request-utils.ts
+init_rev_error();
 
 // src/utils/paged-request.ts
 var PagedRequest = class {
@@ -907,6 +1277,12 @@ function adminAPIFactory(rev) {
   return adminAPI;
 }
 
+// src/api/audit.ts
+init_rate_limit_queues();
+
+// src/api/audit-request.ts
+init_utils();
+
 // src/utils/parse-csv.ts
 function parseCSV(raw) {
   raw = raw.replace(/(\r\n|\n|\r)/gm, "\n").replace(/\n$/g, "");
@@ -991,6 +1367,12 @@ var AuditRequest = class extends PagedRequest {
    * @param options
    */
   constructor(rev, endpoint, label = "audit records", { toDate, fromDate, beforeRequest, ...options } = {}) {
+    if (!toDate && "endDate" in options) {
+      throw new TypeError("Audit API uses toDate param instead of endDate");
+    }
+    if (!fromDate && "startDate" in options) {
+      throw new TypeError("Audit API uses fromDate param instead of startDate");
+    }
     super({
       onProgress: (items, current, total) => {
         rev.log("debug", `loading ${label}, ${current} of ${total}...`);
@@ -1150,6 +1532,7 @@ function auditAPIFactory(rev, optRateLimits) {
 }
 
 // src/utils/merge-headers.ts
+init_polyfills();
 function mergeHeaders(source, other) {
   const merged = new polyfills_default.Headers(source);
   new polyfills_default.Headers(other).forEach((value, key) => merged.set(key, value));
@@ -1157,6 +1540,7 @@ function mergeHeaders(source, other) {
 }
 
 // src/api/oauth.ts
+init_polyfills();
 var PLACEHOLDER = "http://rev";
 function getOAuth2AuthorizationUrl(config, code_challenge, state) {
   const url = new URL("/api/v2/oauth2/authorize", config.revUrl);
@@ -1673,7 +2057,11 @@ function formatGroupSearchHit(hit) {
   };
 }
 
+// src/api/playlist.ts
+init_utils();
+
 // src/api/playlist-details-request.ts
+init_utils();
 function getSummaryFromResponse(response, hitsKey) {
   const ignoreKeys = ["scrollId", "statusCode", "statusDescription"];
   const summary = Object.fromEntries(Object.entries(response).filter(([key, value]) => {
@@ -1796,6 +2184,7 @@ function playlistAPIFactory(rev) {
 }
 
 // src/api/recording.ts
+init_utils();
 function recordingAPIFactory(rev) {
   const recordingAPI = {
     async startVideoConferenceRecording(sipAddress, sipPin, title) {
@@ -1829,6 +2218,9 @@ function recordingAPIFactory(rev) {
 }
 
 // src/api/upload.ts
+init_polyfills();
+init_utils();
+init_multipart_utils();
 function splitOptions(options, defaultType) {
   const {
     filename,
@@ -2058,6 +2450,7 @@ function uploadAPIFactory(rev) {
 }
 
 // src/api/user.ts
+init_utils();
 function userAPIFactory(rev) {
   async function details(userLookupValue, options = {}) {
     const { lookupType, ...requestOptions } = typeof options === "string" ? { lookupType: options } : options;
@@ -2232,7 +2625,120 @@ function formatUserSearchHit(hit) {
   };
 }
 
+// src/api/video.ts
+init_rev_error();
+init_utils();
+
+// src/api/video-download.ts
+init_utils();
+function videoDownloadAPI(rev) {
+  async function download(videoId, options = {}) {
+    const response = await rev.request("GET", `/api/v2/videos/${videoId}/download`, void 0, {
+      responseType: "stream",
+      ...options
+    });
+    return response;
+  }
+  async function downloadChapter(chapter, options = {}) {
+    const { imageUrl } = chapter;
+    const { body } = await rev.request("GET", imageUrl, void 0, { responseType: "blob", ...options });
+    return body;
+  }
+  async function downloadSupplemental(videoId, fileId, options) {
+    const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/supplemental-files/${fileId}`;
+    const opts = isPlainObject(fileId) ? fileId : options;
+    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob", ...opts });
+    return body;
+  }
+  async function downloadTranscription(videoId, language, options) {
+    const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/transcription-files/${language}`;
+    const opts = isPlainObject(language) ? language : options;
+    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob", ...opts });
+    return body;
+  }
+  async function downloadThumbnail(query, options = {}) {
+    let {
+      videoId = "",
+      imageId = ""
+    } = typeof query === "string" ? { imageId: query } : query;
+    if (!(videoId || imageId)) {
+      throw new TypeError("No video/image specified to download");
+    }
+    let thumbnailUrl = "";
+    if (videoId) {
+      thumbnailUrl = `/api/v2/videos/${videoId}/thumbnail`;
+    } else if (imageId.startsWith("http")) {
+      thumbnailUrl = `${imageId}${!imageId.endsWith(".jpg") ? ".jpg" : ""}`;
+    } else {
+      thumbnailUrl = `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
+    }
+    const { body } = await rev.request("GET", thumbnailUrl, void 0, { responseType: "blob", ...options });
+    return body;
+  }
+  async function downloadThumbnailSheet(thumbnailSheet, options) {
+    let thumbnailSheetsUri = "";
+    if (typeof thumbnailSheet === "string") {
+      thumbnailSheetsUri = thumbnailSheet;
+    } else if (thumbnailSheet && typeof thumbnailSheet === "object" && "thumbnailSheetsUri" in thumbnailSheet) {
+      thumbnailSheetsUri = thumbnailSheet.thumbnailSheetsUri;
+    } else if (thumbnailSheet?.videoId) {
+      const { videoId, sheetIndex = "1" } = thumbnailSheet;
+      thumbnailSheetsUri = `/api/v2/videos/${videoId}/thumbnail-sheets/${sheetIndex}`;
+    }
+    if (!thumbnailSheetsUri) {
+      throw new TypeError("No thumbnail sheet specified to download");
+    }
+    const { body } = await rev.request("GET", thumbnailSheetsUri, void 0, { responseType: "blob", ...options });
+    return body;
+  }
+  return {
+    download,
+    downloadChapter,
+    downloadSupplemental,
+    downloadThumbnail,
+    downloadTranscription,
+    downloadThumbnailSheet
+  };
+}
+
+// src/api/video-external-access.ts
+init_utils();
+function videoExternalAccessAPI(rev) {
+  return {
+    /**
+     *
+     * @param videoId Id of video to submit emails for external access
+     * @param q       Search string
+     * @param options search options
+     * @returns
+     */
+    listExternalAccess(videoId, q, options) {
+      const searchDefinition = {
+        endpoint: `/api/v2/videos/${videoId}/external-access`,
+        /** NOTE: this API doesn't actually return a total, so this will always be undefined */
+        totalKey: "total",
+        hitsKey: "items"
+      };
+      const payload = q ? { q } : void 0;
+      return new SearchRequest(rev, searchDefinition, payload, options);
+    },
+    async createExternalAccess(videoId, request) {
+      await rev.post(`/api/v2/videos/${videoId}/external-access`, request);
+    },
+    async renewExternalAccess(videoId, request) {
+      return rev.put(`/api/v2/videos/${videoId}/external-access`, request);
+    },
+    async deleteExternalAccess(videoId, request) {
+      return rev.delete(`/api/v2/videos/${videoId}/external-access`, request);
+    },
+    async revokeExternalAccess(videoId, request) {
+      return rev.put(`/api/v2/videos/${videoId}/external-access/revoke`, request);
+    }
+  };
+}
+
 // src/api/video-report-request.ts
+init_utils();
 var DEFAULT_INCREMENT = 30;
 var DEFAULT_SORT = "asc";
 function addDays(date, numDays) {
@@ -2368,7 +2874,7 @@ function videoReportAPI(rev) {
     return new VideoReportRequest(rev, options, "/api/v2/videos/report");
   }
   function summaryStatistics(videoId, startDate, endDate = /* @__PURE__ */ new Date(), options) {
-    const payload = startDate ? { after: new Date(startDate).toISOString(), before: new Date(endDate ?? Date.now()) } : void 0;
+    const payload = startDate ? { after: new Date(startDate).toISOString(), before: asValidDate(endDate, /* @__PURE__ */ new Date()).toISOString() } : void 0;
     return rev.get(`/api/v2/videos/${videoId}/summary-statistics`, payload, options);
   }
   return {
@@ -2377,112 +2883,6 @@ function videoReportAPI(rev) {
       return new VideoReportRequest(rev, options, `/api/v2/videos/${videoId}/report`);
     },
     summaryStatistics
-  };
-}
-
-// src/api/video-download.ts
-function videoDownloadAPI(rev) {
-  async function download(videoId, options = {}) {
-    const response = await rev.request("GET", `/api/v2/videos/${videoId}/download`, void 0, {
-      responseType: "stream",
-      ...options
-    });
-    return response;
-  }
-  async function downloadChapter(chapter, options = {}) {
-    const { imageUrl } = chapter;
-    const { body } = await rev.request("GET", imageUrl, void 0, { responseType: "blob", ...options });
-    return body;
-  }
-  async function downloadSupplemental(videoId, fileId, options) {
-    const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/supplemental-files/${fileId}`;
-    const opts = isPlainObject(fileId) ? fileId : options;
-    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob", ...opts });
-    return body;
-  }
-  async function downloadTranscription(videoId, language, options) {
-    const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/transcription-files/${language}`;
-    const opts = isPlainObject(language) ? language : options;
-    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob", ...opts });
-    return body;
-  }
-  async function downloadThumbnail(query, options = {}) {
-    let {
-      videoId = "",
-      imageId = ""
-    } = typeof query === "string" ? { imageId: query } : query;
-    if (!(videoId || imageId)) {
-      throw new TypeError("No video/image specified to download");
-    }
-    let thumbnailUrl = "";
-    if (videoId) {
-      thumbnailUrl = `/api/v2/videos/${videoId}/thumbnail`;
-    } else if (imageId.startsWith("http")) {
-      thumbnailUrl = `${imageId}${!imageId.endsWith(".jpg") ? ".jpg" : ""}`;
-    } else {
-      thumbnailUrl = `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
-    }
-    const { body } = await rev.request("GET", thumbnailUrl, void 0, { responseType: "blob", ...options });
-    return body;
-  }
-  async function downloadThumbnailSheet(thumbnailSheet, options) {
-    let thumbnailSheetsUri = "";
-    if (typeof thumbnailSheet === "string") {
-      thumbnailSheetsUri = thumbnailSheet;
-    } else if (thumbnailSheet && typeof thumbnailSheet === "object" && "thumbnailSheetsUri" in thumbnailSheet) {
-      thumbnailSheetsUri = thumbnailSheet.thumbnailSheetsUri;
-    } else if (thumbnailSheet?.videoId) {
-      const { videoId, sheetIndex = "1" } = thumbnailSheet;
-      thumbnailSheetsUri = `/api/v2/videos/${videoId}/thumbnail-sheets/${sheetIndex}`;
-    }
-    if (!thumbnailSheetsUri) {
-      throw new TypeError("No thumbnail sheet specified to download");
-    }
-    const { body } = await rev.request("GET", thumbnailSheetsUri, void 0, { responseType: "blob", ...options });
-    return body;
-  }
-  return {
-    download,
-    downloadChapter,
-    downloadSupplemental,
-    downloadThumbnail,
-    downloadTranscription,
-    downloadThumbnailSheet
-  };
-}
-
-// src/api/video-external-access.ts
-function videoExternalAccessAPI(rev) {
-  return {
-    /**
-     *
-     * @param videoId Id of video to submit emails for external access
-     * @param q       Search string
-     * @param options search options
-     * @returns
-     */
-    listExternalAccess(videoId, q, options) {
-      const searchDefinition = {
-        endpoint: `/api/v2/videos/${videoId}/external-access`,
-        /** NOTE: this API doesn't actually return a total, so this will always be undefined */
-        totalKey: "total",
-        hitsKey: "items"
-      };
-      const payload = q ? { q } : void 0;
-      return new SearchRequest(rev, searchDefinition, payload, options);
-    },
-    async createExternalAccess(videoId, request) {
-      await rev.post(`/api/v2/videos/${videoId}/external-access`, request);
-    },
-    async renewExternalAccess(videoId, request) {
-      return rev.put(`/api/v2/videos/${videoId}/external-access`, request);
-    },
-    async deleteExternalAccess(videoId, request) {
-      return rev.delete(`/api/v2/videos/${videoId}/external-access`, request);
-    },
-    async revokeExternalAccess(videoId, request) {
-      return rev.put(`/api/v2/videos/${videoId}/external-access/revoke`, request);
-    }
   };
 }
 
@@ -2917,7 +3317,12 @@ function videoAPIFactory(rev) {
   return videoAPI;
 }
 
+// src/api/webcast.ts
+init_utils();
+
 // src/api/webcast-report-request.ts
+init_rev_error();
+init_utils();
 function getSummaryFromResponse2(response, hitsKey) {
   const ignoreKeys = ["scrollId", "statusCode", "statusDescription"];
   const summary = Object.fromEntries(Object.entries(response).filter(([key, value]) => {
@@ -3409,7 +3814,14 @@ function environmentAPIFactory(rev) {
   return environmentAPI;
 }
 
+// src/rev-client.ts
+init_polyfills();
+init_rev_error();
+
 // src/rev-session.ts
+init_utils();
+init_polyfills();
+init_rate_limit_queues();
 var ONE_MINUTE2 = 1e3 * 60;
 var DEFAULT_EXPIRE_MINUTES = 10;
 var _credentials = Symbol("credentials");
@@ -3907,7 +4319,8 @@ function createSession(rev, credentials, keepAliveOptions, rateLimits) {
 }
 
 // src/rev-client.ts
-var RevClient = class {
+init_utils();
+var RevClient3 = class {
   /**
    *
    * @param options The configuration options including target Rev URL and authentication credentials
@@ -4016,6 +4429,7 @@ var RevClient = class {
         }
       } else if (isPlainObject(data)) {
         for (let [key, value] of Object.entries(data)) {
+          if (value instanceof Date) value = value.toISOString();
           url.searchParams.append(key, value);
         }
       } else {
@@ -4277,6 +4691,10 @@ var RevClient = class {
 };
 
 // src/index.ts
+init_rev_error();
+init_utils();
+init_file_utils();
+init_polyfills();
 var utils = {
   /**
    * Rate-limit a function - useful to throttle the number of API requests made in a minute
@@ -4305,271 +4723,12 @@ var utils = {
   setPolyfills
 };
 
-// src/interop/node-polyfills.ts
-var import_form_data_encoder = require("form-data-encoder");
-var import_node_crypto = require("crypto");
-var import_node_stream = require("stream");
-var import_web = require("stream/web");
-
-// src/interop/node-multipart-utils.ts
-var import_node_fs = require("fs");
-var import_node_path = __toESM(require("path"), 1);
-var import_node_url = require("url");
-var LOCAL_PROTOCOLS = ["blob:", "data:"];
-var FETCH_PROTOCOLS = ["http:", "https:", ...LOCAL_PROTOCOLS];
-var uploadParser2 = {
-  async string(value, options) {
-    const url = value instanceof URL ? value : URL.canParse(value) ? new URL(value) : (0, import_node_url.pathToFileURL)(value);
-    if (options.disableExternalResources && !LOCAL_PROTOCOLS.includes(url.protocol)) {
-      throw new Error(`${url.protocol} protocol not allowed`);
-    }
-    if (FETCH_PROTOCOLS.includes(url.protocol)) {
-      return uploadParser2.response(
-        await polyfills_default.fetch(url, options),
-        options
-      );
-    }
-    const filepath = url.protocol === "file:" ? url : value;
-    return uploadParser2.stream(
-      (0, import_node_fs.createReadStream)(filepath),
-      {
-        filename: import_node_path.default.basename(`${value}`),
-        ...options
-      }
-    );
-  },
-  async blob(value, options) {
-    let {
-      filename = getFilename(value),
-      contentType,
-      contentLength,
-      useChunkedTransfer = false,
-      defaultContentType
-    } = options;
-    const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
-    if (value.type !== sanitized.contentType && typeof value.slice === "function") {
-      value = new File([value], sanitized.filename, { type: sanitized.contentType });
-    }
-    return {
-      file: value,
-      options: {
-        ...options,
-        ...value.size && { contentLength: value.size },
-        ...sanitized
-      }
-    };
-  },
-  async stream(value, options) {
-    let {
-      filename = getFilename(value),
-      contentType,
-      contentLength,
-      defaultContentType,
-      useChunkedTransfer = false
-    } = options;
-    const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
-    if (!useChunkedTransfer) {
-      contentLength || (contentLength = await getLengthFromStream(value));
-    }
-    const file = new FileFromStream(value, sanitized.filename, {
-      type: sanitized.contentType,
-      size: contentLength
-    });
-    return {
-      file,
-      options: {
-        ...options,
-        contentLength,
-        ...sanitized
-      }
-    };
-  },
-  async response(response, options) {
-    const { body, headers } = response;
-    if (!response.ok || !body) {
-      const err = await RevError.create(response);
-      throw err;
-    }
-    let { contentLength } = options;
-    if (!headers.get("content-encoding")) {
-      contentLength || (contentLength = parseInt(headers.get("content-length") || "") || void 0);
-    }
-    const contentType = headers.get("content-type");
-    return uploadParser2.stream(body, {
-      ...contentType && { contentType },
-      ...options,
-      ...contentLength ? { contentLength } : { useChunkedTransfer: true }
-    });
-  },
-  async parse(value, options) {
-    if (typeof value === "string" || value instanceof URL) {
-      return uploadParser2.string(value, options);
-    }
-    if (value instanceof polyfills_default.Response) {
-      return uploadParser2.response(value, options);
-    }
-    if (isBlobLike(value) && !value[Symbol.asyncIterator]) {
-      return uploadParser2.blob(value, options);
-    }
-    return uploadParser2.stream(value, options);
-  }
-};
-var _a, _stream;
-_a = Symbol.toStringTag;
-var FileFromStream = class {
-  constructor(stream, fileName = "", options) {
-    __privateAdd(this, _stream);
-    this[_a] = "File";
-    __privateSet(this, _stream, stream);
-    this.name = fileName;
-    this.type = options?.type ?? "";
-    this.size = options?.size ?? NaN;
-    this.lastModified = options?.lastModified ?? Date.now();
-  }
-  stream() {
-    return __privateGet(this, _stream);
-  }
-};
-_stream = new WeakMap();
-async function getLengthFromStream(source, timeoutSeconds = 15) {
-  const {
-    length,
-    contentLength,
-    headers = {},
-    path: filepath
-  } = source;
-  if (isFinite(length)) {
-    return length;
-  }
-  if (isFinite(contentLength)) {
-    return contentLength;
-  }
-  if (headers?.["content-length"]) {
-    const headerLength = parseInt(headers["content-length"], 10);
-    if (isFinite(headerLength)) {
-      return headerLength;
-    }
-  }
-  if (filepath) {
-    return statFile(filepath, timeoutSeconds);
-  }
-}
-async function statFile(filepath, timeoutSeconds = 15) {
-  let timer;
-  const timeout = new Promise((done) => {
-    timer = setTimeout(done, timeoutSeconds * 1e3, {});
-  });
-  try {
-    const stat = await Promise.race([
-      import_node_fs.promises.stat(filepath),
-      timeout
-    ]);
-    return stat?.size;
-  } catch (err) {
-  } finally {
-    clearTimeout(timer);
-  }
-}
-function getFilename(file) {
-  if (typeof file === "string") {
-    return import_node_path.default.basename(file);
-  }
-  const { path: _path, filename, name } = file;
-  const streamPath = _path || filename || name;
-  if (streamPath && typeof streamPath === "string") {
-    return import_node_path.default.basename(streamPath);
-  }
-}
-
-// src/interop/node-polyfills.ts
-function randomValues2(byteLength) {
-  return (0, import_node_crypto.randomBytes)(byteLength).toString("base64url");
-}
-async function sha256Hash2(value) {
-  return (0, import_node_crypto.createHash)("sha256").update(value).digest().toString("base64url");
-}
-async function hmacSign2(message, secret) {
-  const hmac = (0, import_node_crypto.createHmac)("sha256", secret);
-  const signature = hmac.update(message).digest("base64");
-  return signature;
-}
-var AbortError = class extends Error {
-  constructor(message) {
-    super(message);
-    this.type = "aborted";
-    this.code = 20;
-    this.ABORT_ERR = 20;
-    Error.captureStackTrace(this, this.constructor);
-  }
-  get name() {
-    return this.constructor.name;
-  }
-  get [Symbol.toStringTag]() {
-    return this.constructor.name;
-  }
-};
-var node_polyfills_default = (polyfills2) => {
-  Object.assign(polyfills2, {
-    createAbortError(message) {
-      return new AbortError(message);
-    },
-    FormData,
-    randomValues: randomValues2,
-    sha256Hash: sha256Hash2,
-    hmacSign: hmacSign2,
-    uploadParser: uploadParser2,
-    beforeFileUploadRequest(form, headers, uploadOptions, options) {
-      const encoder = new import_form_data_encoder.FormDataEncoder(form);
-      Object.assign(options, {
-        body: encoder,
-        // needed for undici error thrown when body is stream
-        // https://fetch.spec.whatwg.org/#dom-requestinit-duplex
-        duplex: "half"
-      });
-      for (let [key, value] of Object.entries(encoder.headers)) {
-        headers.set(key, value);
-      }
-      headers.delete("transfer-encoding");
-      return void 0;
-    },
-    asPlatformStream(stream) {
-      if (!stream) return stream;
-      return stream instanceof import_web.ReadableStream ? import_node_stream.Readable.fromWeb(stream) : stream;
-    },
-    asWebStream(stream) {
-      return !stream || stream instanceof import_web.ReadableStream ? stream : import_node_stream.Readable.toWeb(import_node_stream.Readable.from(stream));
-    }
-  });
-};
-
-// src/interop/node-fetch-commonjs.ts
-var import_form_data_encoder2 = require("form-data-encoder");
-var import_node_stream2 = require("stream");
-function beforeFileUploadRequest(form, headers, uploadOptions, options) {
-  const encoder = new import_form_data_encoder2.FormDataEncoder(form);
-  if (uploadOptions.useChunkedTransfer) {
-    headers.set("transfer-encoding", "chunked");
-  }
-  options.body = import_node_stream2.Readable.from(encoder);
-  for (let [key, value] of Object.entries(encoder.headers)) {
-    headers.set(key, value);
-  }
-  return void 0;
-}
-var node_fetch_commonjs_default = async (polyfills2) => {
-  const { default: fetch, FormData: FormData2, File: File2, Blob } = await import("node-fetch");
-  Object.assign(polyfills2, {
-    fetch,
-    FormData: FormData2,
-    File: File2,
-    Blob,
-    beforeFileUploadRequest
-  });
-};
-
 // src/index-nodefetch.cts
-setPolyfills(node_polyfills_default);
-setPolyfills(node_fetch_commonjs_default);
+var { setPolyfills: setPolyfills2 } = (init_polyfills(), __toCommonJS(polyfills_exports));
+var { nodePolyfillsCallback } = (init_node_polyfills(), __toCommonJS(node_polyfills_exports));
+var { nodeFetchPolyfills } = (init_node_fetch_commonjs(), __toCommonJS(node_fetch_commonjs_exports));
+setPolyfills2(nodePolyfillsCallback);
+setPolyfills2(nodeFetchPolyfills);
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   RevClient,

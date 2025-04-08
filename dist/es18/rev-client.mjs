@@ -953,6 +953,12 @@ var AuditRequest = class extends PagedRequest {
    * @param options
    */
   constructor(rev, endpoint, label = "audit records", { toDate, fromDate, beforeRequest, ...options } = {}) {
+    if (!toDate && "endDate" in options) {
+      throw new TypeError("Audit API uses toDate param instead of endDate");
+    }
+    if (!fromDate && "startDate" in options) {
+      throw new TypeError("Audit API uses fromDate param instead of startDate");
+    }
     super({
       onProgress: (items, current, total) => {
         rev.log("debug", `loading ${label}, ${current} of ${total}...`);
@@ -2194,6 +2200,112 @@ function formatUserSearchHit(hit) {
   };
 }
 
+// src/api/video-download.ts
+function videoDownloadAPI(rev) {
+  async function download(videoId, options = {}) {
+    const response = await rev.request("GET", `/api/v2/videos/${videoId}/download`, void 0, {
+      responseType: "stream",
+      ...options
+    });
+    return response;
+  }
+  async function downloadChapter(chapter, options = {}) {
+    const { imageUrl } = chapter;
+    const { body } = await rev.request("GET", imageUrl, void 0, { responseType: "blob", ...options });
+    return body;
+  }
+  async function downloadSupplemental(videoId, fileId, options) {
+    const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/supplemental-files/${fileId}`;
+    const opts = isPlainObject(fileId) ? fileId : options;
+    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob", ...opts });
+    return body;
+  }
+  async function downloadTranscription(videoId, language, options) {
+    const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/transcription-files/${language}`;
+    const opts = isPlainObject(language) ? language : options;
+    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob", ...opts });
+    return body;
+  }
+  async function downloadThumbnail(query, options = {}) {
+    let {
+      videoId = "",
+      imageId = ""
+    } = typeof query === "string" ? { imageId: query } : query;
+    if (!(videoId || imageId)) {
+      throw new TypeError("No video/image specified to download");
+    }
+    let thumbnailUrl = "";
+    if (videoId) {
+      thumbnailUrl = `/api/v2/videos/${videoId}/thumbnail`;
+    } else if (imageId.startsWith("http")) {
+      thumbnailUrl = `${imageId}${!imageId.endsWith(".jpg") ? ".jpg" : ""}`;
+    } else {
+      thumbnailUrl = `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
+    }
+    const { body } = await rev.request("GET", thumbnailUrl, void 0, { responseType: "blob", ...options });
+    return body;
+  }
+  async function downloadThumbnailSheet(thumbnailSheet, options) {
+    let thumbnailSheetsUri = "";
+    if (typeof thumbnailSheet === "string") {
+      thumbnailSheetsUri = thumbnailSheet;
+    } else if (thumbnailSheet && typeof thumbnailSheet === "object" && "thumbnailSheetsUri" in thumbnailSheet) {
+      thumbnailSheetsUri = thumbnailSheet.thumbnailSheetsUri;
+    } else if (thumbnailSheet?.videoId) {
+      const { videoId, sheetIndex = "1" } = thumbnailSheet;
+      thumbnailSheetsUri = `/api/v2/videos/${videoId}/thumbnail-sheets/${sheetIndex}`;
+    }
+    if (!thumbnailSheetsUri) {
+      throw new TypeError("No thumbnail sheet specified to download");
+    }
+    const { body } = await rev.request("GET", thumbnailSheetsUri, void 0, { responseType: "blob", ...options });
+    return body;
+  }
+  return {
+    download,
+    downloadChapter,
+    downloadSupplemental,
+    downloadThumbnail,
+    downloadTranscription,
+    downloadThumbnailSheet
+  };
+}
+
+// src/api/video-external-access.ts
+function videoExternalAccessAPI(rev) {
+  return {
+    /**
+     *
+     * @param videoId Id of video to submit emails for external access
+     * @param q       Search string
+     * @param options search options
+     * @returns
+     */
+    listExternalAccess(videoId, q, options) {
+      const searchDefinition = {
+        endpoint: `/api/v2/videos/${videoId}/external-access`,
+        /** NOTE: this API doesn't actually return a total, so this will always be undefined */
+        totalKey: "total",
+        hitsKey: "items"
+      };
+      const payload = q ? { q } : void 0;
+      return new SearchRequest(rev, searchDefinition, payload, options);
+    },
+    async createExternalAccess(videoId, request) {
+      await rev.post(`/api/v2/videos/${videoId}/external-access`, request);
+    },
+    async renewExternalAccess(videoId, request) {
+      return rev.put(`/api/v2/videos/${videoId}/external-access`, request);
+    },
+    async deleteExternalAccess(videoId, request) {
+      return rev.delete(`/api/v2/videos/${videoId}/external-access`, request);
+    },
+    async revokeExternalAccess(videoId, request) {
+      return rev.put(`/api/v2/videos/${videoId}/external-access/revoke`, request);
+    }
+  };
+}
+
 // src/api/video-report-request.ts
 var DEFAULT_INCREMENT = 30;
 var DEFAULT_SORT = "asc";
@@ -2330,7 +2442,7 @@ function videoReportAPI(rev) {
     return new VideoReportRequest(rev, options, "/api/v2/videos/report");
   }
   function summaryStatistics(videoId, startDate, endDate = /* @__PURE__ */ new Date(), options) {
-    const payload = startDate ? { after: new Date(startDate).toISOString(), before: new Date(endDate ?? Date.now()) } : void 0;
+    const payload = startDate ? { after: new Date(startDate).toISOString(), before: asValidDate(endDate, /* @__PURE__ */ new Date()).toISOString() } : void 0;
     return rev.get(`/api/v2/videos/${videoId}/summary-statistics`, payload, options);
   }
   return {
@@ -2339,112 +2451,6 @@ function videoReportAPI(rev) {
       return new VideoReportRequest(rev, options, `/api/v2/videos/${videoId}/report`);
     },
     summaryStatistics
-  };
-}
-
-// src/api/video-download.ts
-function videoDownloadAPI(rev) {
-  async function download(videoId, options = {}) {
-    const response = await rev.request("GET", `/api/v2/videos/${videoId}/download`, void 0, {
-      responseType: "stream",
-      ...options
-    });
-    return response;
-  }
-  async function downloadChapter(chapter, options = {}) {
-    const { imageUrl } = chapter;
-    const { body } = await rev.request("GET", imageUrl, void 0, { responseType: "blob", ...options });
-    return body;
-  }
-  async function downloadSupplemental(videoId, fileId, options) {
-    const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/supplemental-files/${fileId}`;
-    const opts = isPlainObject(fileId) ? fileId : options;
-    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob", ...opts });
-    return body;
-  }
-  async function downloadTranscription(videoId, language, options) {
-    const endpoint = isPlainObject(videoId) ? videoId.downloadUrl : `/api/v2/videos/${videoId}/transcription-files/${language}`;
-    const opts = isPlainObject(language) ? language : options;
-    const { body } = await rev.request("GET", endpoint, void 0, { responseType: "blob", ...opts });
-    return body;
-  }
-  async function downloadThumbnail(query, options = {}) {
-    let {
-      videoId = "",
-      imageId = ""
-    } = typeof query === "string" ? { imageId: query } : query;
-    if (!(videoId || imageId)) {
-      throw new TypeError("No video/image specified to download");
-    }
-    let thumbnailUrl = "";
-    if (videoId) {
-      thumbnailUrl = `/api/v2/videos/${videoId}/thumbnail`;
-    } else if (imageId.startsWith("http")) {
-      thumbnailUrl = `${imageId}${!imageId.endsWith(".jpg") ? ".jpg" : ""}`;
-    } else {
-      thumbnailUrl = `/api/v2/media/videos/thumbnails/${imageId}.jpg`;
-    }
-    const { body } = await rev.request("GET", thumbnailUrl, void 0, { responseType: "blob", ...options });
-    return body;
-  }
-  async function downloadThumbnailSheet(thumbnailSheet, options) {
-    let thumbnailSheetsUri = "";
-    if (typeof thumbnailSheet === "string") {
-      thumbnailSheetsUri = thumbnailSheet;
-    } else if (thumbnailSheet && typeof thumbnailSheet === "object" && "thumbnailSheetsUri" in thumbnailSheet) {
-      thumbnailSheetsUri = thumbnailSheet.thumbnailSheetsUri;
-    } else if (thumbnailSheet?.videoId) {
-      const { videoId, sheetIndex = "1" } = thumbnailSheet;
-      thumbnailSheetsUri = `/api/v2/videos/${videoId}/thumbnail-sheets/${sheetIndex}`;
-    }
-    if (!thumbnailSheetsUri) {
-      throw new TypeError("No thumbnail sheet specified to download");
-    }
-    const { body } = await rev.request("GET", thumbnailSheetsUri, void 0, { responseType: "blob", ...options });
-    return body;
-  }
-  return {
-    download,
-    downloadChapter,
-    downloadSupplemental,
-    downloadThumbnail,
-    downloadTranscription,
-    downloadThumbnailSheet
-  };
-}
-
-// src/api/video-external-access.ts
-function videoExternalAccessAPI(rev) {
-  return {
-    /**
-     *
-     * @param videoId Id of video to submit emails for external access
-     * @param q       Search string
-     * @param options search options
-     * @returns
-     */
-    listExternalAccess(videoId, q, options) {
-      const searchDefinition = {
-        endpoint: `/api/v2/videos/${videoId}/external-access`,
-        /** NOTE: this API doesn't actually return a total, so this will always be undefined */
-        totalKey: "total",
-        hitsKey: "items"
-      };
-      const payload = q ? { q } : void 0;
-      return new SearchRequest(rev, searchDefinition, payload, options);
-    },
-    async createExternalAccess(videoId, request) {
-      await rev.post(`/api/v2/videos/${videoId}/external-access`, request);
-    },
-    async renewExternalAccess(videoId, request) {
-      return rev.put(`/api/v2/videos/${videoId}/external-access`, request);
-    },
-    async deleteExternalAccess(videoId, request) {
-      return rev.delete(`/api/v2/videos/${videoId}/external-access`, request);
-    },
-    async revokeExternalAccess(videoId, request) {
-      return rev.put(`/api/v2/videos/${videoId}/external-access/revoke`, request);
-    }
   };
 }
 
@@ -3869,7 +3875,7 @@ function createSession(rev, credentials, keepAliveOptions, rateLimits) {
 }
 
 // src/rev-client.ts
-var RevClient = class {
+var RevClient3 = class {
   /**
    *
    * @param options The configuration options including target Rev URL and authentication credentials
@@ -3978,6 +3984,7 @@ var RevClient = class {
         }
       } else if (isPlainObject(data)) {
         for (let [key, value] of Object.entries(data)) {
+          if (value instanceof Date) value = value.toISOString();
           url.searchParams.append(key, value);
         }
       } else {
@@ -4270,13 +4277,16 @@ var utils = {
 // src/interop/node-polyfills.ts
 import { FormDataEncoder } from "form-data-encoder";
 import { createHash, createHmac, randomBytes } from "node:crypto";
-import { Readable } from "node:stream";
-import { ReadableStream as ReadableStream2 } from "node:stream/web";
+import { Readable as Readable2 } from "node:stream";
+import { ReadableStream as ReadableStream3 } from "node:stream/web";
 
 // src/interop/node-multipart-utils.ts
 import { createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
+import "node:stream";
+import "node:stream/web";
 import { pathToFileURL } from "node:url";
+import { finished } from "node:stream/promises";
 var LOCAL_PROTOCOLS = ["blob:", "data:"];
 var FETCH_PROTOCOLS = ["http:", "https:", ...LOCAL_PROTOCOLS];
 var uploadParser2 = {
@@ -4292,13 +4302,18 @@ var uploadParser2 = {
       );
     }
     const filepath = url.protocol === "file:" ? url : value;
-    return uploadParser2.stream(
-      createReadStream(filepath),
-      {
-        filename: path.basename(`${value}`),
-        ...options
-      }
-    );
+    const readStream = createReadStream(filepath);
+    return Promise.race([
+      uploadParser2.stream(
+        readStream,
+        {
+          filename: path.basename(`${value}`),
+          ...options
+        }
+      ),
+      // will throw error if filepath cannot be accessed
+      finished(readStream)
+    ]);
   },
   async blob(value, options) {
     let {
@@ -4496,10 +4511,10 @@ var node_polyfills_default = (polyfills2) => {
     },
     asPlatformStream(stream) {
       if (!stream) return stream;
-      return stream instanceof ReadableStream2 ? Readable.fromWeb(stream) : stream;
+      return stream instanceof ReadableStream3 ? Readable2.fromWeb(stream) : stream;
     },
     asWebStream(stream) {
-      return !stream || stream instanceof ReadableStream2 ? stream : Readable.toWeb(Readable.from(stream));
+      return !stream || stream instanceof ReadableStream3 ? stream : Readable2.toWeb(Readable2.from(stream));
     }
   });
 };
@@ -4507,7 +4522,7 @@ var node_polyfills_default = (polyfills2) => {
 // src/index-node-native.ts
 setPolyfills(node_polyfills_default);
 export {
-  RevClient,
+  RevClient3 as RevClient,
   RevError,
   ScrollError,
   utils
