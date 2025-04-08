@@ -9,6 +9,7 @@ import { sanitizeUploadOptions } from "../utils/file-utils";
 import { pathToFileURL } from "node:url";
 import polyfills from "./polyfills";
 import { RevError } from "../rev-error";
+import { finished } from "node:stream/promises";
 
 const LOCAL_PROTOCOLS = ['blob:', 'data:'];
 const FETCH_PROTOCOLS = ['http:', 'https:', ...LOCAL_PROTOCOLS];
@@ -36,13 +37,18 @@ export const uploadParser = {
         const filepath = url.protocol === 'file:' ? url : value;
 
         // use FS reader to read files
-        return uploadParser.stream(
-            createReadStream(filepath),
-            {
-                filename: path.basename(`${value}`),
-                ...options
-            }
-        );
+        const readStream = createReadStream(filepath);
+        return Promise.race([
+            uploadParser.stream(
+                readStream,
+                {
+                    filename: path.basename(`${value}`),
+                    ...options
+                }
+            ),
+            // will throw error if filepath cannot be accessed
+            finished(readStream)
+        ]);
     },
     async blob(value: Blob | File, options: Rev.UploadFileOptions) {
         let {
@@ -182,7 +188,7 @@ async function getLengthFromStream(source: Record<string, any>, timeoutSeconds =
     }
 }
 
-export async function statFile(filepath: string, timeoutSeconds = 15) {
+export async function statFile(filepath: string | URL, timeoutSeconds = 15) {
     // sanity check timeout
     let timer;
     const timeout = new Promise<Stats>(done => {
