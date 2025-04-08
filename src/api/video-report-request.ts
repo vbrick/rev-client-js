@@ -1,7 +1,7 @@
 import type { RevClient } from '../rev-client';
 import type { Rev, Video } from '../types/index';
 import { RateLimitEnum, asValidDate, isPlainObject } from '../utils';
-import { IPageResponse, PagedRequest } from '../utils/paged-request';
+import { PagedRequest } from '../utils/paged-request';
 
 
 const DEFAULT_INCREMENT: number = 30;

@@ -1,12 +1,12 @@
-import { RevError } from '../rev-error';
 import type { RevClient } from '../rev-client';
-import { Video, Rev, Admin, Transcription } from '../types/index';
-import { SearchRequest } from '../utils/request-utils';
-import { videoReportAPI } from './video-report-request';
-import { videoDownloadAPI } from './video-download';
+import { RevError } from '../rev-error';
+import type { Admin, Rev, Transcription, Video } from '../types/index';
 import { RateLimitEnum, sleep } from '../utils';
 import { mergeHeaders } from '../utils/merge-headers';
+import { SearchRequest } from '../utils/request-utils';
+import { videoDownloadAPI } from './video-download';
 import { videoExternalAccessAPI } from './video-external-access';
+import { videoReportAPI } from './video-report-request';
 
 /** @ignore */
 type VideoSearchDetailedItem = Video.SearchHit & (Video.Details | { error?: Error });

@@ -1,6 +1,6 @@
 import polyfills from '../interop/polyfills';
 import type { RevClient } from '../rev-client';
-import { Rev, Transcription, Video, Webcast } from '../types/index';
+import type { Rev, Transcription, Video, Webcast } from '../types/index';
 import type { Upload } from '../types/upload';
 import { RateLimitEnum } from '../utils';
 import { appendFileToForm, appendJSONToForm, uploadMultipart } from '../utils/multipart-utils';

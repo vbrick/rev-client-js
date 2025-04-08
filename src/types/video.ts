@@ -1,5 +1,5 @@
 import type { AccessControl, Category, Admin, Rev } from './index';
-import { LiteralString } from './rev';
+import type { LiteralString } from './rev';
 
 /** @category Videos */
 export namespace Video {

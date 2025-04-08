@@ -4,8 +4,8 @@ import { Readable } from 'node:stream';
 import { ReadableStream } from 'node:stream/web';
 import type { RequestInit } from 'undici-types';
 import type { Rev } from '../types/rev';
-import {RevPolyfills} from './polyfills';
 import { uploadParser } from './node-multipart-utils';
+import type { RevPolyfills } from './polyfills';
 
 function randomValues(byteLength: number) {
     return randomBytes(byteLength).toString('base64url');

@@ -3,12 +3,12 @@ import { Stats, createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
 import { Readable } from 'node:stream';
 import { ReadableStream } from "node:stream/web";
-import { Rev } from "../types/rev";
+import { pathToFileURL } from "node:url";
+import { RevError } from "../rev-error";
+import type { Rev } from "../types/rev";
 import { isBlobLike } from "../utils";
 import { sanitizeUploadOptions } from "../utils/file-utils";
-import { pathToFileURL } from "node:url";
 import polyfills from "./polyfills";
-import { RevError } from "../rev-error";
 import { finished } from "node:stream/promises";
 
 const LOCAL_PROTOCOLS = ['blob:', 'data:'];

@@ -1,6 +1,6 @@
-import { Rev, RegistrationField, Admin, Upload } from './index';
-import { Video } from './video';
-import { LiteralString } from './rev';
+import type { Rev, RegistrationField, Admin, Upload } from './index';
+import type { Video } from './video';
+import type { LiteralString } from './rev';
 
 /** @category Webcasts */
 export interface Webcast {

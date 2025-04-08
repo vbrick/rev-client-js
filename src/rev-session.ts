@@ -2,7 +2,7 @@ import type { RevClient } from './rev-client';
 import type { Rev } from './types';
 import { isPlainObject, sleep } from './utils';
 import interop from './interop/polyfills';
-import { RateLimitEnum, RateLimitQueues, clearQueues, makeQueues } from './utils/rate-limit-queues';
+import { RateLimitEnum, type RateLimitQueues, clearQueues, makeQueues } from './utils/rate-limit-queues';
 
 const ONE_MINUTE = 1000 * 60;
 // if no expiration default to expiring in 10 minutes

@@ -1,4 +1,4 @@
-import { Video } from './video';
+import type { Video } from './video';
 
 /** @category Videos */
 export namespace Recording {

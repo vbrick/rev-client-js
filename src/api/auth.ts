@@ -1,6 +1,6 @@
 import type { RevClient } from '../rev-client';
-import { Auth, OAuth } from '../types/auth';
-import { Rev } from '../types/rev';
+import type { Auth, OAuth } from '../types/auth';
+import type { Rev } from '../types/rev';
 import { mergeHeaders } from '../utils/merge-headers';
 import {buildLegacyOAuthQuery, getOAuth2AuthorizationUrl, getOAuth2PKCEVerifier, parseLegacyOAuthRedirectResponse} from './oauth';
 

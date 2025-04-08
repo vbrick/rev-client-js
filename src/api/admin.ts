@@ -1,4 +1,4 @@
-import { Admin, Rev, Role, RegistrationField } from '../types/index';
+import type { Admin, Rev, Role, RegistrationField } from '../types/index';
 import type { RevClient } from '../rev-client';
 import { SearchRequest } from '../utils/request-utils';
 

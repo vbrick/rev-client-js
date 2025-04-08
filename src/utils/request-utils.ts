@@ -1,7 +1,7 @@
 import { ScrollError } from '../rev-error';
 import type { RevClient } from '../rev-client';
 import type { Rev } from '../types/index';
-import { IPageResponse, PagedRequest } from './paged-request';
+import { type IPageResponse, PagedRequest } from './paged-request';
 
 export async function decodeBody(response: Response, acceptType?: string | null) {
     const contentType = response.headers.get('Content-Type') || acceptType || '';

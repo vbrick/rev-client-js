@@ -1,4 +1,4 @@
-import { Rev } from './rev';
+import type { Rev } from './rev';
 import { PagedRequest } from '../utils/paged-request';
 
 /**

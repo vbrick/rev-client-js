@@ -1,10 +1,10 @@
-import { Rev } from '../index';
+import type { Rev } from '../index';
 import type { RevClient } from '../rev-client';
-import { Webcast, GuestRegistration, WebcastBanner } from '../types/webcast';
-import { SearchRequest } from '../utils/request-utils';
+import type { GuestRegistration, Webcast, WebcastBanner } from '../types/webcast';
 import { titleCase } from '../utils/index';
-import { PostEventReportRequest, RealtimeReportRequest } from './webcast-report-request';
 import { mergeHeaders } from '../utils/merge-headers';
+import { SearchRequest } from '../utils/request-utils';
+import { PostEventReportRequest, RealtimeReportRequest } from './webcast-report-request';
 
 /**
  * @category Webcasts

@@ -1,10 +1,10 @@
-import { RevError } from './rev-error';
-import { RateLimitEnum, isPlainObject, retry } from './utils';
 import * as api from './api';
-import polyfills, {shouldInitialize, onInitialize} from './interop/polyfills';
-import { Rev } from './types';
-import { decodeBody } from './utils/request-utils';
+import polyfills, { onInitialize, shouldInitialize } from './interop/polyfills';
+import { RevError } from './rev-error';
 import { createSession } from './rev-session';
+import type { Rev } from './types';
+import { RateLimitEnum, isPlainObject, retry } from './utils';
+import { decodeBody } from './utils/request-utils';
 
 /**
  * @categoryDescription Getting Started

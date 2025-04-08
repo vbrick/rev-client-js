@@ -1,5 +1,5 @@
 import type { RevClient } from '../rev-client';
-import { Rev, Video } from '../types/index';
+import type { Rev, Video } from '../types/index';
 import type { Playlist } from '../types/playlist';
 import { isPlainObject } from '../utils';
 import { PlaylistDetailsRequest } from './playlist-details-request';

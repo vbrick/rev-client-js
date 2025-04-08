@@ -1,5 +1,5 @@
-import { LiteralString } from './rev';
-import { Video } from './video';
+import type { LiteralString } from './rev';
+import type { Video } from './video';
 
 /** @category Devices */
 export namespace Device {

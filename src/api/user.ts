@@ -1,6 +1,6 @@
 import type { RevClient } from '../rev-client';
 import type { Rev, User } from '../types/index';
-import { LiteralString } from '../types/rev';
+import type { LiteralString } from '../types/rev';
 import { RateLimitEnum } from '../utils';
 import { SearchRequest } from '../utils/request-utils';
 

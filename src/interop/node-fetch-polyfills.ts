@@ -1,7 +1,7 @@
 import fetch, { FormData, File, Blob, type RequestInit } from 'node-fetch';
 import { FormDataEncoder } from "form-data-encoder";
 import { Readable } from "node:stream";
-import { Rev } from "../types/rev";
+import type { Rev } from "../types/rev";
 
 import type {RevPolyfills} from './polyfills';
 

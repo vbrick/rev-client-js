@@ -1,9 +1,8 @@
 import { RevClient } from '../rev-client';
-import { Audit } from '../types/index';
+import type { Audit } from '../types/audit';
 import { asValidDate, tryParseJson } from '../utils/index';
-import { IPageResponse, PagedRequest } from '../utils/paged-request';
+import { type IPageResponse, PagedRequest } from '../utils/paged-request';
 import { parseCSV } from '../utils/parse-csv';
-import { RateLimitEnum, makeQueue } from '../utils/rate-limit-queues';
 
 function parseEntry<T extends Audit.Entry>(line: Record<string, any>): T {
     return {

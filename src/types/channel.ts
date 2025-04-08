@@ -1,4 +1,4 @@
-import { LiteralString } from './rev';
+import type { LiteralString } from './rev';
 
 /**
  * @category Channels

@@ -1,4 +1,4 @@
-import { Rev, Transcription, Video } from "../types";
+import type { Rev, Transcription, Video } from "../types";
 import { isPlainObject } from "../utils";
 import type {RevClient} from "../rev-client";
 

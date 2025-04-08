@@ -1,4 +1,5 @@
-import rateLimit, {ThrottledFunction} from "./rate-limit";
+import rateLimit from "./rate-limit";
+import type {ThrottledFunction} from "./rate-limit";
 
 /**
  * @inline

@@ -1,7 +1,7 @@
-import { RevError } from '../rev-error';
 import type { RevClient } from '../rev-client';
+import { RevError } from '../rev-error';
 import type { Rev } from '../types/index';
-import { Webcast } from '../types/webcast';
+import type { Webcast } from '../types/webcast';
 import { RateLimitEnum } from '../utils';
 import { SearchRequest } from '../utils/request-utils';
 
