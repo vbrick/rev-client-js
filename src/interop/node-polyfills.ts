@@ -50,6 +50,17 @@ class AbortError extends Error {
 export default (polyfills: RevPolyfills) => {
     Object.assign(polyfills, {
         createAbortError(message: string): Error { return new AbortError(message); },
+        fetch(...args: Parameters<typeof fetch>) {
+            return globalThis.fetch(...args)
+                .catch(err => {
+                    // node.js native fetch (undici) wraps undelying errors in TypeError
+                    // unwrapping to maintain compatibility with node-fetch and Deno behaviors
+                    if (err instanceof TypeError && err.cause instanceof Error) {
+                        throw err.cause;
+                    }
+                    throw err;
+                });
+        },
         FormData,
         randomValues,
         sha256Hash,
