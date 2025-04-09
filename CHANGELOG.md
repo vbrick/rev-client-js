@@ -1,3 +1,24 @@
+## 0.24.0
+
+### Features
+
+* Upload APIs: Improve auto-detection of input filenames and content types.
+
+### Bugfixes
+
+* `upload.chapters()` - Avoid error of multiple chapter images having the same filename
+* `auth.buildOAuth2Authentication()` - populate optional `revUrl` paramter if not specified
+* (**Deno only**): Improve `Deno` compatibility by changing default import to using `native-fetch` rather than `node-fetch`.
+
+### Breaking Changes
+
+* (**node.js `native-fetch` only**): Return underlying 'network' error when multipart POST upload fails, rather than `TypeError("fetch failed")` with a `cause`. This makes `@vbrick/rev-client-js/native-fetch` match the behavior of the default `node-fetch` based logic.
+* (**node.js `native-fetch` only**): Use [a `FormData` polyfill](https://www.npmjs.com/package/formdata-polyfill) to properly handle non-Blob inputs (local file streams, http requests) when uploading content.
+
+### Deprecations
+
+Since node v22 supports [loading ESM modules via require](https://nodejs.org/api/modules.html#loading-ecmascript-modules-using-require) a separate CommonJS export is no longer necessary. This separate entry point will be removed in a future release *(no code change should be necessary)*.
+
 ## 0.23.3
 
 * Bugfix (**node.js only**): properly catch error when attempting to upload binary files with invalid paths.
