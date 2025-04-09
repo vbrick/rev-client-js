@@ -51,27 +51,10 @@ export const uploadParser = {
         ]);
     },
     async blob(value: Blob | File, options: Rev.UploadFileOptions) {
-        let {
-            filename = getFilename(value),
-            contentType,
-            contentLength,
-            useChunkedTransfer = false,
-            defaultContentType
-        } = options;
-
-        const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
-
-        if (value.type !== sanitized.contentType && typeof value.slice === 'function') {
-            value = new File([value], sanitized.filename, { type: sanitized.contentType });
-        }
-        return {
-            file: value,
-            options: {
-                ...options,
-                ...value.size && { contentLength: value.size },
-                ...sanitized
-            }
-        };
+        return baseUploadParser.blob(value, {
+            filename: getFilename(value),
+            ...options
+        });
     },
     async stream(value: AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>, options: Rev.UploadFileOptions) {
         let {
@@ -103,26 +86,33 @@ export const uploadParser = {
         };
     },
     async response(response: Response, options: Rev.UploadFileOptions) {
-        const { body, headers } = response;
+        const { body, headers, url } = response;
         if (!response.ok || !body) {
             const err = await RevError.create(response);
             throw err;
         }
-        let {contentLength} = options;
+        let {
+            contentLength,
+            filename = getFilename(url)
+        } = options;
+
         // ignore length of compressed inputs
         if (!headers.get('content-encoding')) {
             contentLength ||= parseInt(headers.get('content-length') || '') || undefined;
         }
-        
+
         const contentType = headers.get('content-type');
-        return uploadParser.stream(body as ReadableStream<Uint8Array>, {
-            ...contentType && { contentType },
+        const opts = {
             ...options,
+            filename,
+            ...contentType && { contentType },
             ...(contentLength
                 ? { contentLength }
                 : { useChunkedTransfer: true }
             )
-        });
+        }
+
+        return uploadParser.stream(body as ReadableStream<Uint8Array>, opts);
     },
     async parse(value: Rev.FileUploadType, options: Rev.UploadFileOptions) {
         if (typeof value === 'string' || value instanceof URL) {
