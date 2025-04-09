@@ -3844,9 +3844,7 @@ declare function videoAPIFactory(rev: RevClient): {
         (videoId: string, startDate: Date | string, endDate?: undefined, options?: Rev.RequestOptions): Promise<Video.SummaryStatistics>;
         (videoId: string, startDate: Date | string, endDate: Date | string, options?: Rev.RequestOptions): Promise<Video.SummaryStatistics>;
     };
-    download: <T = ReadableStream<any>>(videoId: string, options?: Rev.RequestOptions) => Promise<Rev.
-    /** @ignore */
-    Response<T>>;
+    download: <T = ReadableStream<any>>(videoId: string, options?: Rev.RequestOptions) => Promise<Rev.Response<T>>;
     downloadChapter: (chapter: Video.Chapter, options?: Rev.RequestOptions) => Promise<Blob>;
     downloadSupplemental: {
         <T = Blob>(file: Video.SupplementalFile, options?: Rev.RequestOptions): Promise<T>;
@@ -4534,8 +4532,13 @@ interface RevPolyfills {
     Headers: typeof Headers;
     Request: typeof Request;
     Response: typeof Response;
+    parseUrl(value: string | URL): URL;
     uploadParser: {
         string(value: string | URL, options: Rev.UploadFileOptions): Promise<{
+            file: Blob | File;
+            options: Rev.UploadFileOptions;
+        }>;
+        localFile(value: URL, options: Rev.UploadFileOptions): Promise<{
             file: Blob | File;
             options: Rev.UploadFileOptions;
         }>;

@@ -5,9 +5,6 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __typeError = (msg) => {
-  throw TypeError(msg);
-};
 var __esm = (fn2, res) => function __init() {
   return fn2 && (res = (0, fn2[__getOwnPropNames(fn2)[0]])(fn2 = 0)), res;
 };
@@ -32,10 +29,6 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
-var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
-var __privateAdd = (obj, member, value) => member.has(obj) ? __typeError("Cannot add the same private member more than once") : member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
-var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
 
 // src/utils/file-utils.ts
 function getMimeForExtension(extension = "", defaultType = "video/mp4") {
@@ -56,11 +49,8 @@ function sanitizeUploadOptions(filename = "upload", contentType = "", defaultCon
   if (/charset/.test(contentType)) {
     contentType = contentType.replace(/;?.*charset.*$/, "");
   }
-  let name = filename.replace(/\.[^\.]+$/, "");
-  let ext = filename.replace(name, "");
-  if (!ext) {
-    ext = getExtensionForMime(contentType || defaultContentType || "");
-  }
+  let [name, ext] = filename.split(/(?=\.[^\.\\\/]+$)/);
+  ext ||= getExtensionForMime(contentType || defaultContentType || "");
   filename = `${name}${ext}`;
   if (!contentType || [".vtt", ".srt"].includes(ext)) {
     contentType = getMimeForExtension(ext, defaultContentType);
@@ -155,7 +145,7 @@ async function uploadMultipart(rev, method, endpoint, form, uploadOptions, optio
   const { body } = await rev.request(method, endpoint, data, options);
   return body;
 }
-var uploadParser;
+var LOCAL_PROTOCOLS, uploadParser;
 var init_multipart_utils = __esm({
   "src/utils/multipart-utils.ts"() {
     "use strict";
@@ -163,17 +153,27 @@ var init_multipart_utils = __esm({
     init_rev_error();
     init_file_utils();
     init_is_utils();
+    LOCAL_PROTOCOLS = ["blob:", "data:"];
     uploadParser = {
       async string(value, options) {
-        const url = value instanceof URL ? value : new URL(value, "invalid://");
-        if (!/^data|blob|file/.test(url.protocol)) {
-          throw new TypeError("Only Blob / DateURI URLs are supported");
+        const url = polyfills_default.parseUrl(value);
+        if (LOCAL_PROTOCOLS.includes(url.protocol)) {
+          const file = await (await polyfills_default.fetch(url)).blob();
+          return uploadParser.blob(file, options);
         }
-        if (options.disableExternalResources && url.protocol === "file:") {
+        if (options.disableExternalResources) {
+          throw new Error(`${url.protocol} protocol not allowed`);
+        }
+        if (url.protocol === "file:") {
+          return uploadParser.localFile(url, options);
+        }
+        throw new TypeError("Only Blob / DateURI URLs are supported");
+      },
+      async localFile(url, options) {
+        if (options.disableExternalResources) {
           throw new Error("file: protocol not allowed");
         }
-        const file = await (await polyfills_default.fetch(url)).blob();
-        return uploadParser.blob(file, options);
+        return uploadParser.response(await polyfills_default.fetch(url), options);
       },
       async stream(value, options) {
         const { contentType } = options;
@@ -269,7 +269,7 @@ function onInitialize() {
   if (!isPendingInitialize) {
     return;
   }
-  initializePromise || (initializePromise = (async () => {
+  initializePromise ||= (async () => {
     while (pendingInitialize.length > 0) {
       const pending = pendingInitialize.shift();
       if (typeof pending !== "function") continue;
@@ -281,7 +281,7 @@ function onInitialize() {
     }
     isPendingInitialize = false;
     initializePromise = void 0;
-  })());
+  })();
   return initializePromise;
 }
 function setPolyfills(overrideCallback) {
@@ -311,6 +311,9 @@ var init_polyfills = __esm({
       randomValues,
       sha256Hash,
       hmacSign,
+      parseUrl(value) {
+        return value instanceof URL ? value : new URL(value, "invalid://");
+      },
       beforeFileUploadRequest(form, headers, uploadOptions, options) {
         return form;
       },
@@ -531,6 +534,22 @@ var init_rev_error = __esm({
     init_utils();
     RevError = class _RevError extends Error {
       /**
+       * HTTP Status Code
+       */
+      status;
+      /**
+       * Request URL/endpoint
+       */
+      url;
+      /**
+       * Rev-specific error code
+       */
+      code;
+      /**
+       * Additional error message returned by Rev API
+       */
+      detail;
+      /**
        * @hidden
        * @param response
        * @param body
@@ -600,6 +619,18 @@ var init_rev_error = __esm({
       }
     };
     ScrollError = class extends Error {
+      /**
+       * HTTP Status Code
+       */
+      status;
+      /**
+       * Rev-specific error code
+       */
+      code;
+      /**
+       * Additional error message returned by Rev API
+       */
+      detail;
       /**
        * @hidden
        * @param status
@@ -675,7 +706,7 @@ function getFilename(file) {
     return import_node_path.default.basename(streamPath);
   }
 }
-var import_node_fs, import_node_path, import_node_stream, import_web, import_node_url, import_promises, LOCAL_PROTOCOLS, FETCH_PROTOCOLS, uploadParser2, _a, _stream, FileFromStream;
+var import_node_fs, import_node_path, import_node_stream, import_web, import_promises, LOCAL_PROTOCOLS2, FETCH_PROTOCOLS, uploadParser2, FileFromStream;
 var init_node_multipart_utils = __esm({
   "src/interop/node-multipart-utils.ts"() {
     "use strict";
@@ -683,18 +714,18 @@ var init_node_multipart_utils = __esm({
     import_node_path = __toESM(require("path"), 1);
     import_node_stream = require("stream");
     import_web = require("stream/web");
-    import_node_url = require("url");
     init_rev_error();
     init_utils();
     init_file_utils();
+    init_multipart_utils();
     init_polyfills();
     import_promises = require("stream/promises");
-    LOCAL_PROTOCOLS = ["blob:", "data:"];
-    FETCH_PROTOCOLS = ["http:", "https:", ...LOCAL_PROTOCOLS];
+    LOCAL_PROTOCOLS2 = ["blob:", "data:"];
+    FETCH_PROTOCOLS = ["http:", "https:", ...LOCAL_PROTOCOLS2];
     uploadParser2 = {
       async string(value, options) {
-        const url = value instanceof URL ? value : URL.canParse(value) ? new URL(value) : (0, import_node_url.pathToFileURL)(value);
-        if (options.disableExternalResources && !LOCAL_PROTOCOLS.includes(url.protocol)) {
+        const url = polyfills_default.parseUrl(value);
+        if (options.disableExternalResources && !LOCAL_PROTOCOLS2.includes(url.protocol)) {
           throw new Error(`${url.protocol} protocol not allowed`);
         }
         if (FETCH_PROTOCOLS.includes(url.protocol)) {
@@ -703,14 +734,18 @@ var init_node_multipart_utils = __esm({
             options
           );
         }
-        const filepath = url.protocol === "file:" ? url : value;
-        const readStream = (0, import_node_fs.createReadStream)(filepath);
+        return uploadParser2.localFile(url, options);
+      },
+      async localFile(url, options) {
+        const readStream = (0, import_node_fs.createReadStream)(url);
+        const { filename, contentType } = sanitizeUploadOptions(getFilename(url.pathname), "", options.contentType);
         return Promise.race([
           uploadParser2.stream(
             readStream,
             {
-              filename: import_node_path.default.basename(`${value}`),
-              ...options
+              filename,
+              ...options,
+              contentType
             }
           ),
           // will throw error if filepath cannot be accessed
@@ -718,25 +753,10 @@ var init_node_multipart_utils = __esm({
         ]);
       },
       async blob(value, options) {
-        let {
-          filename = getFilename(value),
-          contentType,
-          contentLength,
-          useChunkedTransfer = false,
-          defaultContentType
-        } = options;
-        const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
-        if (value.type !== sanitized.contentType && typeof value.slice === "function") {
-          value = new File([value], sanitized.filename, { type: sanitized.contentType });
-        }
-        return {
-          file: value,
-          options: {
-            ...options,
-            ...value.size && { contentLength: value.size },
-            ...sanitized
-          }
-        };
+        return uploadParser.blob(value, {
+          filename: getFilename(value),
+          ...options
+        });
       },
       async stream(value, options) {
         let {
@@ -748,7 +768,7 @@ var init_node_multipart_utils = __esm({
         } = options;
         const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
         if (!useChunkedTransfer) {
-          contentLength || (contentLength = await getLengthFromStream(value));
+          contentLength ||= await getLengthFromStream(value);
         }
         const file = new FileFromStream(value, sanitized.filename, {
           type: sanitized.contentType,
@@ -764,21 +784,26 @@ var init_node_multipart_utils = __esm({
         };
       },
       async response(response, options) {
-        const { body, headers } = response;
+        const { body, headers, url } = response;
         if (!response.ok || !body) {
           const err = await RevError.create(response);
           throw err;
         }
-        let { contentLength } = options;
+        let {
+          contentLength,
+          filename = getFilename(url)
+        } = options;
         if (!headers.get("content-encoding")) {
-          contentLength || (contentLength = parseInt(headers.get("content-length") || "") || void 0);
+          contentLength ||= parseInt(headers.get("content-length") || "") || void 0;
         }
         const contentType = headers.get("content-type");
-        return uploadParser2.stream(body, {
-          ...contentType && { contentType },
+        const opts = {
           ...options,
+          filename,
+          ...contentType && { contentType },
           ...contentLength ? { contentLength } : { useChunkedTransfer: true }
-        });
+        };
+        return uploadParser2.stream(body, opts);
       },
       async parse(value, options) {
         if (typeof value === "string" || value instanceof URL) {
@@ -793,22 +818,24 @@ var init_node_multipart_utils = __esm({
         return uploadParser2.stream(value, options);
       }
     };
-    _a = Symbol.toStringTag;
     FileFromStream = class {
+      #stream;
       constructor(stream, fileName = "", options) {
-        __privateAdd(this, _stream);
-        this[_a] = "File";
-        __privateSet(this, _stream, stream);
+        this.#stream = stream;
         this.name = fileName;
         this.type = options?.type ?? "";
         this.size = options?.size ?? NaN;
         this.lastModified = options?.lastModified ?? Date.now();
       }
+      name;
+      type;
+      size;
+      lastModified;
       stream() {
-        return __privateGet(this, _stream);
+        return this.#stream;
       }
+      [Symbol.toStringTag] = "File";
     };
-    _stream = new WeakMap();
   }
 });
 
@@ -828,21 +855,23 @@ async function hmacSign2(message, secret) {
   const signature = hmac.update(message).digest("base64");
   return signature;
 }
-var import_form_data_encoder, import_node_crypto, import_node_stream2, import_web2, AbortError, node_polyfills_default;
+var import_form_data_encoder, import_node_fetch, import_node_crypto, import_node_stream2, import_web2, import_node_url, AbortError, node_polyfills_default;
 var init_node_polyfills = __esm({
   "src/interop/node-polyfills.ts"() {
     "use strict";
     import_form_data_encoder = require("form-data-encoder");
+    import_node_fetch = require("node-fetch");
     import_node_crypto = require("crypto");
     import_node_stream2 = require("stream");
     import_web2 = require("stream/web");
     init_node_multipart_utils();
+    import_node_url = require("url");
     AbortError = class extends Error {
+      type = "aborted";
+      code = 20;
+      ABORT_ERR = 20;
       constructor(message) {
         super(message);
-        this.type = "aborted";
-        this.code = 20;
-        this.ABORT_ERR = 20;
         Error.captureStackTrace(this, this.constructor);
       }
       get name() {
@@ -857,10 +886,21 @@ var init_node_polyfills = __esm({
         createAbortError(message) {
           return new AbortError(message);
         },
-        FormData,
+        fetch(...args) {
+          return globalThis.fetch(...args).catch((err) => {
+            if (err instanceof TypeError && err.cause instanceof Error) {
+              throw err.cause;
+            }
+            throw err;
+          });
+        },
+        FormData: import_node_fetch.FormData,
         randomValues: randomValues2,
         sha256Hash: sha256Hash2,
         hmacSign: hmacSign2,
+        parseUrl(value) {
+          return value instanceof URL ? value : URL.canParse(value) ? new URL(value) : (0, import_node_url.pathToFileURL)(value);
+        },
         uploadParser: uploadParser2,
         beforeFileUploadRequest(form, headers, uploadOptions, options) {
           const encoder = new import_form_data_encoder.FormDataEncoder(form);
@@ -938,6 +978,10 @@ init_rev_error();
 
 // src/utils/paged-request.ts
 var PagedRequest = class {
+  current;
+  total;
+  done;
+  options;
   /**
    * @hidden
    * @param options
@@ -1092,6 +1136,8 @@ async function decodeBody(response, acceptType) {
   return response.body;
 }
 var SearchRequest = class extends PagedRequest {
+  query;
+  _reqImpl;
   constructor(rev, searchDefinition, query = {}, options = {}) {
     super({
       onProgress: (items, current, total) => {
@@ -1359,6 +1405,8 @@ function parseEntry(line) {
   };
 }
 var AuditRequest = class extends PagedRequest {
+  params;
+  _req;
   /**
    * @hidden
    * @param rev
@@ -1663,7 +1711,8 @@ function authAPIFactory(rev) {
      */
     async buildOAuth2Authentication(config, state = "1", verifier) {
       const { codeChallenge, codeVerifier } = await getOAuth2PKCEVerifier(verifier);
-      const url = getOAuth2AuthorizationUrl(config, codeChallenge, state);
+      const _cfg = { revUrl: rev.url, ...config };
+      const url = getOAuth2AuthorizationUrl(_cfg, codeChallenge, state);
       return {
         url: `${url}`,
         codeVerifier
@@ -1837,6 +1886,12 @@ function channelAPIFactory(rev) {
   return channelAPI;
 }
 var ChannelListRequest = class {
+  currentPage;
+  current;
+  total;
+  done;
+  options;
+  _req;
   constructor(rev, start = 0, options = {}) {
     this.options = {
       maxResults: Infinity,
@@ -2070,6 +2125,13 @@ function getSummaryFromResponse(response, hitsKey) {
   return summary;
 }
 var PlaylistDetailsRequest = class extends SearchRequest {
+  playlist = {};
+  get playlistName() {
+    return this.playlist.playlistDetails?.name || this.playlist.name;
+  }
+  get searchFilter() {
+    return this.playlist?.playlistType === "Dynamic" ? this.playlist.playlistDetails?.searchFilter || this.playlist.searchFilter : void 0;
+  }
   /**
    * @hidden
    * @param rev
@@ -2091,13 +2153,6 @@ var PlaylistDetailsRequest = class extends SearchRequest {
       }
     };
     super(rev, searchDefinition, query, options);
-    this.playlist = {};
-  }
-  get playlistName() {
-    return this.playlist.playlistDetails?.name || this.playlist.name;
-  }
-  get searchFilter() {
-    return this.playlist?.playlistType === "Dynamic" ? this.playlist.playlistDetails?.searchFilter || this.playlist.searchFilter : void 0;
   }
   async getPlaylistInfo() {
     this.options.maxResults = 0;
@@ -2233,16 +2288,15 @@ function splitOptions(options, defaultType) {
   return {
     requestOptions,
     uploadOptions: {
-      filename,
-      contentType,
-      contentLength,
-      useChunkedTransfer,
+      ...filename && { filename },
+      ...contentType && { contentType },
+      ...contentLength && { contentLength },
+      ...useChunkedTransfer && { useChunkedTransfer },
       defaultContentType
     }
   };
 }
 function uploadAPIFactory(rev) {
-  const { FormData: FormData2 } = polyfills_default;
   const uploadAPI = {
     /**
              * Upload a video, and returns the resulting video ID
@@ -2274,7 +2328,7 @@ function uploadAPIFactory(rev) {
              */
     async video(file, metadata = { uploader: rev.session.username ?? "" }, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "video/mp4");
-      const form = new FormData2();
+      const form = new polyfills_default.FormData();
       if (!metadata.uploader) {
         const defaultUsername = rev.session.username;
         if (defaultUsername) {
@@ -2296,7 +2350,7 @@ function uploadAPIFactory(rev) {
      */
     async replaceVideo(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "video/mp4");
-      const form = new FormData2();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "VideoFile", file, uploadOptions);
       rev.log("info", `Replacing ${videoId} with ${filePayload.filename} (${filePayload.contentType})`);
       await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
@@ -2304,7 +2358,7 @@ function uploadAPIFactory(rev) {
     },
     async transcription(videoId, file, language = "en", options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "application/x-subrip");
-      const form = new FormData2();
+      const form = new polyfills_default.FormData();
       const lang = language.toLowerCase();
       if (uploadOptions.contentType === "text/plain" || uploadOptions.filename?.endsWith("txt")) {
         uploadOptions.filename = `${uploadOptions.filename || "upload"}.srt`;
@@ -2321,7 +2375,7 @@ function uploadAPIFactory(rev) {
     },
     async supplementalFile(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options);
-      const form = new FormData2();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "File", file, uploadOptions);
       const metadata = {
         files: [
@@ -2342,11 +2396,11 @@ function uploadAPIFactory(rev) {
      */
     async chapters(videoId, chapters, action = "replace", options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/png");
-      const form = new FormData2();
+      const form = new polyfills_default.FormData();
       const metadata = {
         chapters: []
       };
-      for (let chapter of chapters) {
+      for (let [index, chapter] of chapters.entries()) {
         const {
           title,
           time,
@@ -2358,7 +2412,13 @@ function uploadAPIFactory(rev) {
           chapterEntry.title = title;
         }
         if (imageFile) {
-          const filePayload = await appendFileToForm(form, "File", imageFile, { ...uploadOptions, ...fileUploadOptions });
+          const fileOpts = {
+            ...uploadOptions,
+            // explicitly set filename to avoid conflict with multiple chapters
+            filename: `chapter${index + 1}`,
+            ...fileUploadOptions
+          };
+          const filePayload = await appendFileToForm(form, "File", imageFile, fileOpts);
           chapterEntry.imageFile = filePayload.filename;
         }
         metadata.chapters.push(chapterEntry);
@@ -2370,42 +2430,42 @@ function uploadAPIFactory(rev) {
     },
     async thumbnail(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData2();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ThumbnailFile", file, uploadOptions);
       rev.log("info", `Uploading thumbnail for ${videoId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
     },
     async presentationChapters(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "application/vnd.ms-powerpoint");
-      const form = new FormData2();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "PresentationFile", file, uploadOptions);
       rev.log("info", `Uploading presentation for ${videoId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/video-presentations/${videoId}`, form, filePayload, requestOptions);
     },
     async webcastPresentation(eventId, file, options) {
       const { uploadOptions, requestOptions } = splitOptions(options, "application/vnd.ms-powerpoint");
-      const form = new FormData2();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "PresentationFile", file, uploadOptions);
       rev.log("info", `Uploading presentation for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/presentations/${eventId}`, form, filePayload, requestOptions);
     },
     async webcastBackground(eventId, file, options) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData2();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
       rev.log("info", `Uploading background image for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/background-image/${eventId}`, form, filePayload, requestOptions);
     },
     async webcastProducerLayoutBackground(eventId, file, options) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData2();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
       rev.log("info", `Uploading producer layout background image for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/webcast-producer-bgimage/${eventId}`, form, filePayload, requestOptions);
     },
     async webcastBranding(eventId, request, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData2();
+      const form = new polyfills_default.FormData();
       const logoOptions = {
         ...uploadOptions,
         // make sure filename is by default unique
@@ -2431,7 +2491,7 @@ function uploadAPIFactory(rev) {
     },
     async channelLogo(channelId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData2();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
       rev.log("info", `Uploading channel logo for ${channelId} (${filePayload.filename} ${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/channel-logo/${channelId}`, form, filePayload, requestOptions);
@@ -2441,7 +2501,7 @@ function uploadAPIFactory(rev) {
      */
     async userProfileImage(userId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData2();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/profile-image/${userId}`, form, filePayload, requestOptions);
     }
@@ -2796,6 +2856,8 @@ function parseDates(startArg, endArg) {
   return { startDate, endDate };
 }
 var VideoReportRequest = class extends PagedRequest {
+  _rev;
+  _endpoint;
   /**
    * @hidden
    * @param rev
@@ -3235,7 +3297,7 @@ function videoAPIFactory(rev) {
       const request = new Map(audioTracks.map(({ languageName, ...t }) => [t.track, t]));
       for (let { op, languageId, track, value } of operations) {
         if (op === "add") {
-          languageId ?? (languageId = value?.languageId);
+          languageId ??= value?.languageId;
           if (!languageId) throw new TypeError("value languageId is required when adding audioTrack");
           const audioTrack = {
             isDefault: value?.isDefault ?? false,
@@ -3826,8 +3888,12 @@ var ONE_MINUTE2 = 1e3 * 60;
 var DEFAULT_EXPIRE_MINUTES = 10;
 var _credentials = Symbol("credentials");
 var SessionKeepAlive = class {
+  _session;
+  controller;
+  extendOptions;
+  error;
+  _isExtending = false;
   constructor(session, options = {}) {
-    this._isExtending = false;
     this.extendOptions = {
       extendThresholdMilliseconds: 3 * ONE_MINUTE2,
       keepAliveInterval: 10 * ONE_MINUTE2,
@@ -3903,8 +3969,13 @@ var SessionKeepAlive = class {
     return this.controller && !this.controller.signal.aborted;
   }
 };
-_credentials;
 var SessionBase = class {
+  token;
+  expires;
+  rev;
+  [_credentials];
+  keepAlive;
+  _rateLimits;
   constructor(rev, credentials, keepAliveOptions, rateLimits) {
     this.expires = /* @__PURE__ */ new Date();
     if (keepAliveOptions === true) {
@@ -4040,6 +4111,7 @@ var SessionBase = class {
   }
 };
 var OAuthSession = class extends SessionBase {
+  refreshToken;
   async _login() {
     const { oauthConfig, authCode } = this[_credentials];
     if (!oauthConfig || !authCode) {
@@ -4076,6 +4148,7 @@ var OAuthSession = class extends SessionBase {
   }
 };
 var OAuth2Session = class extends SessionBase {
+  refreshToken;
   async _login() {
     const { oauthConfig, code, codeVerifier } = this[_credentials];
     if (!oauthConfig || !code || !codeVerifier) {
@@ -4105,6 +4178,7 @@ var OAuth2Session = class extends SessionBase {
   }
 };
 var UserSession = class extends SessionBase {
+  userId;
   async _login() {
     const { username, password } = this[_credentials];
     if (!username || !password) {
@@ -4207,7 +4281,7 @@ var AccessTokenSession = class extends SessionBase {
   // just verify user on login
   async _login() {
     await this.rev.auth.verifySession();
-    this.expires || (this.expires = new Date(Date.now() + 15 * 60 * 1e3));
+    this.expires ||= new Date(Date.now() + 15 * 60 * 1e3);
     return {
       token: this.token || "",
       expiration: this.expires.toISOString(),
@@ -4321,6 +4395,86 @@ function createSession(rev, credentials, keepAliveOptions, rateLimits) {
 // src/rev-client.ts
 init_utils();
 var RevClient3 = class {
+  /**
+   * The Rev tenant url (i.e. https://my.rev.url)
+   * @group Properties
+   */
+  url;
+  /**
+   * turns on/off debug logging to console
+   * @group Internal
+   */
+  logEnabled;
+  /**
+   ** This is an internal class that handles authentication and maintaining the session. It should not be used directly.
+   * @group Internal
+   */
+  session;
+  /**
+   * @group APIs
+   */
+  admin;
+  /**
+   * @group APIs
+   */
+  audit;
+  /**
+   * @group APIs
+   */
+  auth;
+  /**
+   * @group APIs
+   */
+  category;
+  /**
+   * @group APIs
+   */
+  channel;
+  /**
+   * @group APIs
+   */
+  device;
+  /**
+   * @group APIs
+   */
+  environment;
+  /**
+   * @group APIs
+   */
+  group;
+  /**
+   * @group APIs
+   */
+  playlist;
+  /**
+   *
+   * @group APIs
+   */
+  recording;
+  /**
+   * @group APIs
+   */
+  upload;
+  /**
+   * @group APIs
+   */
+  user;
+  /**
+   * @group APIs
+   */
+  video;
+  /**
+   * @group APIs
+   */
+  webcast;
+  /**
+   * @group APIs
+   */
+  zones;
+  /**
+   * @internal
+   */
+  _streamPreference;
   /**
    *
    * @param options The configuration options including target Rev URL and authentication credentials

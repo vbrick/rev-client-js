@@ -1,3 +1,7 @@
+var __defProp = Object.defineProperty;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+
 // src/utils/file-utils.ts
 var mimeTypes = {
   ".7z": "application/x-7z-compressed",
@@ -54,11 +58,8 @@ function sanitizeUploadOptions(filename = "upload", contentType = "", defaultCon
   if (/charset/.test(contentType)) {
     contentType = contentType.replace(/;?.*charset.*$/, "");
   }
-  let name = filename.replace(/\.[^\.]+$/, "");
-  let ext = filename.replace(name, "");
-  if (!ext) {
-    ext = getExtensionForMime(contentType || defaultContentType || "");
-  }
+  let [name, ext] = filename.split(/(?=\.[^\.\\\/]+$)/);
+  ext || (ext = getExtensionForMime(contentType || defaultContentType || ""));
   filename = `${name}${ext}`;
   if (!contentType || [".vtt", ".srt"].includes(ext)) {
     contentType = getMimeForExtension(ext, defaultContentType);
@@ -83,17 +84,27 @@ function titleCase(val) {
 }
 
 // src/utils/multipart-utils.ts
+var LOCAL_PROTOCOLS = ["blob:", "data:"];
 var uploadParser = {
   async string(value, options) {
-    const url = value instanceof URL ? value : new URL(value, "invalid://");
-    if (!/^data|blob|file/.test(url.protocol)) {
-      throw new TypeError("Only Blob / DateURI URLs are supported");
+    const url = polyfills_default.parseUrl(value);
+    if (LOCAL_PROTOCOLS.includes(url.protocol)) {
+      const file = await (await polyfills_default.fetch(url)).blob();
+      return uploadParser.blob(file, options);
     }
-    if (options.disableExternalResources && url.protocol === "file:") {
+    if (options.disableExternalResources) {
+      throw new Error(`${url.protocol} protocol not allowed`);
+    }
+    if (url.protocol === "file:") {
+      return uploadParser.localFile(url, options);
+    }
+    throw new TypeError("Only Blob / DateURI URLs are supported");
+  },
+  async localFile(url, options) {
+    if (options.disableExternalResources) {
       throw new Error("file: protocol not allowed");
     }
-    const file = await (await polyfills_default.fetch(url)).blob();
-    return uploadParser.blob(file, options);
+    return uploadParser.response(await polyfills_default.fetch(url), options);
   },
   async stream(value, options) {
     const { contentType } = options;
@@ -211,6 +222,9 @@ var polyfills = {
   randomValues,
   sha256Hash,
   hmacSign,
+  parseUrl(value) {
+    return value instanceof URL ? value : new URL(value, "invalid://");
+  },
   beforeFileUploadRequest(form, headers, uploadOptions, options) {
     return form;
   },
@@ -439,6 +453,22 @@ var RevError = class _RevError extends Error {
       url
     } = response;
     super(`${status} ${statusText}`);
+    /**
+     * HTTP Status Code
+     */
+    __publicField(this, "status");
+    /**
+     * Request URL/endpoint
+     */
+    __publicField(this, "url");
+    /**
+     * Rev-specific error code
+     */
+    __publicField(this, "code");
+    /**
+     * Additional error message returned by Rev API
+     */
+    __publicField(this, "detail");
     if ("captureStackTrace" in Error) {
       Error.captureStackTrace(this, this.constructor);
     }
@@ -505,6 +535,18 @@ var ScrollError = class extends Error {
    */
   constructor(status = 408, code = "ScrollExpired", detail = "Timeout while fetching all results in search request") {
     super("Search Scroll Expired");
+    /**
+     * HTTP Status Code
+     */
+    __publicField(this, "status");
+    /**
+     * Rev-specific error code
+     */
+    __publicField(this, "code");
+    /**
+     * Additional error message returned by Rev API
+     */
+    __publicField(this, "detail");
     Error.captureStackTrace(this, this.constructor);
     this.status = status;
     this.code = code;
@@ -527,6 +569,10 @@ var PagedRequest = class {
    * @param options
    */
   constructor(options = {}) {
+    __publicField(this, "current");
+    __publicField(this, "total");
+    __publicField(this, "done");
+    __publicField(this, "options");
     this.options = {
       maxResults: Infinity,
       onProgress: (items, current, total) => {
@@ -687,6 +733,8 @@ var SearchRequest = class extends PagedRequest {
       },
       ...options
     });
+    __publicField(this, "query");
+    __publicField(this, "_reqImpl");
     const {
       scrollId: _ignore,
       ...queryOpt
@@ -957,6 +1005,8 @@ var AuditRequest = class extends PagedRequest {
       },
       ...options
     });
+    __publicField(this, "params");
+    __publicField(this, "_req");
     const { from, to } = this._parseDates(fromDate, toDate);
     this.params = {
       toDate: to.toISOString(),
@@ -1239,7 +1289,8 @@ function authAPIFactory(rev) {
      */
     async buildOAuth2Authentication(config, state = "1", verifier) {
       const { codeChallenge, codeVerifier } = await getOAuth2PKCEVerifier(verifier);
-      const url = getOAuth2AuthorizationUrl(config, codeChallenge, state);
+      const _cfg = { revUrl: rev.url, ...config };
+      const url = getOAuth2AuthorizationUrl(_cfg, codeChallenge, state);
       return {
         url: `${url}`,
         codeVerifier
@@ -1414,6 +1465,12 @@ function channelAPIFactory(rev) {
 }
 var ChannelListRequest = class {
   constructor(rev, start = 0, options = {}) {
+    __publicField(this, "currentPage");
+    __publicField(this, "current");
+    __publicField(this, "total");
+    __publicField(this, "done");
+    __publicField(this, "options");
+    __publicField(this, "_req");
     this.options = {
       maxResults: Infinity,
       pageSize: 10,
@@ -1663,7 +1720,7 @@ var PlaylistDetailsRequest = class extends SearchRequest {
       }
     };
     super(rev, searchDefinition, query, options);
-    this.playlist = {};
+    __publicField(this, "playlist", {});
   }
   get playlistName() {
     return this.playlist.playlistDetails?.name || this.playlist.name;
@@ -1801,16 +1858,15 @@ function splitOptions(options, defaultType) {
   return {
     requestOptions,
     uploadOptions: {
-      filename,
-      contentType,
-      contentLength,
-      useChunkedTransfer,
+      ...filename && { filename },
+      ...contentType && { contentType },
+      ...contentLength && { contentLength },
+      ...useChunkedTransfer && { useChunkedTransfer },
       defaultContentType
     }
   };
 }
 function uploadAPIFactory(rev) {
-  const { FormData } = polyfills_default;
   const uploadAPI = {
     /**
              * Upload a video, and returns the resulting video ID
@@ -1842,7 +1898,7 @@ function uploadAPIFactory(rev) {
              */
     async video(file, metadata = { uploader: rev.session.username ?? "" }, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "video/mp4");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       if (!metadata.uploader) {
         const defaultUsername = rev.session.username;
         if (defaultUsername) {
@@ -1864,7 +1920,7 @@ function uploadAPIFactory(rev) {
      */
     async replaceVideo(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "video/mp4");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "VideoFile", file, uploadOptions);
       rev.log("info", `Replacing ${videoId} with ${filePayload.filename} (${filePayload.contentType})`);
       await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
@@ -1872,7 +1928,7 @@ function uploadAPIFactory(rev) {
     },
     async transcription(videoId, file, language = "en", options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "application/x-subrip");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const lang = language.toLowerCase();
       if (uploadOptions.contentType === "text/plain" || uploadOptions.filename?.endsWith("txt")) {
         uploadOptions.filename = `${uploadOptions.filename || "upload"}.srt`;
@@ -1889,7 +1945,7 @@ function uploadAPIFactory(rev) {
     },
     async supplementalFile(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options);
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "File", file, uploadOptions);
       const metadata = {
         files: [
@@ -1910,11 +1966,11 @@ function uploadAPIFactory(rev) {
      */
     async chapters(videoId, chapters, action = "replace", options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/png");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const metadata = {
         chapters: []
       };
-      for (let chapter of chapters) {
+      for (let [index, chapter] of chapters.entries()) {
         const {
           title,
           time,
@@ -1926,7 +1982,13 @@ function uploadAPIFactory(rev) {
           chapterEntry.title = title;
         }
         if (imageFile) {
-          const filePayload = await appendFileToForm(form, "File", imageFile, { ...uploadOptions, ...fileUploadOptions });
+          const fileOpts = {
+            ...uploadOptions,
+            // explicitly set filename to avoid conflict with multiple chapters
+            filename: `chapter${index + 1}`,
+            ...fileUploadOptions
+          };
+          const filePayload = await appendFileToForm(form, "File", imageFile, fileOpts);
           chapterEntry.imageFile = filePayload.filename;
         }
         metadata.chapters.push(chapterEntry);
@@ -1938,42 +2000,42 @@ function uploadAPIFactory(rev) {
     },
     async thumbnail(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ThumbnailFile", file, uploadOptions);
       rev.log("info", `Uploading thumbnail for ${videoId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
     },
     async presentationChapters(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "application/vnd.ms-powerpoint");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "PresentationFile", file, uploadOptions);
       rev.log("info", `Uploading presentation for ${videoId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/video-presentations/${videoId}`, form, filePayload, requestOptions);
     },
     async webcastPresentation(eventId, file, options) {
       const { uploadOptions, requestOptions } = splitOptions(options, "application/vnd.ms-powerpoint");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "PresentationFile", file, uploadOptions);
       rev.log("info", `Uploading presentation for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/presentations/${eventId}`, form, filePayload, requestOptions);
     },
     async webcastBackground(eventId, file, options) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
       rev.log("info", `Uploading background image for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/background-image/${eventId}`, form, filePayload, requestOptions);
     },
     async webcastProducerLayoutBackground(eventId, file, options) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
       rev.log("info", `Uploading producer layout background image for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/webcast-producer-bgimage/${eventId}`, form, filePayload, requestOptions);
     },
     async webcastBranding(eventId, request, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const logoOptions = {
         ...uploadOptions,
         // make sure filename is by default unique
@@ -1999,7 +2061,7 @@ function uploadAPIFactory(rev) {
     },
     async channelLogo(channelId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
       rev.log("info", `Uploading channel logo for ${channelId} (${filePayload.filename} ${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/channel-logo/${channelId}`, form, filePayload, requestOptions);
@@ -2009,7 +2071,7 @@ function uploadAPIFactory(rev) {
      */
     async userProfileImage(userId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/profile-image/${userId}`, form, filePayload, requestOptions);
     }
@@ -2364,6 +2426,8 @@ var VideoReportRequest = class extends PagedRequest {
    */
   constructor(rev, options = {}, endpoint = "/api/v2/videos/report") {
     super(parseOptions(options));
+    __publicField(this, "_rev");
+    __publicField(this, "_endpoint");
     this._endpoint = endpoint;
     this._rev = rev;
   }
@@ -3375,7 +3439,11 @@ var DEFAULT_EXPIRE_MINUTES = 10;
 var _credentials = Symbol("credentials");
 var SessionKeepAlive = class {
   constructor(session, options = {}) {
-    this._isExtending = false;
+    __publicField(this, "_session");
+    __publicField(this, "controller");
+    __publicField(this, "extendOptions");
+    __publicField(this, "error");
+    __publicField(this, "_isExtending", false);
     this.extendOptions = {
       extendThresholdMilliseconds: 3 * ONE_MINUTE2,
       keepAliveInterval: 10 * ONE_MINUTE2,
@@ -3451,9 +3519,16 @@ var SessionKeepAlive = class {
     return this.controller && !this.controller.signal.aborted;
   }
 };
-_credentials;
+var _a;
+_a = _credentials;
 var SessionBase = class {
   constructor(rev, credentials, keepAliveOptions, rateLimits) {
+    __publicField(this, "token");
+    __publicField(this, "expires");
+    __publicField(this, "rev");
+    __publicField(this, _a);
+    __publicField(this, "keepAlive");
+    __publicField(this, "_rateLimits");
     this.expires = /* @__PURE__ */ new Date();
     if (keepAliveOptions === true) {
       this.keepAlive = new SessionKeepAlive(this);
@@ -3588,6 +3663,10 @@ var SessionBase = class {
   }
 };
 var OAuthSession = class extends SessionBase {
+  constructor() {
+    super(...arguments);
+    __publicField(this, "refreshToken");
+  }
   async _login() {
     const { oauthConfig, authCode } = this[_credentials];
     if (!oauthConfig || !authCode) {
@@ -3624,6 +3703,10 @@ var OAuthSession = class extends SessionBase {
   }
 };
 var OAuth2Session = class extends SessionBase {
+  constructor() {
+    super(...arguments);
+    __publicField(this, "refreshToken");
+  }
   async _login() {
     const { oauthConfig, code, codeVerifier } = this[_credentials];
     if (!oauthConfig || !code || !codeVerifier) {
@@ -3653,6 +3736,10 @@ var OAuth2Session = class extends SessionBase {
   }
 };
 var UserSession = class extends SessionBase {
+  constructor() {
+    super(...arguments);
+    __publicField(this, "userId");
+  }
   async _login() {
     const { username, password } = this[_credentials];
     if (!username || !password) {
@@ -3873,6 +3960,86 @@ var RevClient3 = class {
    * @param options The configuration options including target Rev URL and authentication credentials
    */
   constructor(options) {
+    /**
+     * The Rev tenant url (i.e. https://my.rev.url)
+     * @group Properties
+     */
+    __publicField(this, "url");
+    /**
+     * turns on/off debug logging to console
+     * @group Internal
+     */
+    __publicField(this, "logEnabled");
+    /**
+     ** This is an internal class that handles authentication and maintaining the session. It should not be used directly.
+     * @group Internal
+     */
+    __publicField(this, "session");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "admin");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "audit");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "auth");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "category");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "channel");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "device");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "environment");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "group");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "playlist");
+    /**
+     *
+     * @group APIs
+     */
+    __publicField(this, "recording");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "upload");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "user");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "video");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "webcast");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "zones");
+    /**
+     * @internal
+     */
+    __publicField(this, "_streamPreference");
     if (!isPlainObject(options) || !options.url) {
       throw new TypeError("Missing configuration options for client - url and username/password or apiKey/secret");
     }
