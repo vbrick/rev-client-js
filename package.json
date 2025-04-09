@@ -10,6 +10,7 @@
   "exports": {
     ".": {
       "types": "./dist/rev-client.d.ts",
+      "deno": "./dist/es18/rev-client.mjs",
       "node": {
         "types": "./dist/rev-client.d.ts",
         "import": "./dist/es/rev-client.mjs",
