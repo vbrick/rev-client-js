@@ -18,10 +18,10 @@ function splitOptions(options: Rev.UploadFileOptions & Rev.RequestOptions, defau
     return {
         requestOptions,
         uploadOptions: {
-            filename,
-            contentType,
-            contentLength,
-            useChunkedTransfer,
+            ...filename && {filename},
+            ...contentType && {contentType},
+            ...contentLength && {contentLength},
+            ...useChunkedTransfer && {useChunkedTransfer},
             defaultContentType
         }
     };
