@@ -68,7 +68,7 @@ export default (polyfills: RevPolyfills) => {
         parseUrl(value: string | URL) {
             return value instanceof URL
                 ? value
-                : URL.canParse(value)
+                : URL.canParse(value) && !/^[a-z]:[\\\/]/i.test(value)
                 ? new URL(value)
                 : pathToFileURL(value);
         },
