@@ -82,7 +82,8 @@ export default function authAPIFactory(rev: RevClient) {
          */
         async buildOAuth2Authentication(config: OAuth.ServerConfig, state: string = '1', verifier?: string): Promise<OAuth.AuthenticationData> {
             const {codeChallenge, codeVerifier} = await getOAuth2PKCEVerifier(verifier);
-            const url = getOAuth2AuthorizationUrl(config, codeChallenge, state);
+            const _cfg = { revUrl: rev.url, ...config };
+            const url = getOAuth2AuthorizationUrl(_cfg, codeChallenge, state);
             return {
                 url: `${url}`,
                 codeVerifier
