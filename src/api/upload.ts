@@ -187,8 +187,15 @@ export default function uploadAPIFactory(rev: RevClient) {
                 if (title) {
                     chapterEntry.title = title;
                 }
+
                 if (imageFile) {
-                    const filePayload = await appendFileToForm(form, 'File', imageFile, { ...uploadOptions, ...fileUploadOptions });
+                    const fileOpts = {
+                        ...uploadOptions,
+                        // explicitly set filename to avoid conflict with multiple chapters
+                        filename: `chapter${index + 1}`,
+                        ...fileUploadOptions,
+                    };
+                    const filePayload = await appendFileToForm(form, 'File', imageFile, fileOpts);
                     // add image filename based on what was appended to form
                     chapterEntry.imageFile = filePayload.filename;
                 }
