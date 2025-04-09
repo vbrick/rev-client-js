@@ -3,11 +3,11 @@ import { Stats, createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
 import { Readable } from 'node:stream';
 import { ReadableStream } from "node:stream/web";
-import { pathToFileURL } from "node:url";
 import { RevError } from "../rev-error";
 import type { Rev } from "../types/rev";
 import { isBlobLike } from "../utils";
 import { sanitizeUploadOptions } from "../utils/file-utils";
+import { uploadParser as baseUploadParser } from "../utils/multipart-utils";
 import polyfills from "./polyfills";
 import { finished } from "node:stream/promises";
 
@@ -16,12 +16,7 @@ const FETCH_PROTOCOLS = ['http:', 'https:', ...LOCAL_PROTOCOLS];
 
 export const uploadParser = {
     async string(value: string | URL, options: Rev.UploadFileOptions) {
-        // file urls are supported by createReadStream, so make all inputs url
-        const url = value instanceof URL
-            ? value
-            : URL.canParse(value)
-            ? new URL(value)
-            : pathToFileURL(value);
+        const url = polyfills.parseUrl(value);
 
         if (options.disableExternalResources && !LOCAL_PROTOCOLS.includes(url.protocol)) {
             throw new Error(`${url.protocol} protocol not allowed`);
@@ -34,16 +29,21 @@ export const uploadParser = {
             );
         }
 
-        const filepath = url.protocol === 'file:' ? url : value;
-
+        return uploadParser.localFile(url, options);
+    },
+    async localFile(url: URL, options: Rev.UploadFileOptions) {
         // use FS reader to read files
-        const readStream = createReadStream(filepath);
+        const readStream = createReadStream(url);
+        // pass through contentType of file based on filename, even if overridden in options
+        const {filename, contentType} = sanitizeUploadOptions(getFilename(url.pathname), '', options.contentType);
+
         return Promise.race([
             uploadParser.stream(
                 readStream,
                 {
-                    filename: path.basename(`${value}`),
-                    ...options
+                    filename,
+                    ...options,
+                    contentType
                 }
             ),
             // will throw error if filepath cannot be accessed
@@ -210,8 +210,8 @@ export async function statFile(filepath: string | URL, timeoutSeconds = 15) {
 
 /**
  * try to get the filename from input (filepath/File/Fs.ReadStream/Response)
- * @param file 
- * @returns 
+ * @param file
+ * @returns
  */
 function getFilename(file: Rev.FileUploadType) {
     if (typeof file === 'string') {

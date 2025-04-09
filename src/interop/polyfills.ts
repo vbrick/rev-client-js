@@ -66,6 +66,9 @@ export const polyfills: RevPolyfills = {
     randomValues,
     sha256Hash,
     hmacSign,
+    parseUrl(value: string | URL) {
+        return value instanceof URL ? value : new URL(value, 'invalid://');
+    },
     beforeFileUploadRequest(form: FormData, headers: Headers, uploadOptions: Rev.UploadFileOptions, options: Rev.RequestOptions): FormData | undefined {
         return form;
     },
@@ -94,11 +97,16 @@ export interface RevPolyfills {
     Headers: typeof Headers;
     Request: typeof Request;
     Response: typeof Response;
+    parseUrl(value: string | URL): URL;
     uploadParser: {
         string(value: string | URL, options: Rev.UploadFileOptions): Promise<{
             file: Blob | File;
             options: Rev.UploadFileOptions;
         }>;
+        localFile(value: URL, options: Rev.UploadFileOptions): Promise<{
+            file: Blob | File;
+            options: Rev.UploadFileOptions;
+        }>
         stream(value: AsyncIterable<Uint8Array>, options: Rev.UploadFileOptions): Promise<{
             file: Blob | File;
             options: Rev.UploadFileOptions;

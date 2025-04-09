@@ -6,6 +6,7 @@ import type { RequestInit } from 'undici-types';
 import type { Rev } from '../types/rev';
 import { uploadParser } from './node-multipart-utils';
 import type { RevPolyfills } from './polyfills';
+import { pathToFileURL } from 'node:url';
 
 function randomValues(byteLength: number) {
     return randomBytes(byteLength).toString('base64url');
@@ -52,11 +53,18 @@ export default (polyfills: RevPolyfills) => {
         randomValues,
         sha256Hash,
         hmacSign,
+        parseUrl(value: string | URL) {
+            return value instanceof URL
+                ? value
+                : URL.canParse(value)
+                ? new URL(value)
+                : pathToFileURL(value);
+        },
         uploadParser,
         beforeFileUploadRequest(form: FormData, headers: Headers, uploadOptions: Rev.UploadFileOptions, options: Rev.RequestOptions) {
             /** Encodes formdata as stream, rather than use builtin formdata processing - this is to allow streaming upload files without having to load into memory first */
             const encoder = new FormDataEncoder(form);
-            
+
             Object.assign(options, {
                 body: encoder,
                 // needed for undici error thrown when body is stream
