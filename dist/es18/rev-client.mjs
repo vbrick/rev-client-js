@@ -4643,7 +4643,7 @@ var node_polyfills_default = (polyfills2) => {
     sha256Hash: sha256Hash2,
     hmacSign: hmacSign2,
     parseUrl(value) {
-      return value instanceof URL ? value : URL.canParse(value) ? new URL(value) : pathToFileURL(value);
+      return value instanceof URL ? value : URL.canParse(value) && !/^[a-z]:[\\\/]/i.test(value) ? new URL(value) : pathToFileURL(value);
     },
     uploadParser: uploadParser2,
     beforeFileUploadRequest(form, headers, uploadOptions, options) {

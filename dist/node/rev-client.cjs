@@ -899,7 +899,7 @@ var init_node_polyfills = __esm({
         sha256Hash: sha256Hash2,
         hmacSign: hmacSign2,
         parseUrl(value) {
-          return value instanceof URL ? value : URL.canParse(value) ? new URL(value) : (0, import_node_url.pathToFileURL)(value);
+          return value instanceof URL ? value : URL.canParse(value) && !/^[a-z]:[\\\/]/i.test(value) ? new URL(value) : (0, import_node_url.pathToFileURL)(value);
         },
         uploadParser: uploadParser2,
         beforeFileUploadRequest(form, headers, uploadOptions, options) {
