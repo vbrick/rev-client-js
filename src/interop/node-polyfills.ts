@@ -1,4 +1,5 @@
 import { FormDataEncoder } from 'form-data-encoder';
+import { FormData } from 'node-fetch';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { ReadableStream } from 'node:stream/web';

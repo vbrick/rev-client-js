@@ -41,10 +41,6 @@ export interface UploadAPI extends API {};
 
 /** @ignore */
 export default function uploadAPIFactory(rev: RevClient) {
-    const { FormData } = polyfills;
-
-
-
     const uploadAPI = {
         /**
          * Upload a video, and returns the resulting video ID
@@ -82,7 +78,7 @@ export default function uploadAPIFactory(rev: RevClient) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'video/mp4');
 
             // prepare payload
-            const form = new FormData();
+            const form = new polyfills.FormData();
 
             // at bare minimum the uploader needs to be defined
             if (!metadata.uploader) {
@@ -114,7 +110,7 @@ export default function uploadAPIFactory(rev: RevClient) {
          */
         async replaceVideo(videoId: string, file: Rev.FileUploadType, options: Upload.VideoOptions = {}): Promise<void> {
             const { uploadOptions, requestOptions } = splitOptions(options, 'video/mp4');
-            const form = new FormData();
+            const form = new polyfills.FormData();
             const filePayload = await appendFileToForm(form, 'VideoFile', file, uploadOptions);
 
             rev.log('info', `Replacing ${videoId} with ${filePayload.filename} (${filePayload.contentType})`);
@@ -126,7 +122,7 @@ export default function uploadAPIFactory(rev: RevClient) {
         async transcription(videoId: string, file: Rev.FileUploadType, language: Transcription.SupportedLanguage = 'en', options: Upload.TranscriptionOptions = { }): Promise<void> {
             const { uploadOptions, requestOptions } = splitOptions(options, 'application/x-subrip');
 
-            const form = new FormData();
+            const form = new polyfills.FormData();
             const lang = language.toLowerCase();
 
             // uploads will fail if files end with the txt file extension, so make sure it's set to a valid value
@@ -149,7 +145,7 @@ export default function uploadAPIFactory(rev: RevClient) {
         async supplementalFile(videoId: string, file: Rev.FileUploadType, options: Upload.SupplementalOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options);
 
-            const form = new FormData();
+            const form = new polyfills.FormData();
 
             const filePayload = await appendFileToForm(form, 'File', file, uploadOptions);
             const metadata = {
@@ -174,7 +170,7 @@ export default function uploadAPIFactory(rev: RevClient) {
         async chapters(videoId: string, chapters: Video.Chapter.Request[], action: 'append' | 'replace' = 'replace', options: Rev.RequestOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'image/png');
 
-            const form = new FormData();
+            const form = new polyfills.FormData();
 
             type ChapterPayload = Video.Chapter.Request & {imageFile?: string};
 
@@ -182,7 +178,7 @@ export default function uploadAPIFactory(rev: RevClient) {
                 chapters: []
             };
 
-            for (let chapter of chapters) {
+            for (let [index, chapter] of chapters.entries()) {
                 const {
                     title, time, imageFile, uploadOptions: fileUploadOptions = {}
                 } = chapter;
@@ -212,7 +208,7 @@ export default function uploadAPIFactory(rev: RevClient) {
         async thumbnail(videoId: string, file: Rev.FileUploadType, options: Upload.ImageOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
 
-            const form = new FormData();
+            const form = new polyfills.FormData();
 
             const filePayload = await appendFileToForm(form, 'ThumbnailFile', file, uploadOptions);
 
@@ -223,7 +219,7 @@ export default function uploadAPIFactory(rev: RevClient) {
         async presentationChapters(videoId: string, file: Rev.FileUploadType, options: Upload.PresentationChaptersOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'application/vnd.ms-powerpoint');
 
-            const form = new FormData();
+            const form = new polyfills.FormData();
 
             const filePayload = await appendFileToForm(form, 'PresentationFile', file, uploadOptions);
 
@@ -234,7 +230,7 @@ export default function uploadAPIFactory(rev: RevClient) {
         async webcastPresentation(eventId: string, file: Rev.FileUploadType, options: Upload.PresentationChaptersOptions) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'application/vnd.ms-powerpoint');
 
-            const form = new FormData();
+            const form = new polyfills.FormData();
 
             const filePayload = await appendFileToForm(form, 'PresentationFile', file, uploadOptions);
 
@@ -245,7 +241,7 @@ export default function uploadAPIFactory(rev: RevClient) {
         async webcastBackground(eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
 
-            const form = new FormData();
+            const form = new polyfills.FormData();
 
             const filePayload = await appendFileToForm(form, 'ImageFile', file, uploadOptions);
 
@@ -256,7 +252,7 @@ export default function uploadAPIFactory(rev: RevClient) {
         async webcastProducerLayoutBackground(eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
 
-            const form = new FormData();
+            const form = new polyfills.FormData();
 
             const filePayload = await appendFileToForm(form, 'ImageFile', file, uploadOptions);
 
@@ -267,7 +263,7 @@ export default function uploadAPIFactory(rev: RevClient) {
         async webcastBranding(eventId: string, request: Webcast.BrandingRequest, options: Upload.ImageOptions = { }): Promise<void> {
             const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
 
-            const form = new FormData();
+            const form = new polyfills.FormData();
 
             const logoOptions: Rev.UploadFileOptions = {
                 ...uploadOptions,
@@ -300,7 +296,7 @@ export default function uploadAPIFactory(rev: RevClient) {
         async channelLogo(channelId: string, file: Rev.FileUploadType, options: Upload.ImageOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
 
-            const form = new FormData();
+            const form = new polyfills.FormData();
 
             const filePayload = await appendFileToForm(form, 'ImageFile', file, uploadOptions);
 
@@ -314,7 +310,7 @@ export default function uploadAPIFactory(rev: RevClient) {
         async userProfileImage(userId: string, file: Rev.FileUploadType, options: Upload.ImageOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
 
-            const form = new FormData();
+            const form = new polyfills.FormData();
 
             const filePayload = await appendFileToForm(form, 'ImageFile', file, uploadOptions);
 
