@@ -62,11 +62,8 @@ export function sanitizeUploadOptions(filename = 'upload', contentType = '', def
     if (/charset/.test(contentType)) {
         contentType = contentType.replace(/;?.*charset.*$/, '');
     }
-    let name = filename.replace(/\.[^\.]+$/, '');
-    let ext = filename.replace(name, '');
-    if (!ext) {
-        ext = getExtensionForMime(contentType || defaultContentType || '');
-    }
+    let [name, ext] = filename.split(/(?=\.[^\.\\\/]+$)/);
+    ext ||= getExtensionForMime(contentType || defaultContentType || '');
 
     filename = `${name}${ext}`;
 
@@ -74,7 +71,6 @@ export function sanitizeUploadOptions(filename = 'upload', contentType = '', def
     if (!contentType || ['.vtt', '.srt'].includes(ext)) {
         contentType = getMimeForExtension(ext, defaultContentType);
     }
-
 
     return { filename, contentType };
 }
