@@ -83,32 +83,23 @@ export default function channelAPIFactory(rev: RevClient) {
         get uploadHeader() {
             return rev.upload.channelHeader;
         },
-        async downloadLogo<T = ReadableStream>(logoKey: string | {logoKey?: string | null, logoUri?: string | null}, options: Rev.RequestOptions): Promise<Rev.Response<T>> {
-            let endpoint = '';
-            if (logoKey && typeof logoKey === 'object') {
-                logoKey = logoKey.logoKey ?? logoKey.logoUri ?? '';
-            }
-            if (!logoKey) throw new TypeError('no logoKey specified');
-            // if full http link (logoUri) pass as-is
-            endpoint = logoKey?.startsWith('http')
-                ? logoKey
-                : `/api/v2/channels/thumbnails/${logoKey}`;
+        async downloadLogo<T = ReadableStream>(channel: {logoKey?: string | null, logoUri?: string | null}, options: Rev.RequestOptions): Promise<Rev.Response<T>> {
+            const endpoint = channel?.logoKey
+                ? `/api/v2/channels/thumbnails/${channel?.logoKey}`
+                : channel?.logoUri;
+
+            if (!endpoint) throw new TypeError('Channel has no logo');
             const response = await rev.request<T>('GET', endpoint, undefined, {
                 responseType: 'stream',
                 ...options
             });
             return response;
         },
-        async downloadHeader<T = ReadableStream>(headerKey: string | {headerKey?: string | null, headerUri?: string | null}, options: Rev.RequestOptions): Promise<Rev.Response<T>> {
-            let endpoint = '';
-            if (headerKey && typeof headerKey === 'object') {
-                headerKey = headerKey.headerKey ?? headerKey.headerUri ?? '';
-            }
-            if (!headerKey) throw new TypeError('no headerKey specified');
-            // if full http link (headerUri) pass as-is
-            endpoint = headerKey?.startsWith('http')
-                ? headerKey
-                : `/api/v2/channels/thumbnails/${headerKey}`;
+        async downloadHeader<T = ReadableStream>(channel: {headerKey?: string | null, headerUri?: string | null}, options: Rev.RequestOptions): Promise<Rev.Response<T>> {
+            const endpoint = channel?.headerKey
+                ? `/api/v2/channels/thumbnails/${channel?.headerKey}`
+                : channel?.headerUri;
+            if (!endpoint) throw new TypeError('Channel has no header');
             const response = await rev.request<T>('GET', endpoint, undefined, {
                 responseType: 'stream',
                 ...options
