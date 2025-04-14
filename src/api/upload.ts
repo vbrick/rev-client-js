@@ -312,6 +312,24 @@ export default function uploadAPIFactory(rev: RevClient) {
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/channel-logo/${channelId}`, form, filePayload, requestOptions);
         },
         /**
+         * @summary Upload Channel Header Image
+         * @see [API Docs](https://revdocs.vbrick.com/reference/uploadchannellogofile)
+         * @param channelId Id of the channel to upload image
+         * @param file image file
+         * @param options
+         */
+        async channelHeader(channelId: string, file: Rev.FileUploadType, options: Upload.ImageOptions = {}) {
+            const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
+
+            const form = new polyfills.FormData();
+
+            const filePayload = await appendFileToForm(form, 'ImageFile', file, uploadOptions);
+
+            rev.log('info', `Uploading channel header for ${channelId} (${filePayload.filename} ${filePayload.contentType})`);
+
+            await uploadMultipart(rev, 'POST', `/api/v2/uploads/channel-header/${channelId}`, form, filePayload, requestOptions);
+        },
+        /**
          * Upload a profile image for a given user. Only account admins can upload user profile image.
          */
         async userProfileImage(userId: string, file: Rev.FileUploadType, options: Upload.ImageOptions = {}) {
