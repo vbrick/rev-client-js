@@ -1,3 +1,8 @@
+## 0.24.1
+
+* Update types for 7.64 compatibility
+* Add missing Channel endpoints (upload header image, list user channels, download header/logo)
+
 ## 0.24.0
 
 ### Features
