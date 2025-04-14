@@ -70,6 +70,14 @@ export default function channelAPIFactory(rev: RevClient) {
                 ...searchText && {q: searchText}
             };
             return new SearchRequest<AccessControl.SearchHit>(rev, searchDefinition, query, options);
+        },
+        /**
+         * @summary Get Channels For User
+         * Returns only the channels and video count for the user making the API call based on their access control.
+         * @param options
+         */
+        listUserChannels(options?: Rev.RequestOptions): Promise<Channel.UserListItem[]> {
+            return rev.get('/api/v2/search/channels', undefined, options);
         }
     };
     return channelAPI;

@@ -28,4 +28,16 @@ export namespace Channel {
         start?: number;
         onProgress?: (items: SearchHit[], current: number, total: number) => void;
     }
+    export interface  UserListItem {
+        channelId: string;
+        name: string;
+        logoKey: string;
+        logoUri: string;
+        headerKey: string;
+        headerUri: string;
+        videoCount: number;
+        canEdit: boolean;
+        canAssign: boolean;
+        defaultSortOrder: LiteralString<'whenUploaded' | 'recommended' | 'title.sort' | 'viewCount'>;
+    }
 }
