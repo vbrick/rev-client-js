@@ -22,6 +22,32 @@ export default function channelAPIFactory(rev: RevClient) {
         async update(channelId: string, channel: Channel.CreateRequest): Promise<void> {
             return rev.put(`/api/v2/channels/${channelId}`, channel);
         },
+        /**
+         * @summary Patch Channel
+         * Partially edits the members and details of a channel. You do not need to provide the fields that you are not changing.
+         * @example
+         * ```js
+         * const rev = new RevClient(...config...);
+         * await rev.connect();
+         *
+         * // add a member
+         * await rev.channel.patch(channelId, [{ op: 'add', path: '/Members/-', value: { id: userId, type: 'User', roleTypes: 'Uploader' } }]);
+         *
+         * // add current user as an admin
+         * const user = await rev.user.details('me');
+         * await rev.channel.patch(channelId, [{ op: 'add', path: '/Members/-', value: { id: user.userId, type: 'User', roleTypes: 'Admin' } }]);
+         *
+         * // change sort order
+         * await rev.channel.patch(channelId, [{ op: 'replace', path: '/DefaultSortOrder', value: 'recommended' }]);
+         *
+         * ```
+         * @param channelId
+         * @param operations
+         * @param options
+         */
+        async patch(channelId: string, operations: Rev.PatchOperation[], options?: Rev.RequestOptions): Promise<void> {
+            await rev.patch(`/api/v2/channels/${channelId}`, operations, options);
+        },
         async delete(channelId: string): Promise<void> {
             return rev.delete(`/api/v2/channels/${channelId}`);
         },
@@ -54,6 +80,41 @@ export default function channelAPIFactory(rev: RevClient) {
         get uploadLogo() {
             return rev.upload.channelLogo;
         },
+        get uploadHeader() {
+            return rev.upload.channelHeader;
+        },
+        async downloadLogo<T = ReadableStream>(logoKey: string | {logoKey?: string | null, logoUri?: string | null}, options: Rev.RequestOptions): Promise<Rev.Response<T>> {
+            let endpoint = '';
+            if (logoKey && typeof logoKey === 'object') {
+                logoKey = logoKey.logoKey ?? logoKey.logoUri ?? '';
+            }
+            if (!logoKey) throw new TypeError('no logoKey specified');
+            // if full http link (logoUri) pass as-is
+            endpoint = logoKey?.startsWith('http')
+                ? logoKey
+                : `/api/v2/channels/thumbnails/${logoKey}`;
+            const response = await rev.request<T>('GET', endpoint, undefined, {
+                responseType: 'stream',
+                ...options
+            });
+            return response;
+        },
+        async downloadHeader<T = ReadableStream>(headerKey: string | {headerKey?: string | null, headerUri?: string | null}, options: Rev.RequestOptions): Promise<Rev.Response<T>> {
+            let endpoint = '';
+            if (headerKey && typeof headerKey === 'object') {
+                headerKey = headerKey.headerKey ?? headerKey.headerUri ?? '';
+            }
+            if (!headerKey) throw new TypeError('no headerKey specified');
+            // if full http link (headerUri) pass as-is
+            endpoint = headerKey?.startsWith('http')
+                ? headerKey
+                : `/api/v2/channels/thumbnails/${headerKey}`;
+            const response = await rev.request<T>('GET', endpoint, undefined, {
+                responseType: 'stream',
+                ...options
+            });
+            return response;
+        },
         /**
          *
          * @param {string} [searchText]
@@ -76,7 +137,7 @@ export default function channelAPIFactory(rev: RevClient) {
          * Returns only the channels and video count for the user making the API call based on their access control.
          * @param options
          */
-        listUserChannels(options?: Rev.RequestOptions): Promise<Channel.UserListItem[]> {
+        async listUserChannels(options?: Rev.RequestOptions): Promise<Channel.UserListItem[]> {
             return rev.get('/api/v2/search/channels', undefined, options);
         }
     };

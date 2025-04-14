@@ -186,6 +186,9 @@ export default function userAPIFactory(rev: RevClient) {
             }
             return new SearchRequest(rev, searchDefinition, query, options);
         },
+        get listChannels() {
+            return rev.channel.listUserChannels;
+        },
         /**
          * Returns the channel and category subscriptions for the user making the API call.
          */

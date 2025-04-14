@@ -1,9 +1,11 @@
 import type { LiteralString } from './rev';
 
+
 /**
  * @category Channels
- */
+*/
 export namespace Channel {
+    export type SortOrder = LiteralString<'whenUploaded' | 'recommended' | 'title.sort' | 'viewCount'>
     export interface Member {
         id: string;
         type: LiteralString<'User' | 'Group'>;
@@ -12,14 +14,23 @@ export namespace Channel {
     export interface CreateRequest {
         name: string;
         description?: string;
-        members?: Member[]
+        members?: Member[];
+        /**
+         * @default "whenUploaded"
+         */
+        defaultSortOrder?: Channel.SortOrder;
     }
 
     export interface SearchHit {
-        id: string,
-        name: string,
-        description: string,
+        id: string
+        name: string
+        description: string | null
         members: Member[]
+        defaultSortOrder: Channel.SortOrder
+        headerKey: string | null
+        headerUri: string | null
+        logoKey: string | null
+        logoUri: string | null
     }
 
     export interface SearchOptions {
@@ -38,6 +49,6 @@ export namespace Channel {
         videoCount: number;
         canEdit: boolean;
         canAssign: boolean;
-        defaultSortOrder: LiteralString<'whenUploaded' | 'recommended' | 'title.sort' | 'viewCount'>;
+        defaultSortOrder: Channel.SortOrder;
     }
 }
