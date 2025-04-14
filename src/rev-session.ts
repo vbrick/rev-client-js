@@ -491,10 +491,10 @@ export class AccessTokenSession extends SessionBase {
             expiration: this.expires
         };
     }
-    get isConnected() {
+    override get isConnected() {
         return true;
     }
-    get isExpired() {
+    override get isExpired() {
         return false;
     }
 }
@@ -524,10 +524,10 @@ export class PublicOnlySession extends SessionBase {
             expiration: this.expires
         };
     }
-    get isConnected() {
+    override get isConnected() {
         return true;
     }
-    get isExpired() {
+    override get isExpired() {
         return false;
     }
 }

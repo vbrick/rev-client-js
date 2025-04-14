@@ -55,6 +55,8 @@ type RateLimitOptionsWithFn<T> = RateLimitOptions & {
     fn: T
 }
 
+type TimeoutRef = ReturnType<typeof setTimeout>;
+
 function rateLimit<T extends (...args: any) => any>(options: RateLimitOptionsWithFn<T>): ThrottledFunction<T>;
 function rateLimit<T extends (...args: any) => any>(fn: T, options: RateLimitOptions): ThrottledFunction<T>;
 function rateLimit<T extends (...args: any) => any>(fn: T | RateLimitOptionsWithFn<T>, options?: RateLimitOptions): ThrottledFunction<T>;
@@ -118,7 +120,7 @@ function rateLimit<T extends (...args: any) => any> (fn: T | RateLimitOptionsWit
         throw new TypeError('Invalid interval option');
     }
 
-    const queue:Map<NodeJS.Timeout, (err: Error) => any> = new Map();
+    const queue:Map<TimeoutRef, (err: Error) => any> = new Map();
 
     let currentTick = 0;
     let activeCount = 0;
@@ -126,7 +128,7 @@ function rateLimit<T extends (...args: any) => any> (fn: T | RateLimitOptionsWit
     type Return = ReturnType<T> extends PromiseLike<infer R> ? Promise<R> : Promise<ReturnType<T>>;
 
     const throttled = function (...args: Parameters<T>) {
-        let timeout: NodeJS.Timeout;
+        let timeout: TimeoutRef;
         return new Promise((resolve, reject) => {
             const execute = () => {
                 resolve((fn as T).apply(null, args));

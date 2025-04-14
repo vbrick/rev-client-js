@@ -39,7 +39,7 @@ class AbortError extends Error {
         super(message);
         Error.captureStackTrace(this, this.constructor);
     }
-    get name() {
+    override get name() {
         return this.constructor.name;
     }
     get [Symbol.toStringTag]() {
