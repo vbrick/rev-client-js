@@ -1839,6 +1839,32 @@ function channelAPIFactory(rev) {
     async update(channelId, channel) {
       return rev.put(`/api/v2/channels/${channelId}`, channel);
     },
+    /**
+     * @summary Patch Channel
+     * Partially edits the members and details of a channel. You do not need to provide the fields that you are not changing.
+     * @example
+     * ```js
+     * const rev = new RevClient(...config...);
+     * await rev.connect();
+     *
+     * // add a member
+     * await rev.channel.patch(channelId, [{ op: 'add', path: '/Members/-', value: { id: userId, type: 'User', roleTypes: 'Uploader' } }]);
+     *
+     * // add current user as an admin
+     * const user = await rev.user.details('me');
+     * await rev.channel.patch(channelId, [{ op: 'add', path: '/Members/-', value: { id: user.userId, type: 'User', roleTypes: 'Admin' } }]);
+     *
+     * // change sort order
+     * await rev.channel.patch(channelId, [{ op: 'replace', path: '/DefaultSortOrder', value: 'recommended' }]);
+     *
+     * ```
+     * @param channelId
+     * @param operations
+     * @param options
+     */
+    async patch(channelId, operations, options) {
+      await rev.patch(`/api/v2/channels/${channelId}`, operations, options);
+    },
     async delete(channelId) {
       return rev.delete(`/api/v2/channels/${channelId}`);
     },
@@ -1865,6 +1891,27 @@ function channelAPIFactory(rev) {
     get uploadLogo() {
       return rev.upload.channelLogo;
     },
+    get uploadHeader() {
+      return rev.upload.channelHeader;
+    },
+    async downloadLogo(channel, options) {
+      const endpoint = channel?.logoKey ? `/api/v2/channels/thumbnails/${channel?.logoKey}` : channel?.logoUri;
+      if (!endpoint) throw new TypeError("Channel has no logo");
+      const response = await rev.request("GET", endpoint, void 0, {
+        responseType: "stream",
+        ...options
+      });
+      return response;
+    },
+    async downloadHeader(channel, options) {
+      const endpoint = channel?.headerKey ? `/api/v2/channels/thumbnails/${channel?.headerKey}` : channel?.headerUri;
+      if (!endpoint) throw new TypeError("Channel has no header");
+      const response = await rev.request("GET", endpoint, void 0, {
+        responseType: "stream",
+        ...options
+      });
+      return response;
+    },
     /**
      *
      * @param {string} [searchText]
@@ -1881,6 +1928,14 @@ function channelAPIFactory(rev) {
         ...searchText && { q: searchText }
       };
       return new SearchRequest(rev, searchDefinition, query, options);
+    },
+    /**
+     * @summary Get Channels For User
+     * Returns only the channels and video count for the user making the API call based on their access control.
+     * @param options
+     */
+    async listUserChannels(options) {
+      return rev.get("/api/v2/search/channels", void 0, options);
     }
   };
   return channelAPI;
@@ -2497,6 +2552,20 @@ function uploadAPIFactory(rev) {
       await uploadMultipart(rev, "POST", `/api/v2/uploads/channel-logo/${channelId}`, form, filePayload, requestOptions);
     },
     /**
+     * @summary Upload Channel Header Image
+     * @see [API Docs](https://revdocs.vbrick.com/reference/uploadchannellogofile)
+     * @param channelId Id of the channel to upload image
+     * @param file image file
+     * @param options
+     */
+    async channelHeader(channelId, file, options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
+      const form = new polyfills_default.FormData();
+      const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
+      rev.log("info", `Uploading channel header for ${channelId} (${filePayload.filename} ${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/channel-header/${channelId}`, form, filePayload, requestOptions);
+    },
+    /**
      * Upload a profile image for a given user. Only account admins can upload user profile image.
      */
     async userProfileImage(userId, file, options = {}) {
@@ -2629,6 +2698,9 @@ function userAPIFactory(rev) {
         query.q = searchText;
       }
       return new SearchRequest(rev, searchDefinition, query, options);
+    },
+    get listChannels() {
+      return rev.channel.listUserChannels;
     },
     /**
      * Returns the channel and category subscriptions for the user making the API call.
