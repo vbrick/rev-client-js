@@ -32,7 +32,7 @@ export interface Webcast {
     /**
      * Attendee join method. Only required when 'accesscontrol' is Public. Default is 'Registration'. When set to 'Anonymous', no attendee specific details are collected or registered.
      */
-    attendeeJoinMethod?: LiteralString<'Anonymous' | 'Registration'>
+    attendeeJoinMethod?: LiteralString<'Anonymous' | 'Registration'> | null;
 }
 
 /** @category Webcasts */
@@ -47,6 +47,10 @@ export namespace Webcast {
     export type RealtimeField = LiteralString<
         'FullName' | 'Email' | 'ZoneName' | 'StreamType' | 'IpAddress' | 'Browser' | 'OsFamily' | 'StreamAccessed' | 'PlayerDevice' | 'OsName' | 'UserType' | 'Username' | 'AttendeeType'
     >
+
+    export type QuestionOption = LiteralString<'IDENTIFIED' | 'SELFSELECT' | 'ANONYMOUS'>
+
+    export type AttendeeJoinMethod = LiteralString<'Anonymous' | 'Registration'>
 
     export interface ListRequest {
         after?: string | Date;
@@ -84,6 +88,8 @@ export namespace Webcast {
          * An optional search term boolean value (true or false) indicating whether to include or exclude events tagged as featured.
          */
         isFeatured?: boolean;
+        preRollVideoId: string | null;
+        postRollVideoId: string | null;
     }
 
     export interface CreateRequest {
@@ -131,7 +137,7 @@ export namespace Webcast {
         moderatorIds?: string[];
         password?: string;
         accessControl: WebcastAccessControl;
-        questionOption?: string;
+        questionOption?: Webcast.QuestionOption;
         presentationFileDownloadAllowed?: boolean;
         categories?: string[];
         tags?: string[];
@@ -166,7 +172,7 @@ export namespace Webcast {
         /**
          * Attendee join method. Only required when 'accesscontrol' is Public. Default is 'Registration'. When set to 'Anonymous', no attendee specific details are collected or registered.
          */
-        attendeeJoinMethod?: LiteralString<'Anonymous' | 'Registration'>
+        attendeeJoinMethod?: Webcast.AttendeeJoinMethod;
         /**
          * Internal user Ids. Only required when 'Producer' selected as a videoSourceType.
          */
@@ -204,6 +210,15 @@ export namespace Webcast {
          * If isCustomConsentEnabled is true then you can customize the consent verbiage for public attendees.
          */
         consentVerbiage?: string;
+        /**
+         * Video Id of the Bumper video for the event.
+         * After the event is complete and there is a Recording, this video will be added to the Beginning of your Recording.
+         */
+        preRollVideoId?: string;
+        /**
+         * After the event is complete and there is a Recording, this video will be added to the Ending of your Recording.
+         */
+        postRollVideoId?: string;
     }
 
     export interface Details {
@@ -239,31 +254,31 @@ export namespace Webcast {
         }
 
         eventAdminIds: string[];
-        primaryHostId: string;
+        primaryHostId: string | null;
         automatedWebcast: boolean;
         closedCaptionsEnabled: boolean;
         pollsEnabled: boolean;
         chatEnabled: boolean;
-        questionOption: string;
+        questionOption: Webcast.QuestionOption;
         questionAndAnswerEnabled: boolean;
         userIds: string[];
         groupIds: string[];
         moderatorIds: string[];
-        password: string;
+        password: string | null;
         accessControl: WebcastAccessControl;
         categories: Array<{ categoryId: string, name: string, fullpath: string; }>;
         tags?: string[];
         unlisted: boolean;
         estimatedAttendees: number;
         lobbyTimeMinutes: number;
-        preProduction?: {
+        webcastPreProduction?: {
             duration: string;
             userIds: string[];
             groupIds: string[];
         };
-        shortcutName: string;
-        shortcutNameUrl: string;
-        linkedVideoId: string;
+        shortcutName: string | null;
+        shortcutNameUrl: string | null;
+        linkedVideoId: string | null;
         autoAssociateVod: boolean;
         redirectVod: boolean;
         recordingUploaderUserId: string;
@@ -287,7 +302,7 @@ export namespace Webcast {
         registrationFields: RegistrationField[];
         customFields?: Admin.CustomField[];
         emailToPreRegistrants?: boolean;
-        attendeeJoinMethod?: LiteralString<'Anonymous' | 'Registration'>;
+        attendeeJoinMethod?: Webcast.AttendeeJoinMethod;
         embeddedContent: {
             isEnabled: boolean;
             contentLinks: Webcast.ContentLink[];
@@ -311,8 +326,12 @@ export namespace Webcast {
          * Default=false. If enabled by admins on the branding page, featured events will show on the home page carousel to viewers with permission. Featured events will not show in the featured carousel once the event has ended.
          */
         isFeatured: boolean;
-        isCustomConsentEnabled?: boolean;
-        consentVerbiage?: string;
+        preRollVideoId: string | null;
+        postRollVideoId: string | null;
+        // as of 7.64 not yet standardized/documented
+        // isCustomConsentEnabled?: boolean;
+        // consentVerbiage?: string;
+
     }
 
     export interface EditAttendeesRequest {
