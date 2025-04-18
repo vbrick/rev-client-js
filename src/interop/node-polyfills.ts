@@ -1,11 +1,13 @@
 import { FormDataEncoder } from 'form-data-encoder';
+import { FormData } from 'node-fetch';
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { ReadableStream } from 'node:stream/web';
 import type { RequestInit } from 'undici-types';
 import type { Rev } from '../types/rev';
-import {RevPolyfills} from './polyfills';
 import { uploadParser } from './node-multipart-utils';
+import type { RevPolyfills } from './polyfills';
+import { pathToFileURL } from 'node:url';
 
 function randomValues(byteLength: number) {
     return randomBytes(byteLength).toString('base64url');
@@ -37,7 +39,7 @@ class AbortError extends Error {
         super(message);
         Error.captureStackTrace(this, this.constructor);
     }
-    get name() {
+    override get name() {
         return this.constructor.name;
     }
     get [Symbol.toStringTag]() {
@@ -48,15 +50,33 @@ class AbortError extends Error {
 export default (polyfills: RevPolyfills) => {
     Object.assign(polyfills, {
         createAbortError(message: string): Error { return new AbortError(message); },
+        fetch(...args: Parameters<typeof fetch>) {
+            return globalThis.fetch(...args)
+                .catch(err => {
+                    // node.js native fetch (undici) wraps undelying errors in TypeError
+                    // unwrapping to maintain compatibility with node-fetch and Deno behaviors
+                    if (err instanceof TypeError && err.cause instanceof Error) {
+                        throw err.cause;
+                    }
+                    throw err;
+                });
+        },
         FormData,
         randomValues,
         sha256Hash,
         hmacSign,
+        parseUrl(value: string | URL) {
+            return value instanceof URL
+                ? value
+                : URL.canParse(value) && !/^[a-z]:[\\\/]/i.test(value)
+                ? new URL(value)
+                : pathToFileURL(value);
+        },
         uploadParser,
         beforeFileUploadRequest(form: FormData, headers: Headers, uploadOptions: Rev.UploadFileOptions, options: Rev.RequestOptions) {
             /** Encodes formdata as stream, rather than use builtin formdata processing - this is to allow streaming upload files without having to load into memory first */
             const encoder = new FormDataEncoder(form);
-            
+
             Object.assign(options, {
                 body: encoder,
                 // needed for undici error thrown when body is stream

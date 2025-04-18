@@ -1,5 +1,5 @@
 import type { AccessControl, Category, Admin, Rev } from './index';
-import { LiteralString } from './rev';
+import type { LiteralString } from './rev';
 
 /** @category Videos */
 export namespace Video {
@@ -406,12 +406,12 @@ export namespace Video {
         /** Owner GUIDs to get specific videos owner by these users. Example: ownerIds=abc, xyz */
         ownerIds?: string;
         status?: LiteralString<'active' | 'inactive'>;
-        fromPublishedDate?: string;
-        toPublishedDate?: string;
-        fromUploadDate?: string;
-        toUploadDate?: string;
-        fromModifiedDate?: string;
-        toModifiedDate?: string;
+        fromPublishedDate?: string | Date;
+        toPublishedDate?: string | Date;
+        fromUploadDate?: string | Date;
+        toUploadDate?: string | Date;
+        fromModifiedDate?: string | Date;
+        toModifiedDate?: string | Date;
 
         exactMatch?: boolean;
         unlisted?: LiteralString<'unlisted' | 'listed' | 'all'>;
@@ -539,16 +539,16 @@ export namespace Video {
     }
     export interface VideoReportOptions extends Rev.SearchOptions<VideoReportEntry> {
         videoIds?: string | string[] | undefined;
-        startDate?: string;
-        endDate?: string;
+        startDate?: string | Date;
+        endDate?: string | Date;
         incrementDays?: number;
         sortDirection?: Rev.SortDirection;
     }
 
     export interface UniqueSessionReportOptions extends Rev.SearchOptions<VideoReportEntry> {
         userId?: string;
-        startDate?: string;
-        endDate?: string;
+        startDate?: string | Date;
+        endDate?: string | Date;
         incrementDays?: number;
         sortDirection?: Rev.SortDirection;
     }

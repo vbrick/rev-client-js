@@ -893,12 +893,12 @@ declare namespace Video {
         /** Owner GUIDs to get specific videos owner by these users. Example: ownerIds=abc, xyz */
         ownerIds?: string;
         status?: LiteralString<'active' | 'inactive'>;
-        fromPublishedDate?: string;
-        toPublishedDate?: string;
-        fromUploadDate?: string;
-        toUploadDate?: string;
-        fromModifiedDate?: string;
-        toModifiedDate?: string;
+        fromPublishedDate?: string | Date;
+        toPublishedDate?: string | Date;
+        fromUploadDate?: string | Date;
+        toUploadDate?: string | Date;
+        fromModifiedDate?: string | Date;
+        toModifiedDate?: string | Date;
         exactMatch?: boolean;
         unlisted?: LiteralString<'unlisted' | 'listed' | 'all'>;
         /**
@@ -1007,15 +1007,15 @@ declare namespace Video {
     }
     interface VideoReportOptions extends Rev.SearchOptions<VideoReportEntry> {
         videoIds?: string | string[] | undefined;
-        startDate?: string;
-        endDate?: string;
+        startDate?: string | Date;
+        endDate?: string | Date;
         incrementDays?: number;
         sortDirection?: Rev.SortDirection;
     }
     interface UniqueSessionReportOptions extends Rev.SearchOptions<VideoReportEntry> {
         userId?: string;
-        startDate?: string;
-        endDate?: string;
+        startDate?: string | Date;
+        endDate?: string | Date;
         incrementDays?: number;
         sortDirection?: Rev.SortDirection;
     }
@@ -1599,8 +1599,9 @@ declare namespace Category {
 
 /**
  * @category Channels
- */
+*/
 declare namespace Channel {
+    type SortOrder = LiteralString<'whenUploaded' | 'recommended' | 'title' | 'viewCount'>;
     interface Member {
         id: string;
         type: LiteralString<'User' | 'Group'>;
@@ -1610,18 +1611,39 @@ declare namespace Channel {
         name: string;
         description?: string;
         members?: Member[];
+        /**
+         * @default "whenUploaded"
+         */
+        defaultSortOrder?: Channel.SortOrder;
     }
     interface SearchHit {
         id: string;
         name: string;
-        description: string;
+        description: string | null;
         members: Member[];
+        defaultSortOrder: Channel.SortOrder;
+        headerKey: string | null;
+        headerUri: string | null;
+        logoKey: string | null;
+        logoUri: string | null;
     }
     interface SearchOptions {
         maxResults?: number;
         pageSize?: number;
         start?: number;
         onProgress?: (items: SearchHit[], current: number, total: number) => void;
+    }
+    interface UserListItem {
+        channelId: string;
+        name: string;
+        logoKey: string;
+        logoUri: string;
+        headerKey: string;
+        headerUri: string;
+        videoCount: number;
+        canEdit: boolean;
+        canAssign: boolean;
+        defaultSortOrder: Channel.SortOrder;
     }
 }
 
@@ -2233,7 +2255,7 @@ interface Webcast {
     /**
      * Attendee join method. Only required when 'accesscontrol' is Public. Default is 'Registration'. When set to 'Anonymous', no attendee specific details are collected or registered.
      */
-    attendeeJoinMethod?: LiteralString<'Anonymous' | 'Registration'>;
+    attendeeJoinMethod?: LiteralString<'Anonymous' | 'Registration'> | null;
 }
 /** @category Webcasts */
 declare namespace Webcast {
@@ -2241,6 +2263,8 @@ declare namespace Webcast {
     type SortField = LiteralString<'startDate' | 'title'>;
     type VideoSourceType = LiteralString<'Capture' | 'MicrosoftTeams' | 'PresentationProfile' | 'Rtmp' | 'WebrtcSinglePresenter' | 'SipAddress' | 'WebexTeam' | 'WebexEvents' | 'WebexLiveStream' | 'Vod' | 'Zoom' | 'Pexip' | 'Producer'>;
     type RealtimeField = LiteralString<'FullName' | 'Email' | 'ZoneName' | 'StreamType' | 'IpAddress' | 'Browser' | 'OsFamily' | 'StreamAccessed' | 'PlayerDevice' | 'OsName' | 'UserType' | 'Username' | 'AttendeeType'>;
+    type QuestionOption = LiteralString<'IDENTIFIED' | 'SELFSELECT' | 'ANONYMOUS'>;
+    type AttendeeJoinMethod = LiteralString<'Anonymous' | 'Registration'>;
     interface ListRequest {
         after?: string | Date;
         before?: string | Date;
@@ -2276,6 +2300,8 @@ declare namespace Webcast {
          * An optional search term boolean value (true or false) indicating whether to include or exclude events tagged as featured.
          */
         isFeatured?: boolean;
+        preRollVideoId: string | null;
+        postRollVideoId: string | null;
     }
     interface CreateRequest {
         title: string;
@@ -2316,7 +2342,7 @@ declare namespace Webcast {
         moderatorIds?: string[];
         password?: string;
         accessControl: WebcastAccessControl;
-        questionOption?: string;
+        questionOption?: Webcast.QuestionOption;
         presentationFileDownloadAllowed?: boolean;
         categories?: string[];
         tags?: string[];
@@ -2347,7 +2373,7 @@ declare namespace Webcast {
         /**
          * Attendee join method. Only required when 'accesscontrol' is Public. Default is 'Registration'. When set to 'Anonymous', no attendee specific details are collected or registered.
          */
-        attendeeJoinMethod?: LiteralString<'Anonymous' | 'Registration'>;
+        attendeeJoinMethod?: Webcast.AttendeeJoinMethod;
         /**
          * Internal user Ids. Only required when 'Producer' selected as a videoSourceType.
          */
@@ -2385,6 +2411,15 @@ declare namespace Webcast {
          * If isCustomConsentEnabled is true then you can customize the consent verbiage for public attendees.
          */
         consentVerbiage?: string;
+        /**
+         * Video Id of the Bumper video for the event.
+         * After the event is complete and there is a Recording, this video will be added to the Beginning of your Recording.
+         */
+        preRollVideoId?: string;
+        /**
+         * After the event is complete and there is a Recording, this video will be added to the Ending of your Recording.
+         */
+        postRollVideoId?: string;
     }
     interface Details {
         eventId: string;
@@ -2415,17 +2450,17 @@ declare namespace Webcast {
             translationLanguages: string[];
         };
         eventAdminIds: string[];
-        primaryHostId: string;
+        primaryHostId: string | null;
         automatedWebcast: boolean;
         closedCaptionsEnabled: boolean;
         pollsEnabled: boolean;
         chatEnabled: boolean;
-        questionOption: string;
+        questionOption: Webcast.QuestionOption;
         questionAndAnswerEnabled: boolean;
         userIds: string[];
         groupIds: string[];
         moderatorIds: string[];
-        password: string;
+        password: string | null;
         accessControl: WebcastAccessControl;
         categories: Array<{
             categoryId: string;
@@ -2436,14 +2471,14 @@ declare namespace Webcast {
         unlisted: boolean;
         estimatedAttendees: number;
         lobbyTimeMinutes: number;
-        preProduction?: {
+        webcastPreProduction?: {
             duration: string;
             userIds: string[];
             groupIds: string[];
         };
-        shortcutName: string;
-        shortcutNameUrl: string;
-        linkedVideoId: string;
+        shortcutName: string | null;
+        shortcutNameUrl: string | null;
+        linkedVideoId: string | null;
         autoAssociateVod: boolean;
         redirectVod: boolean;
         recordingUploaderUserId: string;
@@ -2464,7 +2499,7 @@ declare namespace Webcast {
         registrationFields: RegistrationField[];
         customFields?: Admin.CustomField[];
         emailToPreRegistrants?: boolean;
-        attendeeJoinMethod?: LiteralString<'Anonymous' | 'Registration'>;
+        attendeeJoinMethod?: Webcast.AttendeeJoinMethod;
         embeddedContent: {
             isEnabled: boolean;
             contentLinks: Webcast.ContentLink[];
@@ -2491,8 +2526,8 @@ declare namespace Webcast {
          * Default=false. If enabled by admins on the branding page, featured events will show on the home page carousel to viewers with permission. Featured events will not show in the featured carousel once the event has ended.
          */
         isFeatured: boolean;
-        isCustomConsentEnabled?: boolean;
-        consentVerbiage?: string;
+        preRollVideoId: string | null;
+        postRollVideoId: string | null;
     }
     interface EditAttendeesRequest {
         userIds?: string[];
@@ -2921,12 +2956,12 @@ interface Role {
 declare namespace Role {
     type RoleType = LiteralString<'AccountAdmin' | 'MediaAdmin' | 'EventAdmin' | 'EventHost' | 'InternalEventHost' | 'MediaContributor' | 'InternalMediaContributor' | 'MediaViewer' | 'TeamCreator' | 'CategoryCreator' | 'VodAnalyst' | 'EventAnalyst' | 'RevIqUser' | 'ChannelCreator' | 'MediaUploader' | 'InternalMediaUploader'>;
     type RoleName = LiteralString<'Account Admin' | 'Media Admin' | 'Media Contributor' | 'Media Viewer' | 'Event Admin' | 'Event Host' | 'Channel Creator' | 'Category Creator' | 'Internal Event Host' | 'Internal Media Contributor' | 'VOD Analyst' | 'Event Analyst' | 'Rev IQ User' | 'Media Uploader' | 'Internal Media Uploader'>;
-    interface Details {
+    type Details = {
         id: string;
         name: string;
         description: string;
         roleType: Role.RoleType;
-    }
+    };
 }
 /** @category Webcasts */
 interface RegistrationField {
@@ -3250,6 +3285,30 @@ interface ChannelAPI extends API$a {
 declare function channelAPIFactory(rev: RevClient): {
     create(channel: Channel.CreateRequest): Promise<string>;
     update(channelId: string, channel: Channel.CreateRequest): Promise<void>;
+    /**
+     * @summary Patch Channel
+     * Partially edits the members and details of a channel. You do not need to provide the fields that you are not changing.
+     * @example
+     * ```js
+     * const rev = new RevClient(...config...);
+     * await rev.connect();
+     *
+     * // add a member
+     * await rev.channel.patch(channelId, [{ op: 'add', path: '/Members/-', value: { id: userId, type: 'User', roleTypes: 'Uploader' } }]);
+     *
+     * // add current user as an admin
+     * const user = await rev.user.details('me');
+     * await rev.channel.patch(channelId, [{ op: 'add', path: '/Members/-', value: { id: user.userId, type: 'User', roleTypes: 'Admin' } }]);
+     *
+     * // change sort order
+     * await rev.channel.patch(channelId, [{ op: 'replace', path: '/DefaultSortOrder', value: 'recommended' }]);
+     *
+     * ```
+     * @param channelId
+     * @param operations
+     * @param options
+     */
+    patch(channelId: string, operations: Rev.PatchOperation[], options?: Rev.RequestOptions): Promise<void>;
     delete(channelId: string): Promise<void>;
     /**
      * get list of channels in system
@@ -3259,6 +3318,15 @@ declare function channelAPIFactory(rev: RevClient): {
     addMembers(channelId: string, members: Channel.Member[]): Promise<void>;
     removeMembers(channelId: string, members: Array<string | Channel.Member>): Promise<void>;
     readonly uploadLogo: (channelId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions) => Promise<void>;
+    readonly uploadHeader: (channelId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions) => Promise<void>;
+    downloadLogo<T = ReadableStream<any>>(channel: {
+        logoKey?: string | null;
+        logoUri?: string | null;
+    }, options: Rev.RequestOptions): Promise<Rev.Response<T>>;
+    downloadHeader<T = ReadableStream<any>>(channel: {
+        headerKey?: string | null;
+        headerUri?: string | null;
+    }, options: Rev.RequestOptions): Promise<Rev.Response<T>>;
     /**
      *
      * @param {string} [searchText]
@@ -3267,6 +3335,12 @@ declare function channelAPIFactory(rev: RevClient): {
     search(searchText?: string, options?: Rev.AccessEntitySearchOptions<AccessControl.SearchHit> & {
         type?: AccessControl.EntitySearchType;
     }): SearchRequest<AccessControl.SearchHit>;
+    /**
+     * @summary Get Channels For User
+     * Returns only the channels and video count for the user making the API call based on their access control.
+     * @param options
+     */
+    listUserChannels(options?: Rev.RequestOptions): Promise<Channel.UserListItem[]>;
 };
 /** @category Channels */
 declare class ChannelListRequest implements Rev.ISearchRequest<Channel.SearchHit> {
@@ -3406,8 +3480,8 @@ declare class PlaylistDetailsRequest extends SearchRequest<Video.Details> {
         videos: Video.Details[];
         playlistName: string;
         searchFilter: Video.SearchOptions | undefined;
-        id: string;
         name: string;
+        id: string;
         playbackUrl: string;
         playlistType: (string & Record<never, never>) | "Static" | "Dynamic";
         playlistId: string;
@@ -3535,6 +3609,14 @@ declare function uploadAPIFactory(rev: RevClient): {
     webcastBranding(eventId: string, request: Webcast.BrandingRequest, options?: Upload.ImageOptions): Promise<void>;
     channelLogo(channelId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions): Promise<void>;
     /**
+     * @summary Upload Channel Header Image
+     * @see [API Docs](https://revdocs.vbrick.com/reference/uploadchannellogofile)
+     * @param channelId Id of the channel to upload image
+     * @param file image file
+     * @param options
+     */
+    channelHeader(channelId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions): Promise<void>;
+    /**
      * Upload a profile image for a given user. Only account admins can upload user profile image.
      */
     userProfileImage(userId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions): Promise<void>;
@@ -3616,6 +3698,7 @@ declare function userAPIFactory(rev: RevClient): {
      * @param {Rev.SearchOptions<{Id: string, Name: string}>} [options]
      */
     search(searchText?: string, options?: Rev.AccessEntitySearchOptions<User.SearchHit>): Rev.ISearchRequest<User.SearchHit>;
+    readonly listChannels: (options?: Rev.RequestOptions) => Promise<Channel.UserListItem[]>;
     /**
      * Returns the channel and category subscriptions for the user making the API call.
      */
@@ -3656,7 +3739,9 @@ declare function parseOptions(options: Video.VideoReportOptions): {
 };
 /** @category Videos */
 declare class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
-    options: Required<ReturnType<typeof parseOptions>>;
+    options: Required<ReturnType<typeof parseOptions>> & {
+        scrollId?: string;
+    };
     private _rev;
     private _endpoint;
     /**
@@ -3844,9 +3929,7 @@ declare function videoAPIFactory(rev: RevClient): {
         (videoId: string, startDate: Date | string, endDate?: undefined, options?: Rev.RequestOptions): Promise<Video.SummaryStatistics>;
         (videoId: string, startDate: Date | string, endDate: Date | string, options?: Rev.RequestOptions): Promise<Video.SummaryStatistics>;
     };
-    download: <T = ReadableStream<any>>(videoId: string, options?: Rev.RequestOptions) => Promise<Rev.
-    /** @ignore */
-    Response<T>>;
+    download: <T = ReadableStream<any>>(videoId: string, options?: Rev.RequestOptions) => Promise<Rev.Response<T>>;
     downloadChapter: (chapter: Video.Chapter, options?: Rev.RequestOptions) => Promise<Blob>;
     downloadSupplemental: {
         <T = Blob>(file: Video.SupplementalFile, options?: Rev.RequestOptions): Promise<T>;
@@ -4534,8 +4617,13 @@ interface RevPolyfills {
     Headers: typeof Headers;
     Request: typeof Request;
     Response: typeof Response;
+    parseUrl(value: string | URL): URL;
     uploadParser: {
         string(value: string | URL, options: Rev.UploadFileOptions): Promise<{
+            file: Blob | File;
+            options: Rev.UploadFileOptions;
+        }>;
+        localFile(value: URL, options: Rev.UploadFileOptions): Promise<{
             file: Blob | File;
             options: Rev.UploadFileOptions;
         }>;

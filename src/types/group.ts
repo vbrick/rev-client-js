@@ -1,4 +1,4 @@
-import { Role } from './index';
+import type { Role } from './index';
 
 /** @category Users & Groups */
 export namespace Group {

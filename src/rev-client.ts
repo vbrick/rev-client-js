@@ -1,10 +1,10 @@
-import { RevError } from './rev-error';
-import { RateLimitEnum, isPlainObject, retry } from './utils';
 import * as api from './api';
-import polyfills, {shouldInitialize, onInitialize} from './interop/polyfills';
-import { Rev } from './types';
-import { decodeBody } from './utils/request-utils';
+import polyfills, { onInitialize, shouldInitialize } from './interop/polyfills';
+import { RevError } from './rev-error';
 import { createSession } from './rev-session';
+import type { Rev } from './types';
+import { RateLimitEnum, isPlainObject, retry } from './utils';
+import { decodeBody } from './utils/request-utils';
 
 /**
  * @categoryDescription Getting Started
@@ -294,6 +294,7 @@ export class RevClient {
             } else if (isPlainObject(data)) {
                 // add values to query string of URL
                 for (let [key, value] of Object.entries(data)) {
+                    if (value instanceof Date) value = value.toISOString();
                     url.searchParams.append(key, value);
                 }
             } else {

@@ -1,7 +1,7 @@
 import type { RevClient } from '../rev-client';
 import type { Rev, Video } from '../types/index';
 import { RateLimitEnum, asValidDate, isPlainObject } from '../utils';
-import { IPageResponse, PagedRequest } from '../utils/paged-request';
+import { PagedRequest } from '../utils/paged-request';
 
 
 const DEFAULT_INCREMENT: number = 30;
@@ -78,7 +78,7 @@ function parseDates(startArg: string | Date | undefined, endArg: string | Date |
 
 /** @category Videos */
 export class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
-    declare options: Required<ReturnType<typeof parseOptions>>;
+    declare options: Required<ReturnType<typeof parseOptions>> & {scrollId?: string};
     private _rev: RevClient;
     private _endpoint: string;
     /**
@@ -90,12 +90,11 @@ export class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
     constructor(rev: RevClient, options: Video.VideoReportOptions = {}, endpoint = "/api/v2/videos/report") {
         super(parseOptions(options));
         this._endpoint = endpoint;
-
         this._rev = rev;
     }
     protected async _requestPage() {
         const { startDate, endDate } = this;
-        const {incrementDays, sortDirection, videoIds } = this.options;
+        const {incrementDays, sortDirection, videoIds, scrollId } = this.options;
         const isAscending = sortDirection === 'asc';
 
         let rangeStart = startDate;
@@ -104,7 +103,6 @@ export class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
 
         if (isAscending) {
             rangeEnd = addDays(rangeStart, incrementDays);
-            //
             if (rangeEnd >= endDate) {
                 done = true;
                 rangeEnd = endDate;
@@ -120,16 +118,22 @@ export class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
 
         const query: Record<string, string> = {
             after: rangeStart.toJSON(),
-            before: rangeEnd.toJSON()
+            before: rangeEnd.toJSON(),
+            ...scrollId && {scrollId},
+            ...videoIds && {videoIds}
         };
-        if (videoIds) {
-            query.videoIds = videoIds;
-        }
-        await this._rev.session.queueRequest(RateLimitEnum.GetVideoViewReport);
-        const items: Video.VideoReportEntry[] = await this._rev.get(this._endpoint, query, { responseType: "json" });
 
-        // go to next date range
-        if (!done) {
+        await this._rev.session.queueRequest(RateLimitEnum.GetVideoViewReport);
+        const page = await this._rev.post<{ sessions: Video.VideoReportEntry[], total: number, scrollId?: string }>(this._endpoint, query, { responseType: "json" });
+
+        const items = page.sessions ?? [];
+        this.options.scrollId = items.length === 0 ? undefined : page.scrollId;
+
+        // keep requesting same page if scrollId was returned
+        if (this.options.scrollId) {
+            done = false;
+        } else if (!done) {
+            // go to next date range
             if (isAscending) {
                 this.startDate = rangeEnd;
             } else {
@@ -168,7 +172,7 @@ export function videoReportAPI(rev: RevClient) {
     function summaryStatistics(videoId: string, startDate: Date | string, endDate: Date | string, options?: Rev.RequestOptions): Promise<Video.SummaryStatistics>;
     function summaryStatistics(videoId: string, startDate?: Date | string, endDate: Date | string | undefined = new Date(), options?: Rev.RequestOptions): Promise<Video.SummaryStatistics> {
         const payload = startDate
-            ? { after: new Date(startDate).toISOString(), before: new Date(endDate ?? Date.now()) }
+            ? { after: new Date(startDate).toISOString(), before: asValidDate(endDate, new Date()).toISOString() }
             : undefined;
         return rev.get(`/api/v2/videos/${videoId}/summary-statistics`, payload, options);
     }

@@ -1,5 +1,5 @@
 import {RevClient} from "../rev-client";
-import { Playlist, Rev, Video } from "../types/index";
+import type { Playlist, Rev, Video } from "../types/index";
 import { RateLimitEnum } from "../utils/index";
 import { SearchRequest } from "../utils/request-utils";
 

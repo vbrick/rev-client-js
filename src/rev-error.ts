@@ -69,7 +69,7 @@ export class RevError extends Error {
         }
     }
     /** @ignore */
-    get name() {
+    override get name() {
         return 'RevError';
     }
     /** @ignore */
@@ -129,7 +129,7 @@ export class ScrollError extends Error {
         this.detail = detail;
     }
     /** @ignore */
-    get name() {
+    override get name() {
         return this.constructor.name;
     }
     /** @ignore */

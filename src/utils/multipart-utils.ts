@@ -5,20 +5,33 @@ import type { Rev } from '../types/index';
 import { sanitizeUploadOptions } from './file-utils';
 import { isBlobLike } from './is-utils';
 
+const LOCAL_PROTOCOLS = ['blob:', 'data:'];
+
 export const uploadParser = {
     async string(value: string | URL, options: Rev.UploadFileOptions) {
-        const url = value instanceof URL
-            ? value
-            : new URL(value, 'invalid://');
+        const url = polyfills.parseUrl(value);
 
-        if (!/^data|blob|file/.test(url.protocol)) {
-            throw new TypeError('Only Blob / DateURI URLs are supported');
+        if (LOCAL_PROTOCOLS.includes(url.protocol)) {
+            const file = await (await polyfills.fetch(url)).blob();
+            return uploadParser.blob(file, options);
         }
-        if (options.disableExternalResources && url.protocol === 'file:') {
+
+        if (options.disableExternalResources) {
+            throw new Error(`${url.protocol} protocol not allowed`);
+        }
+
+        if (url.protocol === 'file:') {
+            return uploadParser.localFile(url, options);
+        }
+        // for backwards compatibility https streams are not supported
+        throw new TypeError('Only Blob / DateURI URLs are supported');
+    },
+    async localFile(url: URL, options: Rev.UploadFileOptions) {
+        if (options.disableExternalResources) {
             throw new Error('file: protocol not allowed');
         }
-        const file = await (await polyfills.fetch(url)).blob();
-        return uploadParser.blob(file, options)
+        // as of 2025 only Deno supports file:// fetch
+        return uploadParser.response(await polyfills.fetch(url), options);
     },
     async stream(value: AsyncIterable<Uint8Array>, options: Rev.UploadFileOptions) {
         const {contentType} = options;

@@ -1,9 +1,8 @@
 import { RevClient } from '../rev-client';
-import { Audit } from '../types/index';
+import type { Audit } from '../types/audit';
 import { asValidDate, tryParseJson } from '../utils/index';
-import { IPageResponse, PagedRequest } from '../utils/paged-request';
+import { type IPageResponse, PagedRequest } from '../utils/paged-request';
 import { parseCSV } from '../utils/parse-csv';
-import { RateLimitEnum, makeQueue } from '../utils/rate-limit-queues';
 
 function parseEntry<T extends Audit.Entry>(line: Record<string, any>): T {
     return {
@@ -42,6 +41,12 @@ export class AuditRequest<T extends Audit.Entry> extends PagedRequest<T> {
         label: string = 'audit records',
         {toDate, fromDate, beforeRequest, ...options}: Audit.Options<T> = {}
     ) {
+        if (!toDate && 'endDate' in options) {
+            throw new TypeError('Audit API uses toDate param instead of endDate');
+        }
+        if (!fromDate && 'startDate' in options) {
+            throw new TypeError('Audit API uses fromDate param instead of startDate');
+        }
         super({
             onProgress: (items: T[], current: number, total?: number | undefined) => {
                 rev.log('debug', `loading ${label}, ${current} of ${total}...`);

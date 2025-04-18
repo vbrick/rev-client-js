@@ -3,24 +3,20 @@ import { Stats, createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
 import { Readable } from 'node:stream';
 import { ReadableStream } from "node:stream/web";
-import { Rev } from "../types/rev";
+import { RevError } from "../rev-error";
+import type { Rev } from "../types/rev";
 import { isBlobLike } from "../utils";
 import { sanitizeUploadOptions } from "../utils/file-utils";
-import { pathToFileURL } from "node:url";
+import { uploadParser as baseUploadParser } from "../utils/multipart-utils";
 import polyfills from "./polyfills";
-import { RevError } from "../rev-error";
+import { finished } from "node:stream/promises";
 
 const LOCAL_PROTOCOLS = ['blob:', 'data:'];
 const FETCH_PROTOCOLS = ['http:', 'https:', ...LOCAL_PROTOCOLS];
 
 export const uploadParser = {
     async string(value: string | URL, options: Rev.UploadFileOptions) {
-        // file urls are supported by createReadStream, so make all inputs url
-        const url = value instanceof URL
-            ? value
-            : URL.canParse(value)
-            ? new URL(value)
-            : pathToFileURL(value);
+        const url = polyfills.parseUrl(value);
 
         if (options.disableExternalResources && !LOCAL_PROTOCOLS.includes(url.protocol)) {
             throw new Error(`${url.protocol} protocol not allowed`);
@@ -33,39 +29,32 @@ export const uploadParser = {
             );
         }
 
-        const filepath = url.protocol === 'file:' ? url : value;
-
+        return uploadParser.localFile(url, options);
+    },
+    async localFile(url: URL, options: Rev.UploadFileOptions) {
         // use FS reader to read files
-        return uploadParser.stream(
-            createReadStream(filepath),
-            {
-                filename: path.basename(`${value}`),
-                ...options
-            }
-        );
+        const readStream = createReadStream(url);
+        // pass through contentType of file based on filename, even if overridden in options
+        const {filename, contentType} = sanitizeUploadOptions(getFilename(url.pathname), '', options.contentType);
+
+        return Promise.race([
+            uploadParser.stream(
+                readStream,
+                {
+                    filename,
+                    ...options,
+                    contentType
+                }
+            ),
+            // will throw error if filepath cannot be accessed
+            finished(readStream)
+        ]);
     },
     async blob(value: Blob | File, options: Rev.UploadFileOptions) {
-        let {
-            filename = getFilename(value),
-            contentType,
-            contentLength,
-            useChunkedTransfer = false,
-            defaultContentType
-        } = options;
-
-        const sanitized = sanitizeUploadOptions(filename, contentType, defaultContentType);
-
-        if (value.type !== sanitized.contentType && typeof value.slice === 'function') {
-            value = new File([value], sanitized.filename, { type: sanitized.contentType });
-        }
-        return {
-            file: value,
-            options: {
-                ...options,
-                ...value.size && { contentLength: value.size },
-                ...sanitized
-            }
-        };
+        return baseUploadParser.blob(value, {
+            filename: getFilename(value),
+            ...options
+        });
     },
     async stream(value: AsyncIterable<Uint8Array> | ReadableStream<Uint8Array>, options: Rev.UploadFileOptions) {
         let {
@@ -97,26 +86,33 @@ export const uploadParser = {
         };
     },
     async response(response: Response, options: Rev.UploadFileOptions) {
-        const { body, headers } = response;
+        const { body, headers, url } = response;
         if (!response.ok || !body) {
             const err = await RevError.create(response);
             throw err;
         }
-        let {contentLength} = options;
+        let {
+            contentLength,
+            filename = getFilename(url)
+        } = options;
+
         // ignore length of compressed inputs
         if (!headers.get('content-encoding')) {
             contentLength ||= parseInt(headers.get('content-length') || '') || undefined;
         }
-        
+
         const contentType = headers.get('content-type');
-        return uploadParser.stream(body as ReadableStream<Uint8Array>, {
-            ...contentType && { contentType },
+        const opts = {
             ...options,
+            filename,
+            ...contentType && { contentType },
             ...(contentLength
                 ? { contentLength }
                 : { useChunkedTransfer: true }
             )
-        });
+        }
+
+        return uploadParser.stream(body as ReadableStream<Uint8Array>, opts);
     },
     async parse(value: Rev.FileUploadType, options: Rev.UploadFileOptions) {
         if (typeof value === 'string' || value instanceof URL) {
@@ -182,7 +178,7 @@ async function getLengthFromStream(source: Record<string, any>, timeoutSeconds =
     }
 }
 
-export async function statFile(filepath: string, timeoutSeconds = 15) {
+export async function statFile(filepath: string | URL, timeoutSeconds = 15) {
     // sanity check timeout
     let timer;
     const timeout = new Promise<Stats>(done => {
@@ -204,8 +200,8 @@ export async function statFile(filepath: string, timeoutSeconds = 15) {
 
 /**
  * try to get the filename from input (filepath/File/Fs.ReadStream/Response)
- * @param file 
- * @returns 
+ * @param file
+ * @returns
  */
 function getFilename(file: Rev.FileUploadType) {
     if (typeof file === 'string') {

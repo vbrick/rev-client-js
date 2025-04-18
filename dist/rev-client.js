@@ -1,3 +1,7 @@
+var __defProp = Object.defineProperty;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+
 // src/utils/file-utils.ts
 var mimeTypes = {
   ".7z": "application/x-7z-compressed",
@@ -54,11 +58,8 @@ function sanitizeUploadOptions(filename = "upload", contentType = "", defaultCon
   if (/charset/.test(contentType)) {
     contentType = contentType.replace(/;?.*charset.*$/, "");
   }
-  let name = filename.replace(/\.[^\.]+$/, "");
-  let ext = filename.replace(name, "");
-  if (!ext) {
-    ext = getExtensionForMime(contentType || defaultContentType || "");
-  }
+  let [name, ext] = filename.split(/(?=\.[^\.\\\/]+$)/);
+  ext || (ext = getExtensionForMime(contentType || defaultContentType || ""));
   filename = `${name}${ext}`;
   if (!contentType || [".vtt", ".srt"].includes(ext)) {
     contentType = getMimeForExtension(ext, defaultContentType);
@@ -83,17 +84,27 @@ function titleCase(val) {
 }
 
 // src/utils/multipart-utils.ts
+var LOCAL_PROTOCOLS = ["blob:", "data:"];
 var uploadParser = {
   async string(value, options) {
-    const url = value instanceof URL ? value : new URL(value, "invalid://");
-    if (!/^data|blob|file/.test(url.protocol)) {
-      throw new TypeError("Only Blob / DateURI URLs are supported");
+    const url = polyfills_default.parseUrl(value);
+    if (LOCAL_PROTOCOLS.includes(url.protocol)) {
+      const file = await (await polyfills_default.fetch(url)).blob();
+      return uploadParser.blob(file, options);
     }
-    if (options.disableExternalResources && url.protocol === "file:") {
+    if (options.disableExternalResources) {
+      throw new Error(`${url.protocol} protocol not allowed`);
+    }
+    if (url.protocol === "file:") {
+      return uploadParser.localFile(url, options);
+    }
+    throw new TypeError("Only Blob / DateURI URLs are supported");
+  },
+  async localFile(url, options) {
+    if (options.disableExternalResources) {
       throw new Error("file: protocol not allowed");
     }
-    const file = await (await polyfills_default.fetch(url)).blob();
-    return uploadParser.blob(file, options);
+    return uploadParser.response(await polyfills_default.fetch(url), options);
   },
   async stream(value, options) {
     const { contentType } = options;
@@ -211,6 +222,9 @@ var polyfills = {
   randomValues,
   sha256Hash,
   hmacSign,
+  parseUrl(value) {
+    return value instanceof URL ? value : new URL(value, "invalid://");
+  },
   beforeFileUploadRequest(form, headers, uploadOptions, options) {
     return form;
   },
@@ -439,6 +453,22 @@ var RevError = class _RevError extends Error {
       url
     } = response;
     super(`${status} ${statusText}`);
+    /**
+     * HTTP Status Code
+     */
+    __publicField(this, "status");
+    /**
+     * Request URL/endpoint
+     */
+    __publicField(this, "url");
+    /**
+     * Rev-specific error code
+     */
+    __publicField(this, "code");
+    /**
+     * Additional error message returned by Rev API
+     */
+    __publicField(this, "detail");
     if ("captureStackTrace" in Error) {
       Error.captureStackTrace(this, this.constructor);
     }
@@ -505,6 +535,18 @@ var ScrollError = class extends Error {
    */
   constructor(status = 408, code = "ScrollExpired", detail = "Timeout while fetching all results in search request") {
     super("Search Scroll Expired");
+    /**
+     * HTTP Status Code
+     */
+    __publicField(this, "status");
+    /**
+     * Rev-specific error code
+     */
+    __publicField(this, "code");
+    /**
+     * Additional error message returned by Rev API
+     */
+    __publicField(this, "detail");
     Error.captureStackTrace(this, this.constructor);
     this.status = status;
     this.code = code;
@@ -527,6 +569,10 @@ var PagedRequest = class {
    * @param options
    */
   constructor(options = {}) {
+    __publicField(this, "current");
+    __publicField(this, "total");
+    __publicField(this, "done");
+    __publicField(this, "options");
     this.options = {
       maxResults: Infinity,
       onProgress: (items, current, total) => {
@@ -687,6 +733,8 @@ var SearchRequest = class extends PagedRequest {
       },
       ...options
     });
+    __publicField(this, "query");
+    __publicField(this, "_reqImpl");
     const {
       scrollId: _ignore,
       ...queryOpt
@@ -945,12 +993,20 @@ var AuditRequest = class extends PagedRequest {
    * @param options
    */
   constructor(rev, endpoint, label = "audit records", { toDate, fromDate, beforeRequest, ...options } = {}) {
+    if (!toDate && "endDate" in options) {
+      throw new TypeError("Audit API uses toDate param instead of endDate");
+    }
+    if (!fromDate && "startDate" in options) {
+      throw new TypeError("Audit API uses fromDate param instead of startDate");
+    }
     super({
       onProgress: (items, current, total) => {
         rev.log("debug", `loading ${label}, ${current} of ${total}...`);
       },
       ...options
     });
+    __publicField(this, "params");
+    __publicField(this, "_req");
     const { from, to } = this._parseDates(fromDate, toDate);
     this.params = {
       toDate: to.toISOString(),
@@ -1233,7 +1289,8 @@ function authAPIFactory(rev) {
      */
     async buildOAuth2Authentication(config, state = "1", verifier) {
       const { codeChallenge, codeVerifier } = await getOAuth2PKCEVerifier(verifier);
-      const url = getOAuth2AuthorizationUrl(config, codeChallenge, state);
+      const _cfg = { revUrl: rev.url, ...config };
+      const url = getOAuth2AuthorizationUrl(_cfg, codeChallenge, state);
       return {
         url: `${url}`,
         codeVerifier
@@ -1360,6 +1417,32 @@ function channelAPIFactory(rev) {
     async update(channelId, channel) {
       return rev.put(`/api/v2/channels/${channelId}`, channel);
     },
+    /**
+     * @summary Patch Channel
+     * Partially edits the members and details of a channel. You do not need to provide the fields that you are not changing.
+     * @example
+     * ```js
+     * const rev = new RevClient(...config...);
+     * await rev.connect();
+     *
+     * // add a member
+     * await rev.channel.patch(channelId, [{ op: 'add', path: '/Members/-', value: { id: userId, type: 'User', roleTypes: 'Uploader' } }]);
+     *
+     * // add current user as an admin
+     * const user = await rev.user.details('me');
+     * await rev.channel.patch(channelId, [{ op: 'add', path: '/Members/-', value: { id: user.userId, type: 'User', roleTypes: 'Admin' } }]);
+     *
+     * // change sort order
+     * await rev.channel.patch(channelId, [{ op: 'replace', path: '/DefaultSortOrder', value: 'recommended' }]);
+     *
+     * ```
+     * @param channelId
+     * @param operations
+     * @param options
+     */
+    async patch(channelId, operations, options) {
+      await rev.patch(`/api/v2/channels/${channelId}`, operations, options);
+    },
     async delete(channelId) {
       return rev.delete(`/api/v2/channels/${channelId}`);
     },
@@ -1386,6 +1469,27 @@ function channelAPIFactory(rev) {
     get uploadLogo() {
       return rev.upload.channelLogo;
     },
+    get uploadHeader() {
+      return rev.upload.channelHeader;
+    },
+    async downloadLogo(channel, options) {
+      const endpoint = channel?.logoKey ? `/api/v2/channels/thumbnails/${channel?.logoKey}` : channel?.logoUri;
+      if (!endpoint) throw new TypeError("Channel has no logo");
+      const response = await rev.request("GET", endpoint, void 0, {
+        responseType: "stream",
+        ...options
+      });
+      return response;
+    },
+    async downloadHeader(channel, options) {
+      const endpoint = channel?.headerKey ? `/api/v2/channels/thumbnails/${channel?.headerKey}` : channel?.headerUri;
+      if (!endpoint) throw new TypeError("Channel has no header");
+      const response = await rev.request("GET", endpoint, void 0, {
+        responseType: "stream",
+        ...options
+      });
+      return response;
+    },
     /**
      *
      * @param {string} [searchText]
@@ -1402,12 +1506,26 @@ function channelAPIFactory(rev) {
         ...searchText && { q: searchText }
       };
       return new SearchRequest(rev, searchDefinition, query, options);
+    },
+    /**
+     * @summary Get Channels For User
+     * Returns only the channels and video count for the user making the API call based on their access control.
+     * @param options
+     */
+    async listUserChannels(options) {
+      return rev.get("/api/v2/search/channels", void 0, options);
     }
   };
   return channelAPI;
 }
 var ChannelListRequest = class {
   constructor(rev, start = 0, options = {}) {
+    __publicField(this, "currentPage");
+    __publicField(this, "current");
+    __publicField(this, "total");
+    __publicField(this, "done");
+    __publicField(this, "options");
+    __publicField(this, "_req");
     this.options = {
       maxResults: Infinity,
       pageSize: 10,
@@ -1657,7 +1775,7 @@ var PlaylistDetailsRequest = class extends SearchRequest {
       }
     };
     super(rev, searchDefinition, query, options);
-    this.playlist = {};
+    __publicField(this, "playlist", {});
   }
   get playlistName() {
     return this.playlist.playlistDetails?.name || this.playlist.name;
@@ -1795,16 +1913,15 @@ function splitOptions(options, defaultType) {
   return {
     requestOptions,
     uploadOptions: {
-      filename,
-      contentType,
-      contentLength,
-      useChunkedTransfer,
+      ...filename && { filename },
+      ...contentType && { contentType },
+      ...contentLength && { contentLength },
+      ...useChunkedTransfer && { useChunkedTransfer },
       defaultContentType
     }
   };
 }
 function uploadAPIFactory(rev) {
-  const { FormData } = polyfills_default;
   const uploadAPI = {
     /**
              * Upload a video, and returns the resulting video ID
@@ -1836,7 +1953,7 @@ function uploadAPIFactory(rev) {
              */
     async video(file, metadata = { uploader: rev.session.username ?? "" }, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "video/mp4");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       if (!metadata.uploader) {
         const defaultUsername = rev.session.username;
         if (defaultUsername) {
@@ -1858,7 +1975,7 @@ function uploadAPIFactory(rev) {
      */
     async replaceVideo(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "video/mp4");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "VideoFile", file, uploadOptions);
       rev.log("info", `Replacing ${videoId} with ${filePayload.filename} (${filePayload.contentType})`);
       await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
@@ -1866,7 +1983,7 @@ function uploadAPIFactory(rev) {
     },
     async transcription(videoId, file, language = "en", options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "application/x-subrip");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const lang = language.toLowerCase();
       if (uploadOptions.contentType === "text/plain" || uploadOptions.filename?.endsWith("txt")) {
         uploadOptions.filename = `${uploadOptions.filename || "upload"}.srt`;
@@ -1883,7 +2000,7 @@ function uploadAPIFactory(rev) {
     },
     async supplementalFile(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options);
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "File", file, uploadOptions);
       const metadata = {
         files: [
@@ -1904,11 +2021,11 @@ function uploadAPIFactory(rev) {
      */
     async chapters(videoId, chapters, action = "replace", options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/png");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const metadata = {
         chapters: []
       };
-      for (let chapter of chapters) {
+      for (let [index, chapter] of chapters.entries()) {
         const {
           title,
           time,
@@ -1920,7 +2037,13 @@ function uploadAPIFactory(rev) {
           chapterEntry.title = title;
         }
         if (imageFile) {
-          const filePayload = await appendFileToForm(form, "File", imageFile, { ...uploadOptions, ...fileUploadOptions });
+          const fileOpts = {
+            ...uploadOptions,
+            // explicitly set filename to avoid conflict with multiple chapters
+            filename: `chapter${index + 1}`,
+            ...fileUploadOptions
+          };
+          const filePayload = await appendFileToForm(form, "File", imageFile, fileOpts);
           chapterEntry.imageFile = filePayload.filename;
         }
         metadata.chapters.push(chapterEntry);
@@ -1932,42 +2055,42 @@ function uploadAPIFactory(rev) {
     },
     async thumbnail(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ThumbnailFile", file, uploadOptions);
       rev.log("info", `Uploading thumbnail for ${videoId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/images/${videoId}`, form, filePayload, requestOptions);
     },
     async presentationChapters(videoId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "application/vnd.ms-powerpoint");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "PresentationFile", file, uploadOptions);
       rev.log("info", `Uploading presentation for ${videoId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/video-presentations/${videoId}`, form, filePayload, requestOptions);
     },
     async webcastPresentation(eventId, file, options) {
       const { uploadOptions, requestOptions } = splitOptions(options, "application/vnd.ms-powerpoint");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "PresentationFile", file, uploadOptions);
       rev.log("info", `Uploading presentation for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/presentations/${eventId}`, form, filePayload, requestOptions);
     },
     async webcastBackground(eventId, file, options) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
       rev.log("info", `Uploading background image for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/background-image/${eventId}`, form, filePayload, requestOptions);
     },
     async webcastProducerLayoutBackground(eventId, file, options) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
       rev.log("info", `Uploading producer layout background image for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/webcast-producer-bgimage/${eventId}`, form, filePayload, requestOptions);
     },
     async webcastBranding(eventId, request, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const logoOptions = {
         ...uploadOptions,
         // make sure filename is by default unique
@@ -1993,17 +2116,31 @@ function uploadAPIFactory(rev) {
     },
     async channelLogo(channelId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
       rev.log("info", `Uploading channel logo for ${channelId} (${filePayload.filename} ${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/channel-logo/${channelId}`, form, filePayload, requestOptions);
+    },
+    /**
+     * @summary Upload Channel Header Image
+     * @see [API Docs](https://revdocs.vbrick.com/reference/uploadchannellogofile)
+     * @param channelId Id of the channel to upload image
+     * @param file image file
+     * @param options
+     */
+    async channelHeader(channelId, file, options = {}) {
+      const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
+      const form = new polyfills_default.FormData();
+      const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
+      rev.log("info", `Uploading channel header for ${channelId} (${filePayload.filename} ${filePayload.contentType})`);
+      await uploadMultipart(rev, "POST", `/api/v2/uploads/channel-header/${channelId}`, form, filePayload, requestOptions);
     },
     /**
      * Upload a profile image for a given user. Only account admins can upload user profile image.
      */
     async userProfileImage(userId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
-      const form = new FormData();
+      const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/profile-image/${userId}`, form, filePayload, requestOptions);
     }
@@ -2131,6 +2268,9 @@ function userAPIFactory(rev) {
       }
       return new SearchRequest(rev, searchDefinition, query, options);
     },
+    get listChannels() {
+      return rev.channel.listUserChannels;
+    },
     /**
      * Returns the channel and category subscriptions for the user making the API call.
      */
@@ -2183,154 +2323,6 @@ function formatUserSearchHit(hit) {
     lastname: hit.LastName,
     username: hit.UserName,
     profileImageUri: hit.ProfileImageUri
-  };
-}
-
-// src/api/video-report-request.ts
-var DEFAULT_INCREMENT = 30;
-var DEFAULT_SORT = "asc";
-function addDays(date, numDays) {
-  const d = new Date(date.getTime());
-  d.setDate(d.getDate() + numDays);
-  return d;
-}
-function parseOptions(options) {
-  let {
-    incrementDays = DEFAULT_INCREMENT,
-    sortDirection = DEFAULT_SORT,
-    videoIds,
-    startDate,
-    endDate,
-    ...otherOptions
-  } = options;
-  incrementDays = Math.min(
-    Math.max(
-      1 / 24 / 60,
-      parseFloat(incrementDays) || DEFAULT_INCREMENT
-    ),
-    30
-  );
-  if (Array.isArray(videoIds)) {
-    videoIds = videoIds.map((s) => s.trim()).filter(Boolean).join(",");
-  }
-  return {
-    incrementDays,
-    sortDirection,
-    videoIds,
-    ...parseDates(startDate, endDate),
-    ...otherOptions
-  };
-}
-function parseDates(startArg, endArg) {
-  const now = /* @__PURE__ */ new Date();
-  let startDate = asValidDate(startArg);
-  let endDate = asValidDate(endArg);
-  if (!endDate) {
-    if (startDate) {
-      endDate = addDays(startDate, 30);
-      if (endDate.getTime() > now.getTime()) {
-        endDate = now;
-      }
-    } else {
-      endDate = now;
-    }
-  }
-  if (!startDate) {
-    startDate = addDays(endDate, -30);
-  }
-  if (startDate.getTime() > endDate.getTime()) {
-    [startDate, endDate] = [endDate, startDate];
-  }
-  return { startDate, endDate };
-}
-var VideoReportRequest = class extends PagedRequest {
-  /**
-   * @hidden
-   * @param rev
-   * @param options
-   * @param endpoint
-   */
-  constructor(rev, options = {}, endpoint = "/api/v2/videos/report") {
-    super(parseOptions(options));
-    this._endpoint = endpoint;
-    this._rev = rev;
-  }
-  async _requestPage() {
-    const { startDate, endDate } = this;
-    const { incrementDays, sortDirection, videoIds } = this.options;
-    const isAscending = sortDirection === "asc";
-    let rangeStart = startDate;
-    let rangeEnd = endDate;
-    let done = false;
-    if (isAscending) {
-      rangeEnd = addDays(rangeStart, incrementDays);
-      if (rangeEnd >= endDate) {
-        done = true;
-        rangeEnd = endDate;
-      }
-    } else {
-      rangeStart = addDays(rangeEnd, -1 * incrementDays);
-      if (rangeStart <= startDate) {
-        done = true;
-        rangeStart = startDate;
-      }
-    }
-    const query = {
-      after: rangeStart.toJSON(),
-      before: rangeEnd.toJSON()
-    };
-    if (videoIds) {
-      query.videoIds = videoIds;
-    }
-    await this._rev.session.queueRequest("viewReport" /* GetVideoViewReport */);
-    const items = await this._rev.get(this._endpoint, query, { responseType: "json" });
-    if (!done) {
-      if (isAscending) {
-        this.startDate = rangeEnd;
-      } else {
-        this.endDate = rangeStart;
-      }
-    }
-    return {
-      items,
-      done
-    };
-  }
-  get startDate() {
-    return this.options.startDate;
-  }
-  set startDate(value) {
-    this.options.startDate = value;
-  }
-  get endDate() {
-    return this.options.endDate;
-  }
-  set endDate(value) {
-    this.options.endDate = value;
-  }
-};
-function videoReportAPI(rev) {
-  function report(videoId, options = {}) {
-    if (isPlainObject(videoId)) {
-      options = videoId;
-    } else if (typeof videoId === "string") {
-      options = {
-        ...options ?? {},
-        videoIds: videoId
-      };
-    }
-    return new VideoReportRequest(rev, options, "/api/v2/videos/report");
-  }
-  function summaryStatistics(videoId, startDate, endDate = /* @__PURE__ */ new Date(), options) {
-    const payload = startDate ? { after: new Date(startDate).toISOString(), before: new Date(endDate ?? Date.now()) } : void 0;
-    return rev.get(`/api/v2/videos/${videoId}/summary-statistics`, payload, options);
-  }
-  return {
-    report,
-    uniqueSessionsReport(videoId, options = {}) {
-      return new VideoReportRequest(rev, options, `/api/v2/videos/${videoId}/report`);
-    },
-    summaryStatistics
   };
 }
 
@@ -2437,6 +2429,159 @@ function videoExternalAccessAPI(rev) {
     async revokeExternalAccess(videoId, request) {
       return rev.put(`/api/v2/videos/${videoId}/external-access/revoke`, request);
     }
+  };
+}
+
+// src/api/video-report-request.ts
+var DEFAULT_INCREMENT = 30;
+var DEFAULT_SORT = "asc";
+function addDays(date, numDays) {
+  const d = new Date(date.getTime());
+  d.setDate(d.getDate() + numDays);
+  return d;
+}
+function parseOptions(options) {
+  let {
+    incrementDays = DEFAULT_INCREMENT,
+    sortDirection = DEFAULT_SORT,
+    videoIds,
+    startDate,
+    endDate,
+    ...otherOptions
+  } = options;
+  incrementDays = Math.min(
+    Math.max(
+      1 / 24 / 60,
+      parseFloat(incrementDays) || DEFAULT_INCREMENT
+    ),
+    30
+  );
+  if (Array.isArray(videoIds)) {
+    videoIds = videoIds.map((s) => s.trim()).filter(Boolean).join(",");
+  }
+  return {
+    incrementDays,
+    sortDirection,
+    videoIds,
+    ...parseDates(startDate, endDate),
+    ...otherOptions
+  };
+}
+function parseDates(startArg, endArg) {
+  const now = /* @__PURE__ */ new Date();
+  let startDate = asValidDate(startArg);
+  let endDate = asValidDate(endArg);
+  if (!endDate) {
+    if (startDate) {
+      endDate = addDays(startDate, 30);
+      if (endDate.getTime() > now.getTime()) {
+        endDate = now;
+      }
+    } else {
+      endDate = now;
+    }
+  }
+  if (!startDate) {
+    startDate = addDays(endDate, -30);
+  }
+  if (startDate.getTime() > endDate.getTime()) {
+    [startDate, endDate] = [endDate, startDate];
+  }
+  return { startDate, endDate };
+}
+var VideoReportRequest = class extends PagedRequest {
+  /**
+   * @hidden
+   * @param rev
+   * @param options
+   * @param endpoint
+   */
+  constructor(rev, options = {}, endpoint = "/api/v2/videos/report") {
+    super(parseOptions(options));
+    __publicField(this, "_rev");
+    __publicField(this, "_endpoint");
+    this._endpoint = endpoint;
+    this._rev = rev;
+  }
+  async _requestPage() {
+    const { startDate, endDate } = this;
+    const { incrementDays, sortDirection, videoIds, scrollId } = this.options;
+    const isAscending = sortDirection === "asc";
+    let rangeStart = startDate;
+    let rangeEnd = endDate;
+    let done = false;
+    if (isAscending) {
+      rangeEnd = addDays(rangeStart, incrementDays);
+      if (rangeEnd >= endDate) {
+        done = true;
+        rangeEnd = endDate;
+      }
+    } else {
+      rangeStart = addDays(rangeEnd, -1 * incrementDays);
+      if (rangeStart <= startDate) {
+        done = true;
+        rangeStart = startDate;
+      }
+    }
+    const query = {
+      after: rangeStart.toJSON(),
+      before: rangeEnd.toJSON(),
+      ...scrollId && { scrollId },
+      ...videoIds && { videoIds }
+    };
+    await this._rev.session.queueRequest("viewReport" /* GetVideoViewReport */);
+    const page = await this._rev.post(this._endpoint, query, { responseType: "json" });
+    const items = page.sessions ?? [];
+    this.options.scrollId = items.length === 0 ? void 0 : page.scrollId;
+    if (this.options.scrollId) {
+      done = false;
+    } else if (!done) {
+      if (isAscending) {
+        this.startDate = rangeEnd;
+      } else {
+        this.endDate = rangeStart;
+      }
+    }
+    return {
+      items,
+      done
+    };
+  }
+  get startDate() {
+    return this.options.startDate;
+  }
+  set startDate(value) {
+    this.options.startDate = value;
+  }
+  get endDate() {
+    return this.options.endDate;
+  }
+  set endDate(value) {
+    this.options.endDate = value;
+  }
+};
+function videoReportAPI(rev) {
+  function report(videoId, options = {}) {
+    if (isPlainObject(videoId)) {
+      options = videoId;
+    } else if (typeof videoId === "string") {
+      options = {
+        ...options ?? {},
+        videoIds: videoId
+      };
+    }
+    return new VideoReportRequest(rev, options, "/api/v2/videos/report");
+  }
+  function summaryStatistics(videoId, startDate, endDate = /* @__PURE__ */ new Date(), options) {
+    const payload = startDate ? { after: new Date(startDate).toISOString(), before: asValidDate(endDate, /* @__PURE__ */ new Date()).toISOString() } : void 0;
+    return rev.get(`/api/v2/videos/${videoId}/summary-statistics`, payload, options);
+  }
+  return {
+    report,
+    uniqueSessionsReport(videoId, options = {}) {
+      return new VideoReportRequest(rev, options, `/api/v2/videos/${videoId}/report`);
+    },
+    summaryStatistics
   };
 }
 
@@ -3369,7 +3514,11 @@ var DEFAULT_EXPIRE_MINUTES = 10;
 var _credentials = Symbol("credentials");
 var SessionKeepAlive = class {
   constructor(session, options = {}) {
-    this._isExtending = false;
+    __publicField(this, "_session");
+    __publicField(this, "controller");
+    __publicField(this, "extendOptions");
+    __publicField(this, "error");
+    __publicField(this, "_isExtending", false);
     this.extendOptions = {
       extendThresholdMilliseconds: 3 * ONE_MINUTE2,
       keepAliveInterval: 10 * ONE_MINUTE2,
@@ -3445,9 +3594,16 @@ var SessionKeepAlive = class {
     return this.controller && !this.controller.signal.aborted;
   }
 };
-_credentials;
+var _a;
+_a = _credentials;
 var SessionBase = class {
   constructor(rev, credentials, keepAliveOptions, rateLimits) {
+    __publicField(this, "token");
+    __publicField(this, "expires");
+    __publicField(this, "rev");
+    __publicField(this, _a);
+    __publicField(this, "keepAlive");
+    __publicField(this, "_rateLimits");
     this.expires = /* @__PURE__ */ new Date();
     if (keepAliveOptions === true) {
       this.keepAlive = new SessionKeepAlive(this);
@@ -3582,6 +3738,10 @@ var SessionBase = class {
   }
 };
 var OAuthSession = class extends SessionBase {
+  constructor() {
+    super(...arguments);
+    __publicField(this, "refreshToken");
+  }
   async _login() {
     const { oauthConfig, authCode } = this[_credentials];
     if (!oauthConfig || !authCode) {
@@ -3618,6 +3778,10 @@ var OAuthSession = class extends SessionBase {
   }
 };
 var OAuth2Session = class extends SessionBase {
+  constructor() {
+    super(...arguments);
+    __publicField(this, "refreshToken");
+  }
   async _login() {
     const { oauthConfig, code, codeVerifier } = this[_credentials];
     if (!oauthConfig || !code || !codeVerifier) {
@@ -3647,6 +3811,10 @@ var OAuth2Session = class extends SessionBase {
   }
 };
 var UserSession = class extends SessionBase {
+  constructor() {
+    super(...arguments);
+    __publicField(this, "userId");
+  }
   async _login() {
     const { username, password } = this[_credentials];
     if (!username || !password) {
@@ -3861,12 +4029,92 @@ function createSession(rev, credentials, keepAliveOptions, rateLimits) {
 }
 
 // src/rev-client.ts
-var RevClient = class {
+var RevClient3 = class {
   /**
    *
    * @param options The configuration options including target Rev URL and authentication credentials
    */
   constructor(options) {
+    /**
+     * The Rev tenant url (i.e. https://my.rev.url)
+     * @group Properties
+     */
+    __publicField(this, "url");
+    /**
+     * turns on/off debug logging to console
+     * @group Internal
+     */
+    __publicField(this, "logEnabled");
+    /**
+     ** This is an internal class that handles authentication and maintaining the session. It should not be used directly.
+     * @group Internal
+     */
+    __publicField(this, "session");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "admin");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "audit");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "auth");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "category");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "channel");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "device");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "environment");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "group");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "playlist");
+    /**
+     *
+     * @group APIs
+     */
+    __publicField(this, "recording");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "upload");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "user");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "video");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "webcast");
+    /**
+     * @group APIs
+     */
+    __publicField(this, "zones");
+    /**
+     * @internal
+     */
+    __publicField(this, "_streamPreference");
     if (!isPlainObject(options) || !options.url) {
       throw new TypeError("Missing configuration options for client - url and username/password or apiKey/secret");
     }
@@ -3970,6 +4218,7 @@ var RevClient = class {
         }
       } else if (isPlainObject(data)) {
         for (let [key, value] of Object.entries(data)) {
+          if (value instanceof Date) value = value.toISOString();
           url.searchParams.append(key, value);
         }
       } else {
@@ -4258,9 +4507,9 @@ var utils = {
    */
   setPolyfills
 };
-var src_default = RevClient;
+var src_default = RevClient3;
 export {
-  RevClient,
+  RevClient3 as RevClient,
   RevError,
   ScrollError,
   src_default as default,

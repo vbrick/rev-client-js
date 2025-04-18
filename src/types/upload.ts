@@ -1,4 +1,4 @@
-import { Rev, LiteralString } from './rev';
+import type { Rev, LiteralString } from './rev';
 
 /** @category Videos */
 export namespace Upload {

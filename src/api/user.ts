@@ -1,6 +1,6 @@
 import type { RevClient } from '../rev-client';
 import type { Rev, User } from '../types/index';
-import { LiteralString } from '../types/rev';
+import type { LiteralString } from '../types/rev';
 import { RateLimitEnum } from '../utils';
 import { SearchRequest } from '../utils/request-utils';
 
@@ -185,6 +185,9 @@ export default function userAPIFactory(rev: RevClient) {
                 query.q = searchText;
             }
             return new SearchRequest(rev, searchDefinition, query, options);
+        },
+        get listChannels() {
+            return rev.channel.listUserChannels;
         },
         /**
          * Returns the channel and category subscriptions for the user making the API call.

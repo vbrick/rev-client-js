@@ -1,6 +1,6 @@
-import { Recording } from '../types/index';
 import type { RevClient } from '../rev-client';
-import { Video } from '../types/video';
+import type { Recording } from '../types/recording';
+import type { Video } from '../types/video';
 import { isPlainObject } from '../utils';
 
 /** @ignore */

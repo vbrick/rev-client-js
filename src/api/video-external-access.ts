@@ -1,4 +1,4 @@
-import { Rev, Video } from "../types";
+import type { Rev, Video } from "../types";
 import type { ExternalAccess } from '../types/video';
 import { isPlainObject } from "../utils";
 import type {RevClient} from "../rev-client";

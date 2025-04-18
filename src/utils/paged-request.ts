@@ -1,4 +1,4 @@
-import { Rev } from '../types/rev';
+import type { Rev } from '../types/rev';
 
 /**
  * A page of results returned from `.nextPage()`

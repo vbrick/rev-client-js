@@ -1,5 +1,5 @@
-import { Role } from './index';
-import { Rev, LiteralString } from './rev';
+import type { Role } from './index';
+import type { Rev, LiteralString } from './rev';
 
 /** @category Users & Groups */
 export interface User {
