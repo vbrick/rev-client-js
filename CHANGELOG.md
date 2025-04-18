@@ -1,3 +1,7 @@
+## 0.24.2
+
+* Bugfix - `rev.video.uniqueSessionsReport` uses `POST`
+
 ## 0.24.1
 
 * Update types for 7.64 compatibility
