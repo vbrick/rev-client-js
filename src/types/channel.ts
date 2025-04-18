@@ -5,7 +5,7 @@ import type { LiteralString } from './rev';
  * @category Channels
 */
 export namespace Channel {
-    export type SortOrder = LiteralString<'whenUploaded' | 'recommended' | 'title.sort' | 'viewCount'>
+    export type SortOrder = LiteralString<'whenUploaded' | 'recommended' | 'title' | 'viewCount'>
     export interface Member {
         id: string;
         type: LiteralString<'User' | 'Group'>;
