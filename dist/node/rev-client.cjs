@@ -2943,7 +2943,7 @@ var VideoReportRequest = class extends PagedRequest {
   }
   async _requestPage() {
     const { startDate, endDate } = this;
-    const { incrementDays, sortDirection, videoIds } = this.options;
+    const { incrementDays, sortDirection, videoIds, scrollId } = this.options;
     const isAscending = sortDirection === "asc";
     let rangeStart = startDate;
     let rangeEnd = endDate;
@@ -2963,14 +2963,17 @@ var VideoReportRequest = class extends PagedRequest {
     }
     const query = {
       after: rangeStart.toJSON(),
-      before: rangeEnd.toJSON()
+      before: rangeEnd.toJSON(),
+      ...scrollId && { scrollId },
+      ...videoIds && { videoIds }
     };
-    if (videoIds) {
-      query.videoIds = videoIds;
-    }
     await this._rev.session.queueRequest("viewReport" /* GetVideoViewReport */);
-    const items = await this._rev.get(this._endpoint, query, { responseType: "json" });
-    if (!done) {
+    const page = await this._rev.post(this._endpoint, query, { responseType: "json" });
+    const items = page.sessions ?? [];
+    this.options.scrollId = items.length === 0 ? void 0 : page.scrollId;
+    if (this.options.scrollId) {
+      done = false;
+    } else if (!done) {
       if (isAscending) {
         this.startDate = rangeEnd;
       } else {

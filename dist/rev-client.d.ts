@@ -1601,7 +1601,7 @@ declare namespace Category {
  * @category Channels
 */
 declare namespace Channel {
-    type SortOrder = LiteralString<'whenUploaded' | 'recommended' | 'title.sort' | 'viewCount'>;
+    type SortOrder = LiteralString<'whenUploaded' | 'recommended' | 'title' | 'viewCount'>;
     interface Member {
         id: string;
         type: LiteralString<'User' | 'Group'>;
@@ -3739,7 +3739,9 @@ declare function parseOptions(options: Video.VideoReportOptions): {
 };
 /** @category Videos */
 declare class VideoReportRequest extends PagedRequest<Video.VideoReportEntry> {
-    options: Required<ReturnType<typeof parseOptions>>;
+    options: Required<ReturnType<typeof parseOptions>> & {
+        scrollId?: string;
+    };
     private _rev;
     private _endpoint;
     /**
