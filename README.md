@@ -398,6 +398,7 @@ Wrapper around the [Search Users,Groups and Channels](https://revdocs.vbrick.com
 
 ### [Environment]
 
+#### `environment.bootstrap()`
 #### `environment.getAccountId()`
 #### `environment.getRevVersion()`
 #### `environment.getUserLocalIp(timeoutMilliseconds)`

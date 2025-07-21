@@ -1,3 +1,4 @@
+import type { AccountBasicInfo } from '../types/index';
 import type { RevClient } from '../rev-client';
 
 /** @ignore */
@@ -12,29 +13,77 @@ export interface EnvironmentAPI extends API {};
 /** @ignore */
 export default function environmentAPIFactory(rev: RevClient) {
     let accountId = '';
-    let version = '';
+    let version = '' as AccountBasicInfo['environment']['version'];
     let ulsInfo: undefined | { enabled: boolean, locationUrls: string[] } = undefined;
+    let bootstrap: undefined | Promise<AccountBasicInfo> = undefined;
+
+    async function fallbackGetAccountId(forceRefresh = false): Promise<string> {
+        if (!accountId || forceRefresh) {
+            const text = await rev.get<string>('/', undefined, { responseType: 'text' }).catch(error => '');
+            accountId = (/(['"])account\1[:{\s\n]*\1id\1[\s\n:]+\1([0-9a-f-]{36})\1/m.exec(text) || [])[2] || '';
+        }
+        return accountId;
+    }
+
+    async function fallbackGetRevVersion(forceRefresh = false) {
+        if (!version || forceRefresh) {
+            const text = await rev.get<string>('/js/version.js', undefined, { responseType: 'text' }).catch(error => '');
+            version = (/buildNumber['":\s\n]*([\d.]+)/m.exec(text) || [])[1] || '' as any;
+        }
+        return version;
+    }
+
+    async function getBootstrapImpl(forceRefresh = false): Promise<AccountBasicInfo> {
+        try {
+            return await rev.get<AccountBasicInfo>('/api/v2/accounts/bootstrap', undefined, { responseType: 'json' });
+        } catch (error) {
+            const [id, version] = await Promise.all([
+                fallbackGetAccountId(forceRefresh),
+                fallbackGetRevVersion(forceRefresh)
+            ]);
+            return {
+                account: { id },
+                environment: { version }
+            }
+        }
+    }
 
     const environmentAPI = {
         /**
-         * Get's the accountId embedded in Rev's main entry point
-         * @returns
+         * Does not require authentication for use
+         * get base information about a Rev account. This is a useful call when first initalizing a rev client, in order to ensure connectivity to Rev, as well as for getting the AccountID for use with some APIs
          */
-        async getAccountId(forceRefresh = false): Promise<string> {
+        async bootstrap(forceRefresh = false): Promise<AccountBasicInfo> {
+            if (!bootstrap || forceRefresh) {
+                bootstrap = getBootstrapImpl(forceRefresh)
+                // don't cache errors
+                bootstrap.catch((err) => { bootstrap = undefined; });
+            }
+            return await bootstrap;
+        },
+        /**
+         * Get's the accountId embedded in Rev's main entry point
+         * @param forceRefresh ignore cached value if called previously
+         * @param useLegacyApi force using regex-based discovery before dedicated API endpoint introduced in Rev 8.0
+         */
+        async getAccountId(forceRefresh = false, useLegacyApi = false): Promise<string> {
             if (!accountId || forceRefresh) {
-                const text = await rev.get<string>('/', undefined, { responseType: 'text' }).catch(error => '');
-                accountId = (/BootstrapContext.*account[":{ ]*"id"\s*:\s*"([^"]+)"/.exec(text) || [])[1] || '';
+                accountId = useLegacyApi
+                    ? await fallbackGetAccountId(forceRefresh)
+                    : (await getBootstrapImpl(forceRefresh)).account.id;
             }
             return accountId;
         },
         /**
          * Get's the version of Rev returned by /js/version.js
-         * @returns
+         * @param forceRefresh ignore cached value if called previously
+         * @param useLegacyApi force using regex-based discovery before dedicated API endpoint introduced in Rev 8.0
          */
-        async getRevVersion(forceRefresh = false): Promise<string> {
+        async getRevVersion(forceRefresh = false, useLegacyApi = false): Promise<string> {
             if (!version || forceRefresh) {
-                const text = await rev.get<string>('/js/version.js', undefined, { responseType: 'text' }).catch(error => '');
-                version = (/buildNumber:\s+['"]([\d.]+)/.exec(text) || [])[1] || '';
+                version = useLegacyApi
+                    ? await fallbackGetRevVersion(forceRefresh)
+                    : (await getBootstrapImpl(forceRefresh)).environment.version;
             }
             return version;
         },
