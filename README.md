@@ -1,6 +1,6 @@
 # Vbrick Rev Client Library
 
-This is a javascript client library for interacting with the [Vbrick Rev API](https://revdocs.vbrick.com/reference). It should work in node.js 18+, browsers, and deno.
+This is a javascript client library for interacting with the [Vbrick Rev API](https://revdocs.vbrick.com/reference). It should work in node.js 20+, browsers, and deno.
 
 This library is intended for use with **[VBrick Rev](https://vbrick.com)**.
 
@@ -15,7 +15,7 @@ This library is intended for use with **[VBrick Rev](https://vbrick.com)**.
 #### Browser/deno
 The compiled library is at `dist/rev-client.js`.
 
-#### Node.js (v18+) 
+#### Node.js (v20+) 
 ```sh
 npm install @vbrick/rev-client
 ```

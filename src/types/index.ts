@@ -64,6 +64,7 @@ export namespace RegistrationField {
 
 /**
  * Returns basic information about a Rev tenant.
+ * @category Utilities
  */
 export interface AccountBasicInfo {
     account: {
