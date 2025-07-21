@@ -63,7 +63,12 @@ export default function userAPIFactory(rev: RevClient) {
             ? { type: lookupType }
             : undefined;
 
-        return rev.get<User>(`/api/v2/users/${userLookupValue}`, query, {...requestOptions, responseType: 'json'});
+        const result = await rev.get(`/api/v2/users/${userLookupValue}`, query, {...requestOptions, responseType: 'json'});
+
+        // email lookup returns an array
+        return Array.isArray(result)
+            ? result[0]
+            : result;
     }
 
     const userAPI = {
