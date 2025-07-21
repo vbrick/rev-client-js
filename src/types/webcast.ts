@@ -88,8 +88,6 @@ export namespace Webcast {
          * An optional search term boolean value (true or false) indicating whether to include or exclude events tagged as featured.
          */
         isFeatured?: boolean;
-        preRollVideoId: string | null;
-        postRollVideoId: string | null;
     }
 
     export interface CreateRequest {
