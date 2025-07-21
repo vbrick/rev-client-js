@@ -2188,7 +2188,8 @@ function userAPIFactory(rev) {
   async function details(userLookupValue, options = {}) {
     const { lookupType, ...requestOptions } = typeof options === "string" ? { lookupType: options } : options;
     const query = lookupType === "username" || lookupType === "email" ? { type: lookupType } : void 0;
-    return rev.get(`/api/v2/users/${userLookupValue}`, query, { ...requestOptions, responseType: "json" });
+    const result = await rev.get(`/api/v2/users/${userLookupValue}`, query, { ...requestOptions, responseType: "json" });
+    return Array.isArray(result) ? result[0] : result;
   }
   const userAPI = {
     /**
@@ -3470,26 +3471,68 @@ function environmentAPIFactory(rev) {
   let accountId = "";
   let version = "";
   let ulsInfo = void 0;
+  let bootstrap = void 0;
+  async function fallbackGetAccountId(forceRefresh = false) {
+    if (!accountId || forceRefresh) {
+      const text = await rev.get("/", void 0, { responseType: "text" }).catch((error) => "");
+      accountId = (/(['"])account\1[:{\s\n]*\1id\1[\s\n:]+\1([0-9a-f-]{36})\1/m.exec(text) || [])[2] || "";
+    }
+    return accountId;
+  }
+  async function fallbackGetRevVersion(forceRefresh = false) {
+    if (!version || forceRefresh) {
+      const text = await rev.get("/js/version.js", void 0, { responseType: "text" }).catch((error) => "");
+      version = (/buildNumber['":\s\n]*([\d.]+)/m.exec(text) || [])[1] || "";
+    }
+    return version;
+  }
+  async function getBootstrapImpl(forceRefresh = false) {
+    try {
+      return await rev.get("/api/v2/accounts/bootstrap", void 0, { responseType: "json" });
+    } catch (error) {
+      const [id, version2] = await Promise.all([
+        fallbackGetAccountId(forceRefresh),
+        fallbackGetRevVersion(forceRefresh)
+      ]);
+      return {
+        account: { id },
+        environment: { version: version2 }
+      };
+    }
+  }
   const environmentAPI = {
     /**
-     * Get's the accountId embedded in Rev's main entry point
-     * @returns
+     * Does not require authentication for use
+     * get base information about a Rev account. This is a useful call when first initalizing a rev client, in order to ensure connectivity to Rev, as well as for getting the AccountID for use with some APIs
      */
-    async getAccountId(forceRefresh = false) {
+    async bootstrap(forceRefresh = false) {
+      if (!bootstrap || forceRefresh) {
+        bootstrap = getBootstrapImpl(forceRefresh);
+        bootstrap.catch((err) => {
+          bootstrap = void 0;
+        });
+      }
+      return await bootstrap;
+    },
+    /**
+     * Get's the accountId embedded in Rev's main entry point
+     * @param forceRefresh ignore cached value if called previously
+     * @param useLegacyApi force using regex-based discovery before dedicated API endpoint introduced in Rev 8.0
+     */
+    async getAccountId(forceRefresh = false, useLegacyApi = false) {
       if (!accountId || forceRefresh) {
-        const text = await rev.get("/", void 0, { responseType: "text" }).catch((error) => "");
-        accountId = (/BootstrapContext.*account[":{ ]*"id"\s*:\s*"([^"]+)"/.exec(text) || [])[1] || "";
+        accountId = useLegacyApi ? await fallbackGetAccountId(forceRefresh) : (await getBootstrapImpl(forceRefresh)).account.id;
       }
       return accountId;
     },
     /**
      * Get's the version of Rev returned by /js/version.js
-     * @returns
+     * @param forceRefresh ignore cached value if called previously
+     * @param useLegacyApi force using regex-based discovery before dedicated API endpoint introduced in Rev 8.0
      */
-    async getRevVersion(forceRefresh = false) {
+    async getRevVersion(forceRefresh = false, useLegacyApi = false) {
       if (!version || forceRefresh) {
-        const text = await rev.get("/js/version.js", void 0, { responseType: "text" }).catch((error) => "");
-        version = (/buildNumber:\s+['"]([\d.]+)/.exec(text) || [])[1] || "";
+        version = useLegacyApi ? await fallbackGetRevVersion(forceRefresh) : (await getBootstrapImpl(forceRefresh)).environment.version;
       }
       return version;
     },
@@ -3940,11 +3983,12 @@ var GuestRegistrationSession = class extends SessionBase {
 var AccessTokenSession = class extends SessionBase {
   // just verify user on login
   async _login() {
-    await this.rev.auth.verifySession();
-    this.expires ||= new Date(Date.now() + 15 * 60 * 1e3);
+    const { token } = this[_credentials].session ?? {};
+    this.token ||= token;
+    const { expiration } = await this.rev.auth.extendSession();
     return {
       token: this.token || "",
-      expiration: this.expires.toISOString(),
+      expiration,
       issuer: "vbrick"
     };
   }
@@ -4041,7 +4085,7 @@ function createSession(rev, credentials, keepAliveOptions, rateLimits) {
   } else if (publicOnly) {
     session = new PublicOnlySession(rev, creds, false, rateLimits);
   } else if (hasSession) {
-    session = new AccessTokenSession(rev, creds, keepAliveOptions, rateLimits);
+    session = new AccessTokenSession(rev, { session: sessionState }, keepAliveOptions, rateLimits);
   } else {
     throw new TypeError("Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)");
   }
