@@ -470,12 +470,16 @@ export class GuestRegistrationSession extends SessionBase {
 export class AccessTokenSession extends SessionBase {
     // just verify user on login
     async _login() {
-        await this.rev.auth.verifySession();
-        // default to expiration 15 minutes in the future, which should be a reasonably safe option
-        this.expires ||= new Date(Date.now() + 15 * 60 * 1000);
+        const {token} = this[_credentials].session ?? {};
+
+        // restore token if set to undefined
+        this.token ||= token;
+
+        const {expiration} = await this.rev.auth.extendSession();
+
         return {
             token: this.token || '',
-            expiration: this.expires.toISOString(),
+            expiration,
             issuer: 'vbrick'
         };
     }
@@ -581,7 +585,7 @@ export function createSession(rev: RevClient, credentials: Rev.Credentials, keep
     } else if (publicOnly) {
         session = new PublicOnlySession(rev, creds, false, rateLimits);
     } else if (hasSession) {
-        session = new AccessTokenSession(rev, creds, keepAliveOptions, rateLimits);
+        session = new AccessTokenSession(rev, { session: sessionState }, keepAliveOptions, rateLimits);
     } else {
         throw new TypeError('Must specify credentials (username+password, apiKey+secret or oauthConfig+authCode)');
     }
