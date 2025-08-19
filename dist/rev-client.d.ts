@@ -2325,6 +2325,11 @@ declare namespace Webcast {
         vcMicrosoftTeamsMeetingUrl?: string;
         /** This field is required to create/edit WebexLiveStream event. */
         videoSourceType?: VideoSourceType;
+        /**
+         * Specifies if the secondary RTMP source is enabled. This is only applicable when videoSourceType is Rtmp.
+         * @default false
+         */
+        secondarySourceEnabled?: boolean;
         webcastType?: LiteralString<'Rev' | 'WebexEvents'>;
         webexTeam?: {
             roomId: string;
@@ -2451,6 +2456,15 @@ declare namespace Webcast {
             url: string;
             key: string;
         };
+        secondaryRtmp?: {
+            url: string;
+            key: string;
+        };
+        /**
+         * If enabled, the event will have a secondary RTMP source for redundancy. This is only applicable when videoSourceType is Rtmp.
+         * @default false
+         */
+        secondarySourceEnabled: boolean;
         liveSubtitles?: {
             sourceLanguage: string;
             translationLanguages: string[];
@@ -2535,6 +2549,13 @@ declare namespace Webcast {
         preRollVideoId: string | null;
         postRollVideoId: string | null;
     }
+    type ListItem = Webcast & Pick<Webcast.Details, 'autoAssociateVod' | 'redirectVod' | 'videoSourceType' | 'rtmp' | 'secondaryRtmp' | 'secondarySourceEnabled' | 'webcastType'> & {
+        eventAdmin: {
+            userId: string;
+            name: string;
+            userName: string;
+        };
+    };
     interface EditAttendeesRequest {
         userIds?: string[];
         usernames?: string[];
@@ -4110,7 +4131,7 @@ interface WebcastAPI extends API$2 {
 }
 /** @ignore */
 declare function webcastAPIFactory(rev: RevClient): {
-    list(options?: Webcast.ListRequest, requestOptions?: Rev.RequestOptions): Promise<Webcast[]>;
+    list(options?: Webcast.ListRequest, requestOptions?: Rev.RequestOptions): Promise<Webcast.ListItem[]>;
     search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): Rev.ISearchRequest<Webcast>;
     create(event: Webcast.CreateRequest): Promise<string>;
     details(eventId: string, requestOptions?: Rev.RequestOptions): Promise<Webcast.Details>;

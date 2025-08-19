@@ -573,13 +573,13 @@ var PagedRequest = class {
       maxResults: Infinity,
       onProgress: (items, current, total) => {
       },
-      onError: (err) => {
+      onError: ((err) => {
         throw err;
-      },
-      onScrollError: (err) => {
+      }),
+      onScrollError: ((err) => {
         console.warn("DEPRECATED: use onError instead of onScrollError with rev search requests");
         this.options.onError(err);
-      },
+      }),
       signal: void 0,
       ...options
     };
@@ -726,9 +726,9 @@ var SearchRequest = class extends PagedRequest {
         const { hitsKey } = searchDefinition;
         rev.log("debug", `searching ${hitsKey}, ${current}-${current + items.length} of ${total}...`);
       },
-      onError: (err) => {
+      onError: ((err) => {
         throw err;
-      },
+      }),
       ...options
     });
     const {
@@ -4540,16 +4540,16 @@ var utils = {
 // src/interop/node-polyfills.ts
 import { FormDataEncoder } from "form-data-encoder";
 import { FormData } from "node-fetch";
-import { createHash, createHmac, randomBytes } from "node:crypto";
-import { Readable as Readable2 } from "node:stream";
-import { ReadableStream as ReadableStream3 } from "node:stream/web";
+import { createHash, createHmac, randomBytes } from "crypto";
+import { Readable as Readable2 } from "stream";
+import { ReadableStream as ReadableStream3 } from "stream/web";
 
 // src/interop/node-multipart-utils.ts
-import { createReadStream, promises as fs } from "node:fs";
-import path from "node:path";
-import "node:stream";
-import "node:stream/web";
-import { finished } from "node:stream/promises";
+import { createReadStream, promises as fs } from "fs";
+import path from "path";
+import "stream";
+import "stream/web";
+import { finished } from "stream/promises";
 var LOCAL_PROTOCOLS2 = ["blob:", "data:"];
 var FETCH_PROTOCOLS = ["http:", "https:", ...LOCAL_PROTOCOLS2];
 var uploadParser2 = {
@@ -4717,7 +4717,7 @@ function getFilename(file) {
 }
 
 // src/interop/node-polyfills.ts
-import { pathToFileURL } from "node:url";
+import { pathToFileURL } from "url";
 function randomValues2(byteLength) {
   return randomBytes(byteLength).toString("base64url");
 }
@@ -4792,7 +4792,7 @@ var node_polyfills_default = (polyfills2) => {
 // src/interop/node-fetch-polyfills.ts
 import fetch, { FormData as FormData2, File as File2, Blob } from "node-fetch";
 import { FormDataEncoder as FormDataEncoder2 } from "form-data-encoder";
-import { Readable as Readable3 } from "node:stream";
+import { Readable as Readable3 } from "stream";
 function beforeFileUploadRequest(form, headers, uploadOptions, options) {
   const encoder = new FormDataEncoder2(form);
   if (uploadOptions.useChunkedTransfer) {

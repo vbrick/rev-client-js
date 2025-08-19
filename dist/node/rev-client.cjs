@@ -950,7 +950,7 @@ var init_node_fetch_commonjs = __esm({
     "use strict";
     import_form_data_encoder2 = require("form-data-encoder");
     import_node_stream3 = require("stream");
-    node_fetch_commonjs_default = async (polyfills2) => {
+    node_fetch_commonjs_default = (async (polyfills2) => {
       const { default: fetch, FormData: FormData2, File: File2, Blob } = await import("node-fetch");
       Object.assign(polyfills2, {
         fetch,
@@ -959,7 +959,7 @@ var init_node_fetch_commonjs = __esm({
         Blob,
         beforeFileUploadRequest
       });
-    };
+    });
   }
 });
 
@@ -991,13 +991,13 @@ var PagedRequest = class {
       maxResults: Infinity,
       onProgress: (items, current, total) => {
       },
-      onError: (err) => {
+      onError: ((err) => {
         throw err;
-      },
-      onScrollError: (err) => {
+      }),
+      onScrollError: ((err) => {
         console.warn("DEPRECATED: use onError instead of onScrollError with rev search requests");
         this.options.onError(err);
-      },
+      }),
       signal: void 0,
       ...options
     };
@@ -1144,9 +1144,9 @@ var SearchRequest = class extends PagedRequest {
         const { hitsKey } = searchDefinition;
         rev.log("debug", `searching ${hitsKey}, ${current}-${current + items.length} of ${total}...`);
       },
-      onError: (err) => {
+      onError: ((err) => {
         throw err;
-      },
+      }),
       ...options
     });
     const {
