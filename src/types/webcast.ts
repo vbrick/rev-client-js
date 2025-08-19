@@ -107,8 +107,11 @@ export namespace Webcast {
         vcMicrosoftTeamsMeetingUrl?: string;
         /** This field is required to create/edit WebexLiveStream event. */
         videoSourceType?: VideoSourceType;
-
-
+        /**
+         * Specifies if the secondary RTMP source is enabled. This is only applicable when videoSourceType is Rtmp.
+         * @default false
+         */
+        secondarySourceEnabled?: boolean;
         webcastType?: LiteralString<'Rev' | 'WebexEvents'>;
         webexTeam?: {
             roomId: string;
@@ -246,6 +249,15 @@ export namespace Webcast {
             url: string;
             key: string;
         }
+        secondaryRtmp?: {
+            url: string;
+            key: string;
+        }
+        /**
+         * If enabled, the event will have a secondary RTMP source for redundancy. This is only applicable when videoSourceType is Rtmp.
+         * @default false
+         */
+        secondarySourceEnabled: boolean
         liveSubtitles?: {
             sourceLanguage: string
             translationLanguages: string[]
@@ -330,6 +342,14 @@ export namespace Webcast {
         // isCustomConsentEnabled?: boolean;
         // consentVerbiage?: string;
 
+    }
+
+    export type ListItem = Webcast & Pick<Webcast.Details, 'autoAssociateVod' | 'redirectVod' | 'videoSourceType' | 'rtmp' | 'secondaryRtmp' | 'secondarySourceEnabled' | 'webcastType'> & {
+        eventAdmin: {
+            userId: string;
+            name: string;
+            userName: string;
+        }
     }
 
     export interface EditAttendeesRequest {
