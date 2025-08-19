@@ -1,3 +1,9 @@
+## 0.25.1
+
+* Update types for Rev 8.1
+* Bugfix - Fix types for `rev.webcast.list()` response
+* Bump dependencies
+
 ## 0.25.0
 
 * Update types for Rev 8.0 compatibility
