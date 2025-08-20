@@ -1,3 +1,17 @@
+## 0.25.1
+
+* Update types for Rev 8.1
+* Bugfix - Fix types for `rev.webcast.list()` response
+* Bump dependencies
+
+## 0.25.0
+
+* Update types for Rev 8.0 compatibility
+* Add `rev.environment.bootstrap()` method to get basic account information
+* Update sample `test-node.js` script
+* Bugfix - return single item instead of array when looking up use by email
+* Bugfix - Avoid unauthorized errors if `.login()` is called on access-token only session
+
 ## 0.24.2
 
 * Bugfix - `rev.video.uniqueSessionsReport` uses `POST`

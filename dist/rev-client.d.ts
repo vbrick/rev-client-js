@@ -564,9 +564,15 @@ declare namespace Video {
         whenModified: string;
         whenPublished: string;
         commentCount: number;
+        hasTranscripts: boolean;
         hasHls: boolean;
+        hasAudioOnly: boolean;
+        hasDualStreams: boolean;
+        isConvertedToSwitched: boolean;
+        sourceType: SourceType;
         thumbnailSheets: string;
         score: number;
+        canEdit: boolean;
     }
     interface UploadMetadata {
         /** required - uploader of video */
@@ -604,7 +610,9 @@ declare namespace Video {
         /**
          * This provides explicit rights to a User/Group/Collection with/without CanEdit access to a  This is an array with properties; Name (entity name), Type (User/Group/Collection), CanEdit (true/false). If any value is invalid, it will be rejected while valid values are still associated with the
          */
-        accessControlEntities?: (Omit<AccessControl.Entity, 'id'> | Omit<AccessControl.Entity, 'name'>)[];
+        accessControlEntities?: Array<(Omit<AccessControl.Entity, 'id' | 'canEdit'> | Omit<AccessControl.Entity, 'name' | 'canEdit'>) & {
+            canEdit?: boolean;
+        }>;
         /**
          * A Password for Public Video Access Control. Use this field when the videoAccessControl is set to Public. If not this field is ignored.
          */
@@ -1575,12 +1583,12 @@ declare namespace Category {
          */
         restricted?: boolean;
         categoryPolicyItems?: PolicyItem[];
-    }
-    export interface CreateRequest extends EditRequest {
         /**
          * Id of parent category to add the category as a child category. If specified, the Id needs to exist in Rev.
          */
         parentCategoryId?: string;
+    }
+    export interface CreateRequest extends EditRequest {
     }
     /** @inline */
     type Parent = BaseCategory & {
@@ -2300,8 +2308,6 @@ declare namespace Webcast {
          * An optional search term boolean value (true or false) indicating whether to include or exclude events tagged as featured.
          */
         isFeatured?: boolean;
-        preRollVideoId: string | null;
-        postRollVideoId: string | null;
     }
     interface CreateRequest {
         title: string;
@@ -2319,6 +2325,11 @@ declare namespace Webcast {
         vcMicrosoftTeamsMeetingUrl?: string;
         /** This field is required to create/edit WebexLiveStream event. */
         videoSourceType?: VideoSourceType;
+        /**
+         * Specifies if the secondary RTMP source is enabled. This is only applicable when videoSourceType is Rtmp.
+         * @default false
+         */
+        secondarySourceEnabled?: boolean;
         webcastType?: LiteralString<'Rev' | 'WebexEvents'>;
         webexTeam?: {
             roomId: string;
@@ -2445,6 +2456,15 @@ declare namespace Webcast {
             url: string;
             key: string;
         };
+        secondaryRtmp?: {
+            url: string;
+            key: string;
+        };
+        /**
+         * If enabled, the event will have a secondary RTMP source for redundancy. This is only applicable when videoSourceType is Rtmp.
+         * @default false
+         */
+        secondarySourceEnabled: boolean;
         liveSubtitles?: {
             sourceLanguage: string;
             translationLanguages: string[];
@@ -2529,6 +2549,13 @@ declare namespace Webcast {
         preRollVideoId: string | null;
         postRollVideoId: string | null;
     }
+    type ListItem = Webcast & Pick<Webcast.Details, 'autoAssociateVod' | 'redirectVod' | 'videoSourceType' | 'rtmp' | 'secondaryRtmp' | 'secondarySourceEnabled' | 'webcastType'> & {
+        eventAdmin: {
+            userId: string;
+            name: string;
+            userName: string;
+        };
+    };
     interface EditAttendeesRequest {
         userIds?: string[];
         usernames?: string[];
@@ -2984,6 +3011,36 @@ declare namespace RegistrationField {
         includeInAllWebcasts?: boolean;
     }
 }
+/**
+ * Returns basic information about a Rev tenant.
+ * @category Utilities
+ */
+interface AccountBasicInfo {
+    account: {
+        /**
+         * AccountID
+         */
+        id: string;
+        /**
+         * Account Name
+         */
+        name?: string;
+        /**
+         * Default language
+         */
+        language?: string;
+        /**
+         * Timezone of account (used in calculating video expiration/publish dates)
+         */
+        timezone?: string;
+    };
+    environment: {
+        /**
+         * Semantic version of the Rev environment (ex. "8.0.5.102")
+         */
+        version: `${'7' | '8'}.${number}.${number}.${number}`;
+    };
+}
 
 /**
  * if true allow storing/retrieving from cached values. 'Force' means refresh value saved in cache. false means bypass cache
@@ -3436,7 +3493,7 @@ declare function groupAPIFactory(rev: RevClient): {
      * @param {{name: string, userIds: string[], roleIds: string[]}} group
      * @returns {Promise<string>}
      */
-    create(group: Group.CreateRequest): Promise<any>;
+    create(group: Group.CreateRequest): Promise<string>;
     delete(groupId: string): Promise<void>;
     details(groupId: string): Promise<Group.Details>;
     /**
@@ -4074,7 +4131,7 @@ interface WebcastAPI extends API$2 {
 }
 /** @ignore */
 declare function webcastAPIFactory(rev: RevClient): {
-    list(options?: Webcast.ListRequest, requestOptions?: Rev.RequestOptions): Promise<Webcast[]>;
+    list(options?: Webcast.ListRequest, requestOptions?: Rev.RequestOptions): Promise<Webcast.ListItem[]>;
     search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): Rev.ISearchRequest<Webcast>;
     create(event: Webcast.CreateRequest): Promise<string>;
     details(eventId: string, requestOptions?: Rev.RequestOptions): Promise<Webcast.Details>;
@@ -4230,15 +4287,22 @@ interface EnvironmentAPI extends API {
 /** @ignore */
 declare function environmentAPIFactory(rev: RevClient): {
     /**
-     * Get's the accountId embedded in Rev's main entry point
-     * @returns
+     * Does not require authentication for use
+     * get base information about a Rev account. This is a useful call when first initalizing a rev client, in order to ensure connectivity to Rev, as well as for getting the AccountID for use with some APIs
      */
-    getAccountId(forceRefresh?: boolean): Promise<string>;
+    bootstrap(forceRefresh?: boolean): Promise<AccountBasicInfo>;
+    /**
+     * Get's the accountId embedded in Rev's main entry point
+     * @param forceRefresh ignore cached value if called previously
+     * @param useLegacyApi force using regex-based discovery before dedicated API endpoint introduced in Rev 8.0
+     */
+    getAccountId(forceRefresh?: boolean, useLegacyApi?: boolean): Promise<string>;
     /**
      * Get's the version of Rev returned by /js/version.js
-     * @returns
+     * @param forceRefresh ignore cached value if called previously
+     * @param useLegacyApi force using regex-based discovery before dedicated API endpoint introduced in Rev 8.0
      */
-    getRevVersion(forceRefresh?: boolean): Promise<string>;
+    getRevVersion(forceRefresh?: boolean, useLegacyApi?: boolean): Promise<string>;
     /**
      * Use the Get User Location Service API to get a user's IP address for zoning purposes
      * Returns the IP if ULS enabled and one successfully found, otherwise undefined.
@@ -4691,4 +4755,4 @@ declare const utils: {
     setPolyfills: typeof setPolyfills;
 };
 
-export { AccessControl, Admin, Audit, Auth, Category, Channel, Device, ExternalAccess, Group, GuestRegistration, OAuth, Playlist, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, Transcription, Upload, User, Video, Webcast, WebcastBanner, Zone, RevClient as default, utils };
+export { AccessControl, type AccountBasicInfo, Admin, Audit, Auth, Category, Channel, Device, ExternalAccess, Group, GuestRegistration, OAuth, Playlist, Recording, RegistrationField, Rev, RevClient, RevError, Role, ScrollError, Transcription, Upload, User, Video, Webcast, WebcastBanner, Zone, RevClient as default, utils };

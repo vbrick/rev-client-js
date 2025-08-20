@@ -21,7 +21,7 @@ export default function groupAPIFactory(rev: RevClient) {
          * @param {{name: string, userIds: string[], roleIds: string[]}} group
          * @returns {Promise<string>}
          */
-        async create(group: Group.CreateRequest) {
+        async create(group: Group.CreateRequest): Promise<string> {
             const { groupId } = await rev.post('/api/v2/groups', group);
             return groupId;
         },

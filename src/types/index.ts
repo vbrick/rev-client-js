@@ -61,3 +61,34 @@ export namespace RegistrationField {
         includeInAllWebcasts?: boolean;
     }
 }
+
+/**
+ * Returns basic information about a Rev tenant.
+ * @category Utilities
+ */
+export interface AccountBasicInfo {
+    account: {
+        /**
+         * AccountID
+         */
+        id: string;
+        /**
+         * Account Name
+         */
+        name?: string;
+        /**
+         * Default language
+         */
+        language?: string;
+        /**
+         * Timezone of account (used in calculating video expiration/publish dates)
+         */
+        timezone?: string;
+    },
+    environment: {
+        /**
+         * Semantic version of the Rev environment (ex. "8.0.5.102")
+         */
+        version: `${'7' | '8'}.${number}.${number}.${number}`;
+    }
+}

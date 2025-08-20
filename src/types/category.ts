@@ -56,14 +56,13 @@ export namespace Category {
         restricted?: boolean;
         /* Used to add or update the users/groups that may manage restricted categories. */
         categoryPolicyItems?: PolicyItem[];
-    }
-
-    export interface CreateRequest extends EditRequest {
         /**
          * Id of parent category to add the category as a child category. If specified, the Id needs to exist in Rev.
          */
         parentCategoryId?: string;
     }
+
+    export interface CreateRequest extends EditRequest {}
 
     /** @inline */
     type Parent = BaseCategory & { parentCategory: null | Parent; };

@@ -62,9 +62,15 @@ export namespace Video {
         whenModified: string;
         whenPublished: string;
         commentCount: number;
+        hasTranscripts: boolean;
         hasHls: boolean;
+        hasAudioOnly: boolean;
+        hasDualStreams: boolean;
+        isConvertedToSwitched: boolean;
+        sourceType: SourceType;
         thumbnailSheets: string;
         score: number;
+        canEdit: boolean;
     }
     export interface UploadMetadata {
         /** required - uploader of video */
@@ -104,7 +110,7 @@ export namespace Video {
         /**
          * This provides explicit rights to a User/Group/Collection with/without CanEdit access to a  This is an array with properties; Name (entity name), Type (User/Group/Collection), CanEdit (true/false). If any value is invalid, it will be rejected while valid values are still associated with the
          */
-        accessControlEntities?: (Omit<AccessControl.Entity, 'id'> | Omit<AccessControl.Entity, 'name'>)[];
+        accessControlEntities?: Array<(Omit<AccessControl.Entity, 'id' | 'canEdit'> | Omit<AccessControl.Entity, 'name' | 'canEdit'>) & {canEdit?: boolean}>;
 
         /**
          * A Password for Public Video Access Control. Use this field when the videoAccessControl is set to Public. If not this field is ignored.

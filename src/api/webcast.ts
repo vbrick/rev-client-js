@@ -28,7 +28,7 @@ export interface WebcastAPI extends API {};
 /** @ignore */
 export default function webcastAPIFactory(rev: RevClient) {
     const webcastAPI = {
-        async list(options: Webcast.ListRequest = { }, requestOptions?: Rev.RequestOptions): Promise<Webcast[]> {
+        async list(options: Webcast.ListRequest = { }, requestOptions?: Rev.RequestOptions): Promise<Webcast.ListItem[]> {
             return rev.get('/api/v2/scheduled-events', options, { ...requestOptions, responseType: 'json' });
         },
         search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): Rev.ISearchRequest<Webcast> {
