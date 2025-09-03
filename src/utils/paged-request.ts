@@ -133,7 +133,7 @@ export abstract class PagedRequest<ItemType> implements Rev.ISearchRequest<ItemT
 
         this.current += pageCount;
 
-        if (this.current === this.total) {
+        if (this.total != undefined && this.current >= this.total) {
             this.done = true;
         }
 

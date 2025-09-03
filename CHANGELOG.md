@@ -1,3 +1,6 @@
+## 0.25.2
+* Bugfix - ensure paged requests don't exceed reported total results
+
 ## 0.25.1
 
 * Update types for Rev 8.1
