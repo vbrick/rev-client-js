@@ -3853,7 +3853,31 @@ declare function videoAPIFactory(rev: RevClient): {
     transcriptionStatus(videoId: string, transcriptionId: string, options?: Rev.RequestOptions): Promise<Transcription.Status>;
     translate(videoId: string, source: Transcription.TranslateSource, target: Transcription.SupportedLanguage | Transcription.SupportedLanguage[], options?: Rev.RequestOptions): Promise<Transcription.TranslateResult>;
     getTranslationStatus(videoId: string, language: Transcription.SupportedLanguage, options?: Rev.RequestOptions): Promise<Transcription.StatusEnum>;
+    /**
+     * Deletes all (or specified) transcriptions that have been uploaded for a given video.
+     * @param videoId
+     * @param language single or list of locales, as returned from the `rev.video.transcriptions` endpoint
+     * @param options
+     */
     deleteTranscription(videoId: string, language?: Transcription.SupportedLanguage | Transcription.SupportedLanguage[], options?: Rev.RequestOptions): Promise<void>;
+    /**
+     * Deletes all (or specified) supplemental files that have been uploaded for a given video.
+     * @param videoId
+     * @param fileId single or list of fileIds, as returned from the `rev.video.supplementalFiles` endpoint
+     */
+    deleteSupplementalFiles(videoId: string, fileId: string | string[], options?: Rev.RequestOptions): Promise<void>;
+    /**
+     * Deletes all (or specified) video chapters that have been uploaded for a given video.
+     * @param videoId
+     * @param startTime single or list of chapter start times, as returned from the `rev.video.chapters` endpoint
+     */
+    deleteChapters(videoId: string, startTime: string | string[], options?: Rev.RequestOptions): Promise<void>;
+    /**
+     * Deletes all (or specified) video comments for a given video.
+     * @param videoId
+     * @param commentIds single or list of comment ids, as returned from the `rev.video.comments` endpoint *(`id` parameter for each comment)*
+     */
+    deleteComments(videoId: string, commentIds: string | string[], options?: Rev.RequestOptions): Promise<void>;
     /**
      * Helper - update the audio language for a video. If index isn't specified then update the default language
      * @param video - videoId or video details (from video.details api call)

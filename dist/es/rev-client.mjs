@@ -655,7 +655,7 @@ var PagedRequest = class {
       this.done = true;
     }
     this.current += pageCount;
-    if (this.current === this.total) {
+    if (this.total != void 0 && this.current >= this.total) {
       this.done = true;
     }
     if (this.done) {
@@ -2655,12 +2655,6 @@ function videoAPIFactory(rev) {
       const { supplementalFiles } = await rev.get(`/api/v2/videos/${videoId}/supplemental-files`, void 0, options);
       return supplementalFiles;
     },
-    // async deleteSupplementalFiles(videoId: string, fileId: string | string[]): Promise<void> {
-    //     const fileIds = Array.isArray(fileId)
-    //         ? fileId.join(',')
-    //         : fileId
-    //     await rev.delete(`/api/v2/videos/${videoId}/supplemental-files`, { fileIds });
-    // },
     async thumbnailConfiguration(videoId, options) {
       const { thumbnailCfg } = await rev.get(`/api/v2/videos/${videoId}/thumbnail-config`, void 0, options);
       return thumbnailCfg;
@@ -2804,9 +2798,42 @@ function videoAPIFactory(rev) {
       const { status } = await rev.get(`/api/v2/videos/${videoId}/translations/${language}/status`, void 0, { ...options, responseType: "json" });
       return status;
     },
+    /**
+     * Deletes all (or specified) transcriptions that have been uploaded for a given video.
+     * @param videoId
+     * @param language single or list of locales, as returned from the `rev.video.transcriptions` endpoint
+     * @param options
+     */
     async deleteTranscription(videoId, language, options) {
       const locale = Array.isArray(language) ? language.map((s) => s.trim()).join(",") : language;
-      await rev.delete(`/api/v2/videos/${videoId}`, locale ? { locale } : void 0, options);
+      await rev.delete(`/api/v2/videos/${videoId}/transcription-files`, locale ? { locale } : void 0, options);
+    },
+    /**
+     * Deletes all (or specified) supplemental files that have been uploaded for a given video.
+     * @param videoId
+     * @param fileId single or list of fileIds, as returned from the `rev.video.supplementalFiles` endpoint
+     */
+    async deleteSupplementalFiles(videoId, fileId, options) {
+      const fileIds = Array.isArray(fileId) ? fileId.join(",") : fileId;
+      await rev.delete(`/api/v2/videos/${videoId}/supplemental-files`, { fileIds }, options);
+    },
+    /**
+     * Deletes all (or specified) video chapters that have been uploaded for a given video.
+     * @param videoId
+     * @param startTime single or list of chapter start times, as returned from the `rev.video.chapters` endpoint
+     */
+    async deleteChapters(videoId, startTime, options) {
+      startTime = Array.isArray(startTime) ? startTime.join(",") : startTime;
+      await rev.delete(`/api/v2/videos/${videoId}/chapters`, { startTime }, options);
+    },
+    /**
+     * Deletes all (or specified) video comments for a given video.
+     * @param videoId
+     * @param commentIds single or list of comment ids, as returned from the `rev.video.comments` endpoint *(`id` parameter for each comment)*
+     */
+    async deleteComments(videoId, commentIds, options) {
+      commentIds = Array.isArray(commentIds) ? commentIds.join(",") : commentIds;
+      await rev.delete(`/api/v2/videos/${videoId}/comments`, { commentIds }, options);
     },
     /**
      * Helper - update the audio language for a video. If index isn't specified then update the default language
