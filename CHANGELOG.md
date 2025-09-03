@@ -1,4 +1,7 @@
 ## 0.25.2
+
+* Bugfix - `video.deleteTranscriptions()` was calling wrong endpoint
+* Minor - add `video.deleteSupplementalFiles()`, `video.deleteChapters()`, `video.deleteComments()` endpoints as well
 * Bugfix - ensure paged requests don't exceed reported total results
 
 ## 0.25.1
