@@ -120,6 +120,9 @@ export namespace Video {
         /** An array of customFields that is attached to the  */
         customFields?: Admin.CustomField.Request[];
 
+        /**
+         * This enables the video to bypass transcoding. Doesn't work with audio only files like mp3
+         */
         doNotTranscode?: boolean;
         is360?: boolean;
 
@@ -153,7 +156,10 @@ export namespace Video {
          * NOTE: Feature must be enabled (contact Vbrick Support)
          */
         sensitiveContent?: boolean;
-
+        /**
+         * Additional domains from which viewers can view this video via an embed. This field is only applicable if the account admin has enabled additional domains for embeds. Do not add https:// to the domain string or it will fail.
+         */
+        additionalEmbedDomains?: string[];
         /**
          * Retain the total views count from an outside system as an optional param.
          */
@@ -357,6 +363,18 @@ export namespace Video {
         viewerIdEnabled: boolean;
         enableAutoShowChapterImages: boolean;
         sensitiveContent: boolean;
+        /**
+         * If enabled, embedding of videos is restricted to a list of domains managed by your Account Admin
+         */
+        domainAllowlistEnabled: boolean
+        /**
+         * If enabled, additional domains from which viewers can view this video can be added.
+         */
+        allowAdditionalDomainsEnabled: boolean
+        /**
+         * Additional domains from which viewers can view this video via an embed.
+         */
+        additionalEmbedDomains: null | string[]
     }
 
     export interface PatchRequest {
@@ -372,11 +390,12 @@ export namespace Video {
         enableExternalApplicationAccess?: boolean;
         enableExternalViewersAccess?: boolean;
         videoAccessControl?: AccessControl;
-        accessControlEntities: string | string[];
-        customFields: Admin.CustomField.Request[];
+        accessControlEntities?: string | string[];
+        customFields?: Admin.CustomField.Request[];
         unlisted?: boolean;
         userTags?: string[];
         sensitiveContent?: boolean;
+        additionalEmbedDomains?: string[];
     }
 
     export interface StatusResponse {
@@ -390,7 +409,7 @@ export namespace Video {
         whenUploaded: string;
     }
 
-    export interface SearchOptions {
+    export interface BaseSearchOptions {
         /** text to search for */
         q?: string;
         /** specific videoIds to search for */
@@ -453,6 +472,10 @@ export namespace Video {
          * If channelId provided, videos in that particular channel are returned. User should have rights to the channel
          */
         channelId?: string;
+        /**
+         * Multiple channelIds, separated by comma. User should have rights to the channels
+         */
+        channelIds?: string;
 
         /**
          * Filter the results based on the channels and categories the Principal is subscribed OR apply the recommendation logic which boosts search results based on recent viewing history using up to the last 10 videos viewed by a user.
@@ -461,12 +484,19 @@ export namespace Video {
 
         /** Number of videos to get (default is 50) */
         count?: number;
+    }
 
+    /**
+     * Filter criteria for searching for videos.
+     * See [Search API Docs](https://revdocs.vbrick.com/reference/searchvideo) for details
+     * Any non-documented keys are treated as a Custom Field query
+     */
+    export type SearchOptions = {
         /**
          * search for videos matching specific custom field values.
          * Object in the format {My_Custom_Field_Name: "MyCustomFieldValue"}
          */
-        [key: string]: any;
+        [K in LiteralString<keyof BaseSearchOptions>]?: K extends keyof BaseSearchOptions ? BaseSearchOptions[K]: unknown
     }
 
     export interface Playback {
@@ -542,6 +572,15 @@ export namespace Video {
         viewingStartTime: string;
         viewingEndTime: string;
         userId: string;
+        geoLocation?: Video.GeoLocationResponse;
+    }
+    export interface GeoLocationResponse {
+        continent?: string;
+        country?: string;
+        // state or province
+        region?: string;
+        city?: string;
+        postalCode?: string;
     }
     export interface VideoReportOptions extends Rev.SearchOptions<VideoReportEntry> {
         videoIds?: string | string[] | undefined;
@@ -773,6 +812,19 @@ export namespace Video {
         accountId: string;
         /** ISO Date */
         when: string;
+    }
+
+    export interface LmsScormRequest {
+        /**
+         * video will be marked as complete in lms after the specified percent watched is hit.
+         * @default 80
+         */
+        completionPercentage?: number;
+        /**
+         * allow / block changing the speed of the video
+         * @default false
+         */
+        allowSpeedChanges?: boolean;
     }
 }
 

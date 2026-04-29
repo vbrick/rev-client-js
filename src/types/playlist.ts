@@ -5,6 +5,7 @@ import type { Video } from './video';
 export interface Playlist {
     id: string;
     name: string;
+    owners?: Playlist.Owner[];
     playbackUrl: string;
     playlistType?: Playlist.PlaylistTypeEnum;
     videos?: Playlist.Video[];
@@ -15,8 +16,15 @@ export interface Playlist {
 export namespace Playlist {
     export type PlaylistTypeEnum = LiteralString<'Static' | 'Dynamic'>
 
+    export interface Featured {
+        id: string;
+        playbackUrl: string | null;
+        videos: Playlist.Video[];
+    };
+
     export interface List {
-        featuredPlaylist?: Playlist;
+        featuredPlaylist?: Playlist.Featured;
+        publicFeaturedPlaylist?: Playlist.Featured;
         playlists: Playlist[];
     }
     export interface Video {
@@ -42,9 +50,16 @@ export namespace Playlist {
     export interface DetailsResponse {
         playlistId: string;
         playlistType: PlaylistTypeEnum;
+        owners: Playlist.Owner[];
         playlistDetails: Omit<Playlist, 'videos'> & { videos?: undefined };
         videos: Video.Details[];
         scrollId?: string;
         totalVideos?: string;
+    }
+    export interface Owner {
+        firstName: string;
+        lastName: string;
+        userId: string;
+        userName: string;
     }
 }

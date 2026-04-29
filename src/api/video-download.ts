@@ -100,7 +100,7 @@ export function videoDownloadAPI(rev: RevClient) {
             thumbnailSheetsUri = thumbnailSheet;
         } else if (thumbnailSheet && typeof thumbnailSheet === 'object' && 'thumbnailSheetsUri' in thumbnailSheet) {
             thumbnailSheetsUri = thumbnailSheet.thumbnailSheetsUri;
-        } else if (thumbnailSheet?.videoId) {
+        } else if ('videoId' in thumbnailSheet && !!thumbnailSheet.videoId) {
             const {videoId, sheetIndex = '1'} = thumbnailSheet;
             thumbnailSheetsUri = `/api/v2/videos/${videoId}/thumbnail-sheets/${sheetIndex}`;
         }
@@ -112,6 +112,17 @@ export function videoDownloadAPI(rev: RevClient) {
         const { body } = await rev.request<T>('GET', thumbnailSheetsUri, undefined, { responseType: 'blob', ...options });
         return body;
     }
+    /**
+     * Downloads a SCORM package based on the video Id provided. This endpoint requires edit and lms export rights for the video.
+     * @param videoId id of the video
+     * @param scormSettings optional scorm package settings (default {completionPercentage: 80, allowSpeedChanges: false})
+     * @param options
+     * @returns
+     */
+    async function downloadLmsScormPackage<T = Blob>(videoId: string, scormSettings?: Video.LmsScormRequest, options?: Rev.RequestOptions): Promise<T> {
+        const { body } = await rev.request<T>('GET', `/api/v2/videos/${videoId}/lms-export/scorm`, scormSettings, { responseType: 'blob', ...options });
+        return body;
+    }
 
     return {
         download,
@@ -119,6 +130,7 @@ export function videoDownloadAPI(rev: RevClient) {
         downloadSupplemental,
         downloadThumbnail,
         downloadTranscription,
-        downloadThumbnailSheet
+        downloadThumbnailSheet,
+        downloadLmsScormPackage
     };
 }

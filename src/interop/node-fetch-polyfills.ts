@@ -5,7 +5,7 @@ import type { Rev } from "../types/rev";
 
 import type {RevPolyfills} from './polyfills';
 
-function beforeFileUploadRequest(form: FormData, headers: Headers, uploadOptions: Rev.UploadFileOptions, options: Rev.RequestOptions) {
+function beforeFileUploadRequest(form: FormData, headers: Headers, uploadOptions: Rev.UploadFileOptions, options: Rev.RequestOptions): void {
     const encoder = new FormDataEncoder(form);
     if (uploadOptions.useChunkedTransfer) {
         headers.set('transfer-encoding', 'chunked');

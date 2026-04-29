@@ -30,7 +30,7 @@ export default defineConfig((options) => {
             ...fileEntry('src/index.ts', pkg.browser),
             format: 'esm',
             platform: 'browser',
-            target: ['es2020'],
+            target: ['es2024'],
             ...commonConfig,
             dts: true
         },
@@ -38,28 +38,28 @@ export default defineConfig((options) => {
             ...fileEntry('src/index-nodefetch.mts', pkg.exports['./node-fetch'].node.import),
             format: 'esm',
             platform: 'node',
-            target: ['node18'],
+            target: ['node20'],
             ...commonConfig
         },
         {
             ...fileEntry('src/index-nodefetch.cts', pkg.exports['./node-fetch'].node.require),
             format: 'cjs',
             platform: 'node',
-            target: ['node18'],
+            target: ['node20'],
             ...commonConfig
         },
         {
             ...fileEntry('src/index-node-native.ts', pkg.exports['./native-fetch'].node.import),
             format: 'esm',
             platform: 'node',
-            target: ['node22'],
+            target: ['node24'],
             ...commonConfig
         },
         {
             ...fileEntry('src/index-node-native.ts', pkg.exports['./native-fetch'].node.require),
             format: 'cjs',
             platform: 'node',
-            target: ['node22'],
+            target: ['node24'],
             ...commonConfig
         },
         {
@@ -67,7 +67,7 @@ export default defineConfig((options) => {
             format: 'iife',
             platform: 'browser',
             globalName: 'revClientLib',
-            target: ['es2020'],
+            target: ['es2024'],
             ...commonConfig,
             minify: true,
             dts: false

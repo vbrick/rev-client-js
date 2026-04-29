@@ -38,7 +38,7 @@ export namespace Upload {
             'application/x-subrip'>;
     };
 
-    export type SupplementalOptions = Rev.RequestOptions & Omit<Rev.UploadFileOptions, 'filename' | 'contentLength'> & {
+    export type SupplementalOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
         contentType?: LiteralString<'application/x-7z-compressed' |
             'text/csv' |
             'application/msword' |

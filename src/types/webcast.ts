@@ -41,7 +41,7 @@ export namespace Webcast {
     export type SortField = LiteralString<'startDate' | 'title'>;
 
     export type VideoSourceType = LiteralString<
-        'Capture' | 'MicrosoftTeams' | 'PresentationProfile' | 'Rtmp' | 'WebrtcSinglePresenter' | 'SipAddress' | 'WebexTeam' | 'WebexEvents' | 'WebexLiveStream' | 'Vod' | 'Zoom' | 'Pexip' | 'Producer'
+        'Capture' | 'MicrosoftTeams' | 'Srt' | 'PresentationProfile' | 'Rtmp' | 'WebrtcSinglePresenter' | 'SipAddress' | 'WebexTeam' | 'WebexEvents' | 'WebexLiveStream' | 'Vod' | 'Zoom' | 'Pexip' | 'Producer'
     >
 
     export type RealtimeField = LiteralString<
@@ -220,6 +220,21 @@ export namespace Webcast {
          * After the event is complete and there is a Recording, this video will be added to the Ending of your Recording.
          */
         postRollVideoId?: string;
+        /**
+         * Additional domains from which viewers can view this video via an embed.
+         */
+        additionalEmbedDomains?: string[];
+    }
+
+    export interface EditRequest extends CreateRequest {
+        /**
+         * Specifies if the existing RTMP-based webcast URL and key need to be regenerated. This also affects the backup URL and Key if existing
+         */
+        regenerateRtmpUrlAndKey?: boolean;
+        /**
+         *  Specifies if the existing SRT-based webcast URL and key need to be regenerated. This also affects the backup URL and Key if existing
+         */
+        regenerateSrtUrlAndKey?: boolean;
     }
 
     export interface Details {
@@ -252,6 +267,18 @@ export namespace Webcast {
         secondaryRtmp?: {
             url: string;
             key: string;
+        }
+        srt?: {
+            /**
+             * The SRT push Url to use with the scheduled event
+             */
+            url: string;
+        }
+        secondarySrt?: {
+            /**
+             * The SRT push Url to use with the scheduled event
+             */
+            url: string;
         }
         /**
          * If enabled, the event will have a secondary RTMP source for redundancy. This is only applicable when videoSourceType is Rtmp.
@@ -338,10 +365,21 @@ export namespace Webcast {
         isFeatured: boolean;
         preRollVideoId: string | null;
         postRollVideoId: string | null;
-        // as of 7.64 not yet standardized/documented
-        // isCustomConsentEnabled?: boolean;
-        // consentVerbiage?: string;
+        isCustomConsentEnabled: boolean;
+        consentVerbiage: string | null;
 
+        /**
+         * If enabled, embedding of videos is restricted to a list of domains managed by your Account Admin
+         */
+        domainAllowlistEnabled: boolean
+        /**
+         * If enabled, additional domains from which viewers can view this video can be added.
+         */
+        allowAdditionalDomainsEnabled: boolean
+        /**
+         * Additional domains from which viewers can view this video via an embed.
+         */
+        additionalEmbedDomains: null | string[]
     }
 
     export type ListItem = Webcast & Pick<Webcast.Details, 'autoAssociateVod' | 'redirectVod' | 'videoSourceType' | 'rtmp' | 'secondaryRtmp' | 'secondarySourceEnabled' | 'webcastType'> & {
@@ -395,6 +433,14 @@ export namespace Webcast {
         rebufferEvents: number;
         rebufferDuration: number;
         attendeeType: LiteralString<'Host' | 'Moderator' | 'AccountAdmin' | 'Attendee'>;
+        polls?: PollResponse[] | null;
+        geoLocation?: Video.GeoLocationResponse | null;
+    }
+    export interface PollResponse {
+        pollId: string;
+        question: string;
+        answers: string;
+        when: string;
     }
 
     export interface RealtimeRequest {
@@ -458,6 +504,7 @@ export namespace Webcast {
         streamType: string;
         sessionId: string;
         profileImageUrl: string;
+        geoLocation?: Video.GeoLocationResponse;
     }
 
     export interface Question {
@@ -549,9 +596,9 @@ export namespace Webcast {
     export interface BrandingRequest {
         branding: Omit<Webcast.BrandingSettings, 'logos'>
         logoImage: Rev.FileUploadType,
-        logoImageOptions?: Exclude<Upload.ImageOptions, Rev.RequestOptions>
+        logoImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]: Upload.ImageOptions[K]}
         backgroundImage: Rev.FileUploadType,
-        backgroundImageOptions?: Exclude<Upload.ImageOptions, Rev.RequestOptions>
+        backgroundImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]: Upload.ImageOptions[K]}
 
     }
 

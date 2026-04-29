@@ -395,7 +395,7 @@ function rateLimit(fn2, options = {}) {
         currentTick += interval;
         activeCount = 1;
       }
-      timeout = setTimeout(execute, currentTick - now);
+      timeout = setTimeout(execute, Math.max(currentTick - now, 0));
       queue.set(timeout, reject);
     });
   };
@@ -464,7 +464,7 @@ var init_rate_limit_queues = __esm({
       ["attendeesRealtime" /* GetWebcastAttendeesRealtime */]: 2,
       ["auditEndpoint" /* AuditEndpoints */]: 60,
       ["loginReport" /* GetUsersByLoginDate */]: 10,
-      ["viewReport" /* GetVideoViewReport */]: 120
+      ["viewReport" /* GetVideoViewReport */]: 30
     };
     fn = () => Promise.resolve();
   }
@@ -1124,7 +1124,7 @@ var PagedRequest = class {
 async function decodeBody(response, acceptType) {
   const contentType = response.headers.get("Content-Type") || acceptType || "";
   const contentLength = response.headers.get("Content-Length");
-  if (contentType.startsWith("application/json") && contentLength !== "0") {
+  if (/^(application|text)\/[^+]*[+]?json/.test(contentType) && contentLength !== "0") {
     try {
       return await response.json();
     } catch (err) {
@@ -2019,6 +2019,38 @@ var ChannelListRequest = class {
   }
 };
 
+// src/api/device-logs-request.ts
+function transformDeviceResponse(response) {
+  const deviceInfo = {
+    deviceId: response.deviceId,
+    deviceName: response.deviceName,
+    deviceType: response.deviceType
+  };
+  return {
+    ...response,
+    items: response.items.map((item) => ({ ...deviceInfo, ...item }))
+  };
+}
+var DeviceLogsRequest = class extends SearchRequest {
+  constructor(rev, query, options = {}) {
+    const { accountId, deviceId, ...opts } = query;
+    const endpoint = deviceId ? `/api/v2/devices/${deviceId}/logs` : accountId ? `/api/v2/devices/accounts/${accountId}/logs` : void 0;
+    if (!endpoint) {
+      throw new TypeError("Must specify accountId or deviceId");
+    }
+    const searchDefinition = {
+      endpoint,
+      totalKey: "total",
+      hitsKey: "items",
+      request: async (endpoint2, query2, options2) => {
+        const response = await rev.get(endpoint2, query2, options2);
+        return deviceId ? transformDeviceResponse(response) : response;
+      }
+    };
+    super(rev, searchDefinition, query, options);
+  }
+};
+
 // src/api/device.ts
 function deviceAPIFactory(rev) {
   const deviceAPI = {
@@ -2076,6 +2108,28 @@ function deviceAPIFactory(rev) {
      */
     async rebootDME(deviceId) {
       return rev.put(`/api/v2/devices/dmes/${deviceId}`);
+    },
+    /**
+     * This API allows account administrators to initiate and manage targeted video downloads to specific DMEs. Using a single API call, users can send one or more video instances (from the same videoID) to designated DMEs for prepositioning, regardless of the DME’s preposition settings.
+     * @param deviceId id of device in question
+     * @param request a list of videos and their instanceIds to include
+     * @param options
+     * @returns
+     */
+    async prepositionVideos(deviceId, request, options) {
+      const payload = Array.isArray(request) ? request : [request];
+      return rev.post(`/api/v2/devices/dmes/${deviceId}/prepositioned-videos`, payload, options);
+    },
+    /**
+     * Get list of logs for a specific device or all devices in the account
+     * pass {deviceId} to get for a single device
+     * pass {accountId} to get for all devices in account
+     *
+     * @see [Device Logs](https://revdocs.vbrick.com/reference/getdevicelogs)
+     * @see [Account Logs](https://revdocs.vbrick.com/reference/getaccountdevicelogs)
+     */
+    getLogs(request, options) {
+      return new DeviceLogsRequest(rev, request, options);
     }
   };
   return deviceAPI;
@@ -2248,46 +2302,43 @@ function playlistAPIFactory(rev) {
       };
       return rev.put(`/api/v2/playlists/featured-playlist`, payload);
     },
+    async updateOwners(playlistId, ownerIds) {
+      const owners = Array.isArray(ownerIds) ? ownerIds : [ownerIds];
+      return rev.put(`/api/v2/playlists/${playlistId}/owners`, { owners });
+    },
     async delete(playlistId) {
       return rev.delete(`/api/v2/playlists/${playlistId}`);
     },
     /**
      * get list of playlists in system.
-     * NOTE: return type is slightly different than API documentation
+     * NOTE: return type is slightly different than API documentation to ensure consistent output regardless of API response format
      * @see {@link https://revdocs.vbrick.com/reference#getplaylists}
      */
     async list() {
-      function parsePlaylist(entry) {
-        const {
-          id,
-          playlistId,
-          featurePlaylistId,
-          featuredPlaylist,
-          name,
-          playlistName,
-          ...extra
-        } = entry;
+      const rawResult = await rev.get("/api/v2/playlists", void 0, { responseType: "json" });
+      if (Array.isArray(rawResult)) {
         return {
-          ...extra,
-          id: id ?? playlistId ?? featurePlaylistId ?? featuredPlaylist,
-          name: name ?? playlistName,
-          videos: entry.videos ?? entry.Videos
+          playlists: rawResult
         };
       }
-      const rawResult = await rev.get("/api/v2/playlists", void 0, { responseType: "json" });
-      const hasFeatured = !Array.isArray(rawResult);
-      const rawPlaylists = hasFeatured ? rawResult.playlists : rawResult;
-      const output = {
-        playlists: rawPlaylists.map(parsePlaylist)
+      const {
+        featuredPlaylist,
+        publicFeaturedPlaylist,
+        playbackUrl,
+        videos,
+        playlists
+      } = rawResult;
+      return {
+        ...featuredPlaylist && {
+          featuredPlaylist: {
+            id: featuredPlaylist,
+            playbackUrl,
+            videos
+          }
+        },
+        ...publicFeaturedPlaylist && { publicFeaturedPlaylist },
+        playlists
       };
-      if (hasFeatured) {
-        if (isPlainObject(rawResult.featuredPlaylist)) {
-          output.featuredPlaylist = parsePlaylist(rawResult.featuredPlaylist);
-        } else if (Array.isArray(rawResult.videos)) {
-          output.featuredPlaylist = parsePlaylist(rawResult);
-        }
-      }
-      return output;
     }
   };
   return playlistAPI;
@@ -2814,7 +2865,7 @@ function videoDownloadAPI(rev) {
       thumbnailSheetsUri = thumbnailSheet;
     } else if (thumbnailSheet && typeof thumbnailSheet === "object" && "thumbnailSheetsUri" in thumbnailSheet) {
       thumbnailSheetsUri = thumbnailSheet.thumbnailSheetsUri;
-    } else if (thumbnailSheet?.videoId) {
+    } else if ("videoId" in thumbnailSheet && !!thumbnailSheet.videoId) {
       const { videoId, sheetIndex = "1" } = thumbnailSheet;
       thumbnailSheetsUri = `/api/v2/videos/${videoId}/thumbnail-sheets/${sheetIndex}`;
     }
@@ -2824,13 +2875,18 @@ function videoDownloadAPI(rev) {
     const { body } = await rev.request("GET", thumbnailSheetsUri, void 0, { responseType: "blob", ...options });
     return body;
   }
+  async function downloadLmsScormPackage(videoId, scormSettings, options) {
+    const { body } = await rev.request("GET", `/api/v2/videos/${videoId}/lms-export/scorm`, scormSettings, { responseType: "blob", ...options });
+    return body;
+  }
   return {
     download,
     downloadChapter,
     downloadSupplemental,
     downloadThumbnail,
     downloadTranscription,
-    downloadThumbnailSheet
+    downloadThumbnailSheet,
+    downloadLmsScormPackage
   };
 }
 
@@ -3047,10 +3103,11 @@ function videoAPIFactory(rev) {
      * @param customField - the custom field object (with id and value)
      */
     async setCustomField(videoId, customField) {
+      const { id, value } = customField;
       const payload = [{
         op: "replace",
         path: "/CustomFields",
-        value: [customField]
+        value: [{ id, value }]
       }];
       await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
       await rev.patch(`/api/v2/videos/${videoId}`, payload);
@@ -3563,7 +3620,7 @@ var PostEventReportRequest = class extends SearchRequest {
       return body;
     }
     if (statusCode == 400 && body?.errorDescription) {
-      throw new RevError(response, { details: body.errorDescription });
+      throw new RevError(response, { detail: body.errorDescription });
     }
     const error = !!body || response.bodyUsed ? new RevError(response, body) : await RevError.create(response);
     throw error;
@@ -4031,7 +4088,7 @@ init_polyfills();
 init_rate_limit_queues();
 var ONE_MINUTE2 = 1e3 * 60;
 var DEFAULT_EXPIRE_MINUTES = 10;
-var _credentials = Symbol("credentials");
+var _credentials = /* @__PURE__ */ Symbol("credentials");
 var SessionKeepAlive = class {
   _session;
   controller;

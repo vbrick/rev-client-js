@@ -73,7 +73,7 @@ export default (polyfills: RevPolyfills) => {
                 : pathToFileURL(value);
         },
         uploadParser,
-        beforeFileUploadRequest(form: FormData, headers: Headers, uploadOptions: Rev.UploadFileOptions, options: Rev.RequestOptions) {
+        beforeFileUploadRequest(form: FormData, headers: Headers, uploadOptions: Rev.UploadFileOptions, options: Rev.RequestOptions): void {
             /** Encodes formdata as stream, rather than use builtin formdata processing - this is to allow streaming upload files without having to load into memory first */
             const encoder = new FormDataEncoder(form);
 
@@ -92,14 +92,14 @@ export default (polyfills: RevPolyfills) => {
             return undefined;
         },
         asPlatformStream(stream: NodeJS.ReadableStream | Readable | ReadableStream<any>): NodeJS.ReadableStream {
-            if (!stream) return stream;
+            if (!stream) return stream as any;
             return (stream instanceof ReadableStream)
                 ? Readable.fromWeb(stream)
                 : stream;
         },
         asWebStream(stream: NodeJS.ReadableStream | Readable | ReadableStream<any>): ReadableStream {
             return (!stream || (stream instanceof ReadableStream))
-                ? stream
+                ? stream as any
                 : Readable.toWeb(Readable.from(stream));
         }
     });

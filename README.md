@@ -8,7 +8,7 @@ This library is intended for use with **[VBrick Rev](https://vbrick.com)**.
 
 * [Readme](https://github.com/vbrick/rev-client-js)
 * [API Reference](https://vbrick.github.io/rev-client-js)
-* [Changelog](https://github.com/vbrick/rev-client-js/CHANGELOG.md)
+* [Changelog](https://github.com/vbrick/rev-client-js/blob/main/CHANGELOG.md)
 
 ## Installation
 
@@ -32,6 +32,9 @@ By default CORS (Cross Origin Resource Sharing) is **disabled** for Rev Cloud te
 To verify if CORS is enabled for your account check the headers response from `https://YOUR_REV_TENANT_URL/api/v2/accounts/branding-settings` - it doesn't require authentication.
 
 ### Node.js Proxy support
+
+**node.js >= 24.5.0** - You can just use the [built-in proxy support](https://nodejs.org/api/http.html#built-in-proxy-support)
+
 If you need to use this library behind a proxy *(and you're using Node.js)* then the proxy method to use depends on which `fetch` library you're using.
 
 * If you use the `node-fetch` polyfill *(`@vbrick/rev-client` or `@vbrick/rev-client/node-fetch`)* then you should use a proxy that sets the `https.Agent` (like `global-agent`).

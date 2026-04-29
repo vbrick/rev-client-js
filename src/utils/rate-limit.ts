@@ -147,7 +147,7 @@ function rateLimit<T extends (...args: any) => any> (fn: T | RateLimitOptionsWit
                 activeCount = 1;
             }
 
-            timeout = setTimeout(execute, currentTick - now);
+            timeout = setTimeout(execute, Math.max(currentTick - now, 0));
 
             // used for sending cancel error
             queue.set(timeout, reject);

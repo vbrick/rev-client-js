@@ -1,4 +1,4 @@
-import type { LiteralString } from './rev';
+import type { LiteralString, Rev } from './rev';
 import type { Video } from './video';
 
 /** @category Devices */
@@ -50,6 +50,7 @@ export namespace Device {
         isVideoStorageDevice: boolean;
         dmeStatus: DmeHealthStatus;
         ipAddress: string;
+        sslExpiryDate: string;
     }
     export interface CreateDMERequest {
         /**
@@ -393,6 +394,54 @@ export namespace Device {
             passthroughStreams?: PassthroughStreamStatus[];
             enrichedStreams?: EnrichedStreamStatus[];
         };
+    }
+
+    export type LogStatusType = 'Success' | 'Requested' | 'Failed';
+
+    export type ActionNameType = LiteralString<"CheckConnection" | "DeleteFile" | "DmeDeviceSynchronization" | "DownloadUpdate" | "DownloadVideoFile" | "GetCapabilities" | "GetFile" | "HealthWarning" | "InitializePeriodicStatusUpdate" | "InstallUpdate" | "LdapSyncDuplicateUserEmails" | "LdapSyncDuplicateUsernames" | "LdapSyncInvalidGroups" | "LdapSyncReport" | "LdapUsersProfileImageSyncFinished" | "Reboot" | "SavedGroupsSynchronize" | "SetOffline" | "SetOnline" | "StartCdnPush" | "StartHlsDistribution" | "StartRecording" | "StartRtmpsPush" | "StopCdnPush" | "StopHlsDistribution" | "StopLockdown" | "StopRecording" | "StopRtmpsPush" | "SynchronizeAvailableGroups" | "UpdateMesh">
+    export interface LogsRequest {
+        deviceId?: string;
+        accountId?: string;
+        status?: LogStatusType;
+        actionName?: ActionNameType;
+        startDate?: string;
+        endDate?: string;
+        /**
+         * @default "desc"
+         */
+        sortDirection?: Rev.SortDirection;
+        count?: number;
+
+    }
+
+    export interface LogItem {
+        deviceId: string;
+        deviceName: string;
+        deviceType: DeviceType | 'LdapConnector';
+        id: string;
+        status: LogStatusType;
+        actionName: ActionNameType;
+        message: Record<string, any>;
+        dateTime: string;
+    }
+
+    export interface PrepositionVideosRequest {
+        /**
+         * Video ID
+         */
+        id: string;
+        instanceIds: string[];
+    }
+
+    export interface PrepositionVideosResponse {
+        ignoredVideos: Array<{
+            /**
+             * Video ID
+             */
+            id: string;
+            instanceIds: string[];
+            reason: string;
+        }>
     }
 
 }

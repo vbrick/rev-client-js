@@ -48,7 +48,7 @@ export default function webcastAPIFactory(rev: RevClient) {
         async details(eventId: string, requestOptions?: Rev.RequestOptions): Promise<Webcast.Details> {
             return rev.get(`/api/v2/scheduled-events/${eventId}`, undefined, requestOptions);
         },
-        async edit(eventId: string, event: Webcast.CreateRequest): Promise<void> {
+        async edit(eventId: string, event: Webcast.EditRequest): Promise<void> {
             return rev.put(`/api/v2/scheduled-events/${eventId}`, event);
         },
         /**

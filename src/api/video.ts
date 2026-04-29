@@ -59,10 +59,11 @@ export default function videoAPIFactory(rev: RevClient) {
             //     { op: 'remove', path: '/customFields', value: customField.id },
             //     { op: 'add', path: '/customFields/-', value: customField }
             // ];
+            const {id, value} = customField;
             const payload = [{
                 op: 'replace',
                 path: '/CustomFields',
-                value: [customField]
+                value: [{id, value}]
             }];
             await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
             await rev.patch(`/api/v2/videos/${videoId}`, payload);

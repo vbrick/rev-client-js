@@ -1,7 +1,3 @@
-var __defProp = Object.defineProperty;
-var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-
 // src/utils/file-utils.ts
 var mimeTypes = {
   ".7z": "application/x-7z-compressed",
@@ -59,7 +55,7 @@ function sanitizeUploadOptions(filename = "upload", contentType = "", defaultCon
     contentType = contentType.replace(/;?.*charset.*$/, "");
   }
   let [name, ext] = filename.split(/(?=\.[^\.\\\/]+$)/);
-  ext || (ext = getExtensionForMime(contentType || defaultContentType || ""));
+  ext ||= getExtensionForMime(contentType || defaultContentType || "");
   filename = `${name}${ext}`;
   if (!contentType || [".vtt", ".srt"].includes(ext)) {
     contentType = getMimeForExtension(ext, defaultContentType);
@@ -246,7 +242,7 @@ function onInitialize() {
   if (!isPendingInitialize) {
     return;
   }
-  initializePromise || (initializePromise = (async () => {
+  initializePromise ||= (async () => {
     while (pendingInitialize.length > 0) {
       const pending = pendingInitialize.shift();
       if (typeof pending !== "function") continue;
@@ -258,7 +254,7 @@ function onInitialize() {
     }
     isPendingInitialize = false;
     initializePromise = void 0;
-  })());
+  })();
   return initializePromise;
 }
 function setPolyfills(overrideCallback) {
@@ -331,7 +327,7 @@ function rateLimit(fn2, options = {}) {
         currentTick += interval;
         activeCount = 1;
       }
-      timeout = setTimeout(execute, currentTick - now);
+      timeout = setTimeout(execute, Math.max(currentTick - now, 0));
       queue.set(timeout, reject);
     });
   };
@@ -362,7 +358,7 @@ var defaultRateLimits = {
   ["attendeesRealtime" /* GetWebcastAttendeesRealtime */]: 2,
   ["auditEndpoint" /* AuditEndpoints */]: 60,
   ["loginReport" /* GetUsersByLoginDate */]: 10,
-  ["viewReport" /* GetVideoViewReport */]: 120
+  ["viewReport" /* GetVideoViewReport */]: 30
 };
 var fn = () => Promise.resolve();
 function normalizeRateLimitOptions(rateLimits) {
@@ -442,6 +438,22 @@ function tryParseJson(val) {
 // src/rev-error.ts
 var RevError = class _RevError extends Error {
   /**
+   * HTTP Status Code
+   */
+  status;
+  /**
+   * Request URL/endpoint
+   */
+  url;
+  /**
+   * Rev-specific error code
+   */
+  code;
+  /**
+   * Additional error message returned by Rev API
+   */
+  detail;
+  /**
    * @hidden
    * @param response
    * @param body
@@ -453,22 +465,6 @@ var RevError = class _RevError extends Error {
       url
     } = response;
     super(`${status} ${statusText}`);
-    /**
-     * HTTP Status Code
-     */
-    __publicField(this, "status");
-    /**
-     * Request URL/endpoint
-     */
-    __publicField(this, "url");
-    /**
-     * Rev-specific error code
-     */
-    __publicField(this, "code");
-    /**
-     * Additional error message returned by Rev API
-     */
-    __publicField(this, "detail");
     if ("captureStackTrace" in Error) {
       Error.captureStackTrace(this, this.constructor);
     }
@@ -528,6 +524,18 @@ var RevError = class _RevError extends Error {
 };
 var ScrollError = class extends Error {
   /**
+   * HTTP Status Code
+   */
+  status;
+  /**
+   * Rev-specific error code
+   */
+  code;
+  /**
+   * Additional error message returned by Rev API
+   */
+  detail;
+  /**
    * @hidden
    * @param status
    * @param code
@@ -535,18 +543,6 @@ var ScrollError = class extends Error {
    */
   constructor(status = 408, code = "ScrollExpired", detail = "Timeout while fetching all results in search request") {
     super("Search Scroll Expired");
-    /**
-     * HTTP Status Code
-     */
-    __publicField(this, "status");
-    /**
-     * Rev-specific error code
-     */
-    __publicField(this, "code");
-    /**
-     * Additional error message returned by Rev API
-     */
-    __publicField(this, "detail");
     Error.captureStackTrace(this, this.constructor);
     this.status = status;
     this.code = code;
@@ -564,15 +560,15 @@ var ScrollError = class extends Error {
 
 // src/utils/paged-request.ts
 var PagedRequest = class {
+  current;
+  total;
+  done;
+  options;
   /**
    * @hidden
    * @param options
    */
   constructor(options = {}) {
-    __publicField(this, "current");
-    __publicField(this, "total");
-    __publicField(this, "done");
-    __publicField(this, "options");
     this.options = {
       maxResults: Infinity,
       onProgress: (items, current, total) => {
@@ -710,7 +706,7 @@ var PagedRequest = class {
 async function decodeBody(response, acceptType) {
   const contentType = response.headers.get("Content-Type") || acceptType || "";
   const contentLength = response.headers.get("Content-Length");
-  if (contentType.startsWith("application/json") && contentLength !== "0") {
+  if (/^(application|text)\/[^+]*[+]?json/.test(contentType) && contentLength !== "0") {
     try {
       return await response.json();
     } catch (err) {
@@ -722,6 +718,8 @@ async function decodeBody(response, acceptType) {
   return response.body;
 }
 var SearchRequest = class extends PagedRequest {
+  query;
+  _reqImpl;
   constructor(rev, searchDefinition, query = {}, options = {}) {
     super({
       onProgress: (items, current, total) => {
@@ -733,8 +731,6 @@ var SearchRequest = class extends PagedRequest {
       }),
       ...options
     });
-    __publicField(this, "query");
-    __publicField(this, "_reqImpl");
     const {
       scrollId: _ignore,
       ...queryOpt
@@ -985,6 +981,8 @@ function parseEntry(line) {
   };
 }
 var AuditRequest = class extends PagedRequest {
+  params;
+  _req;
   /**
    * @hidden
    * @param rev
@@ -1005,8 +1003,6 @@ var AuditRequest = class extends PagedRequest {
       },
       ...options
     });
-    __publicField(this, "params");
-    __publicField(this, "_req");
     const { from, to } = this._parseDates(fromDate, toDate);
     this.params = {
       toDate: to.toISOString(),
@@ -1519,13 +1515,13 @@ function channelAPIFactory(rev) {
   return channelAPI;
 }
 var ChannelListRequest = class {
+  currentPage;
+  current;
+  total;
+  done;
+  options;
+  _req;
   constructor(rev, start = 0, options = {}) {
-    __publicField(this, "currentPage");
-    __publicField(this, "current");
-    __publicField(this, "total");
-    __publicField(this, "done");
-    __publicField(this, "options");
-    __publicField(this, "_req");
     this.options = {
       maxResults: Infinity,
       pageSize: 10,
@@ -1597,6 +1593,38 @@ var ChannelListRequest = class {
   }
 };
 
+// src/api/device-logs-request.ts
+function transformDeviceResponse(response) {
+  const deviceInfo = {
+    deviceId: response.deviceId,
+    deviceName: response.deviceName,
+    deviceType: response.deviceType
+  };
+  return {
+    ...response,
+    items: response.items.map((item) => ({ ...deviceInfo, ...item }))
+  };
+}
+var DeviceLogsRequest = class extends SearchRequest {
+  constructor(rev, query, options = {}) {
+    const { accountId, deviceId, ...opts } = query;
+    const endpoint = deviceId ? `/api/v2/devices/${deviceId}/logs` : accountId ? `/api/v2/devices/accounts/${accountId}/logs` : void 0;
+    if (!endpoint) {
+      throw new TypeError("Must specify accountId or deviceId");
+    }
+    const searchDefinition = {
+      endpoint,
+      totalKey: "total",
+      hitsKey: "items",
+      request: async (endpoint2, query2, options2) => {
+        const response = await rev.get(endpoint2, query2, options2);
+        return deviceId ? transformDeviceResponse(response) : response;
+      }
+    };
+    super(rev, searchDefinition, query, options);
+  }
+};
+
 // src/api/device.ts
 function deviceAPIFactory(rev) {
   const deviceAPI = {
@@ -1654,6 +1682,28 @@ function deviceAPIFactory(rev) {
      */
     async rebootDME(deviceId) {
       return rev.put(`/api/v2/devices/dmes/${deviceId}`);
+    },
+    /**
+     * This API allows account administrators to initiate and manage targeted video downloads to specific DMEs. Using a single API call, users can send one or more video instances (from the same videoID) to designated DMEs for prepositioning, regardless of the DME’s preposition settings.
+     * @param deviceId id of device in question
+     * @param request a list of videos and their instanceIds to include
+     * @param options
+     * @returns
+     */
+    async prepositionVideos(deviceId, request, options) {
+      const payload = Array.isArray(request) ? request : [request];
+      return rev.post(`/api/v2/devices/dmes/${deviceId}/prepositioned-videos`, payload, options);
+    },
+    /**
+     * Get list of logs for a specific device or all devices in the account
+     * pass {deviceId} to get for a single device
+     * pass {accountId} to get for all devices in account
+     *
+     * @see [Device Logs](https://revdocs.vbrick.com/reference/getdevicelogs)
+     * @see [Account Logs](https://revdocs.vbrick.com/reference/getaccountdevicelogs)
+     */
+    getLogs(request, options) {
+      return new DeviceLogsRequest(rev, request, options);
     }
   };
   return deviceAPI;
@@ -1754,6 +1804,13 @@ function getSummaryFromResponse(response, hitsKey) {
   return summary;
 }
 var PlaylistDetailsRequest = class extends SearchRequest {
+  playlist = {};
+  get playlistName() {
+    return this.playlist.playlistDetails?.name || this.playlist.name;
+  }
+  get searchFilter() {
+    return this.playlist?.playlistType === "Dynamic" ? this.playlist.playlistDetails?.searchFilter || this.playlist.searchFilter : void 0;
+  }
   /**
    * @hidden
    * @param rev
@@ -1775,13 +1832,6 @@ var PlaylistDetailsRequest = class extends SearchRequest {
       }
     };
     super(rev, searchDefinition, query, options);
-    __publicField(this, "playlist", {});
-  }
-  get playlistName() {
-    return this.playlist.playlistDetails?.name || this.playlist.name;
-  }
-  get searchFilter() {
-    return this.playlist?.playlistType === "Dynamic" ? this.playlist.playlistDetails?.searchFilter || this.playlist.searchFilter : void 0;
   }
   async getPlaylistInfo() {
     this.options.maxResults = 0;
@@ -1822,46 +1872,43 @@ function playlistAPIFactory(rev) {
       };
       return rev.put(`/api/v2/playlists/featured-playlist`, payload);
     },
+    async updateOwners(playlistId, ownerIds) {
+      const owners = Array.isArray(ownerIds) ? ownerIds : [ownerIds];
+      return rev.put(`/api/v2/playlists/${playlistId}/owners`, { owners });
+    },
     async delete(playlistId) {
       return rev.delete(`/api/v2/playlists/${playlistId}`);
     },
     /**
      * get list of playlists in system.
-     * NOTE: return type is slightly different than API documentation
+     * NOTE: return type is slightly different than API documentation to ensure consistent output regardless of API response format
      * @see {@link https://revdocs.vbrick.com/reference#getplaylists}
      */
     async list() {
-      function parsePlaylist(entry) {
-        const {
-          id,
-          playlistId,
-          featurePlaylistId,
-          featuredPlaylist,
-          name,
-          playlistName,
-          ...extra
-        } = entry;
+      const rawResult = await rev.get("/api/v2/playlists", void 0, { responseType: "json" });
+      if (Array.isArray(rawResult)) {
         return {
-          ...extra,
-          id: id ?? playlistId ?? featurePlaylistId ?? featuredPlaylist,
-          name: name ?? playlistName,
-          videos: entry.videos ?? entry.Videos
+          playlists: rawResult
         };
       }
-      const rawResult = await rev.get("/api/v2/playlists", void 0, { responseType: "json" });
-      const hasFeatured = !Array.isArray(rawResult);
-      const rawPlaylists = hasFeatured ? rawResult.playlists : rawResult;
-      const output = {
-        playlists: rawPlaylists.map(parsePlaylist)
+      const {
+        featuredPlaylist,
+        publicFeaturedPlaylist,
+        playbackUrl,
+        videos,
+        playlists
+      } = rawResult;
+      return {
+        ...featuredPlaylist && {
+          featuredPlaylist: {
+            id: featuredPlaylist,
+            playbackUrl,
+            videos
+          }
+        },
+        ...publicFeaturedPlaylist && { publicFeaturedPlaylist },
+        playlists
       };
-      if (hasFeatured) {
-        if (isPlainObject(rawResult.featuredPlaylist)) {
-          output.featuredPlaylist = parsePlaylist(rawResult.featuredPlaylist);
-        } else if (Array.isArray(rawResult.videos)) {
-          output.featuredPlaylist = parsePlaylist(rawResult);
-        }
-      }
-      return output;
     }
   };
   return playlistAPI;
@@ -2378,7 +2425,7 @@ function videoDownloadAPI(rev) {
       thumbnailSheetsUri = thumbnailSheet;
     } else if (thumbnailSheet && typeof thumbnailSheet === "object" && "thumbnailSheetsUri" in thumbnailSheet) {
       thumbnailSheetsUri = thumbnailSheet.thumbnailSheetsUri;
-    } else if (thumbnailSheet?.videoId) {
+    } else if ("videoId" in thumbnailSheet && !!thumbnailSheet.videoId) {
       const { videoId, sheetIndex = "1" } = thumbnailSheet;
       thumbnailSheetsUri = `/api/v2/videos/${videoId}/thumbnail-sheets/${sheetIndex}`;
     }
@@ -2388,13 +2435,18 @@ function videoDownloadAPI(rev) {
     const { body } = await rev.request("GET", thumbnailSheetsUri, void 0, { responseType: "blob", ...options });
     return body;
   }
+  async function downloadLmsScormPackage(videoId, scormSettings, options) {
+    const { body } = await rev.request("GET", `/api/v2/videos/${videoId}/lms-export/scorm`, scormSettings, { responseType: "blob", ...options });
+    return body;
+  }
   return {
     download,
     downloadChapter,
     downloadSupplemental,
     downloadThumbnail,
     downloadTranscription,
-    downloadThumbnailSheet
+    downloadThumbnailSheet,
+    downloadLmsScormPackage
   };
 }
 
@@ -2491,6 +2543,8 @@ function parseDates(startArg, endArg) {
   return { startDate, endDate };
 }
 var VideoReportRequest = class extends PagedRequest {
+  _rev;
+  _endpoint;
   /**
    * @hidden
    * @param rev
@@ -2499,8 +2553,6 @@ var VideoReportRequest = class extends PagedRequest {
    */
   constructor(rev, options = {}, endpoint = "/api/v2/videos/report") {
     super(parseOptions(options));
-    __publicField(this, "_rev");
-    __publicField(this, "_endpoint");
     this._endpoint = endpoint;
     this._rev = rev;
   }
@@ -2609,10 +2661,11 @@ function videoAPIFactory(rev) {
      * @param customField - the custom field object (with id and value)
      */
     async setCustomField(videoId, customField) {
+      const { id, value } = customField;
       const payload = [{
         op: "replace",
         path: "/CustomFields",
-        value: [customField]
+        value: [{ id, value }]
       }];
       await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
       await rev.patch(`/api/v2/videos/${videoId}`, payload);
@@ -2962,7 +3015,7 @@ function videoAPIFactory(rev) {
       const request = new Map(audioTracks.map(({ languageName, ...t }) => [t.track, t]));
       for (let { op, languageId, track, value } of operations) {
         if (op === "add") {
-          languageId ?? (languageId = value?.languageId);
+          languageId ??= value?.languageId;
           if (!languageId) throw new TypeError("value languageId is required when adding audioTrack");
           const audioTrack = {
             isDefault: value?.isDefault ?? false,
@@ -3120,7 +3173,7 @@ var PostEventReportRequest = class extends SearchRequest {
       return body;
     }
     if (statusCode == 400 && body?.errorDescription) {
-      throw new RevError(response, { details: body.errorDescription });
+      throw new RevError(response, { detail: body.errorDescription });
     }
     const error = !!body || response.bodyUsed ? new RevError(response, body) : await RevError.create(response);
     throw error;
@@ -3581,14 +3634,14 @@ function environmentAPIFactory(rev) {
 // src/rev-session.ts
 var ONE_MINUTE2 = 1e3 * 60;
 var DEFAULT_EXPIRE_MINUTES = 10;
-var _credentials = Symbol("credentials");
+var _credentials = /* @__PURE__ */ Symbol("credentials");
 var SessionKeepAlive = class {
+  _session;
+  controller;
+  extendOptions;
+  error;
+  _isExtending = false;
   constructor(session, options = {}) {
-    __publicField(this, "_session");
-    __publicField(this, "controller");
-    __publicField(this, "extendOptions");
-    __publicField(this, "error");
-    __publicField(this, "_isExtending", false);
     this.extendOptions = {
       extendThresholdMilliseconds: 3 * ONE_MINUTE2,
       keepAliveInterval: 10 * ONE_MINUTE2,
@@ -3664,16 +3717,14 @@ var SessionKeepAlive = class {
     return this.controller && !this.controller.signal.aborted;
   }
 };
-var _a;
-_a = _credentials;
 var SessionBase = class {
+  token;
+  expires;
+  rev;
+  [_credentials];
+  keepAlive;
+  _rateLimits;
   constructor(rev, credentials, keepAliveOptions, rateLimits) {
-    __publicField(this, "token");
-    __publicField(this, "expires");
-    __publicField(this, "rev");
-    __publicField(this, _a);
-    __publicField(this, "keepAlive");
-    __publicField(this, "_rateLimits");
     this.expires = /* @__PURE__ */ new Date();
     if (keepAliveOptions === true) {
       this.keepAlive = new SessionKeepAlive(this);
@@ -3808,10 +3859,7 @@ var SessionBase = class {
   }
 };
 var OAuthSession = class extends SessionBase {
-  constructor() {
-    super(...arguments);
-    __publicField(this, "refreshToken");
-  }
+  refreshToken;
   async _login() {
     const { oauthConfig, authCode } = this[_credentials];
     if (!oauthConfig || !authCode) {
@@ -3848,10 +3896,7 @@ var OAuthSession = class extends SessionBase {
   }
 };
 var OAuth2Session = class extends SessionBase {
-  constructor() {
-    super(...arguments);
-    __publicField(this, "refreshToken");
-  }
+  refreshToken;
   async _login() {
     const { oauthConfig, code, codeVerifier } = this[_credentials];
     if (!oauthConfig || !code || !codeVerifier) {
@@ -3881,10 +3926,7 @@ var OAuth2Session = class extends SessionBase {
   }
 };
 var UserSession = class extends SessionBase {
-  constructor() {
-    super(...arguments);
-    __publicField(this, "userId");
-  }
+  userId;
   async _login() {
     const { username, password } = this[_credentials];
     if (!username || !password) {
@@ -3987,7 +4029,7 @@ var AccessTokenSession = class extends SessionBase {
   // just verify user on login
   async _login() {
     const { token } = this[_credentials].session ?? {};
-    this.token || (this.token = token);
+    this.token ||= token;
     const { expiration } = await this.rev.auth.extendSession();
     return {
       token: this.token || "",
@@ -4102,90 +4144,90 @@ function createSession(rev, credentials, keepAliveOptions, rateLimits) {
 // src/rev-client.ts
 var RevClient3 = class {
   /**
+   * The Rev tenant url (i.e. https://my.rev.url)
+   * @group Properties
+   */
+  url;
+  /**
+   * turns on/off debug logging to console
+   * @group Internal
+   */
+  logEnabled;
+  /**
+   ** This is an internal class that handles authentication and maintaining the session. It should not be used directly.
+   * @group Internal
+   */
+  session;
+  /**
+   * @group APIs
+   */
+  admin;
+  /**
+   * @group APIs
+   */
+  audit;
+  /**
+   * @group APIs
+   */
+  auth;
+  /**
+   * @group APIs
+   */
+  category;
+  /**
+   * @group APIs
+   */
+  channel;
+  /**
+   * @group APIs
+   */
+  device;
+  /**
+   * @group APIs
+   */
+  environment;
+  /**
+   * @group APIs
+   */
+  group;
+  /**
+   * @group APIs
+   */
+  playlist;
+  /**
+   *
+   * @group APIs
+   */
+  recording;
+  /**
+   * @group APIs
+   */
+  upload;
+  /**
+   * @group APIs
+   */
+  user;
+  /**
+   * @group APIs
+   */
+  video;
+  /**
+   * @group APIs
+   */
+  webcast;
+  /**
+   * @group APIs
+   */
+  zones;
+  /**
+   * @internal
+   */
+  _streamPreference;
+  /**
    *
    * @param options The configuration options including target Rev URL and authentication credentials
    */
   constructor(options) {
-    /**
-     * The Rev tenant url (i.e. https://my.rev.url)
-     * @group Properties
-     */
-    __publicField(this, "url");
-    /**
-     * turns on/off debug logging to console
-     * @group Internal
-     */
-    __publicField(this, "logEnabled");
-    /**
-     ** This is an internal class that handles authentication and maintaining the session. It should not be used directly.
-     * @group Internal
-     */
-    __publicField(this, "session");
-    /**
-     * @group APIs
-     */
-    __publicField(this, "admin");
-    /**
-     * @group APIs
-     */
-    __publicField(this, "audit");
-    /**
-     * @group APIs
-     */
-    __publicField(this, "auth");
-    /**
-     * @group APIs
-     */
-    __publicField(this, "category");
-    /**
-     * @group APIs
-     */
-    __publicField(this, "channel");
-    /**
-     * @group APIs
-     */
-    __publicField(this, "device");
-    /**
-     * @group APIs
-     */
-    __publicField(this, "environment");
-    /**
-     * @group APIs
-     */
-    __publicField(this, "group");
-    /**
-     * @group APIs
-     */
-    __publicField(this, "playlist");
-    /**
-     *
-     * @group APIs
-     */
-    __publicField(this, "recording");
-    /**
-     * @group APIs
-     */
-    __publicField(this, "upload");
-    /**
-     * @group APIs
-     */
-    __publicField(this, "user");
-    /**
-     * @group APIs
-     */
-    __publicField(this, "video");
-    /**
-     * @group APIs
-     */
-    __publicField(this, "webcast");
-    /**
-     * @group APIs
-     */
-    __publicField(this, "zones");
-    /**
-     * @internal
-     */
-    __publicField(this, "_streamPreference");
     if (!isPlainObject(options) || !options.url) {
       throw new TypeError("Missing configuration options for client - url and username/password or apiKey/secret");
     }

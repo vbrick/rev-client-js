@@ -105,7 +105,7 @@ export class PostEventReportRequest extends SearchRequest<Webcast.PostEventSessi
         }
 
         if (statusCode == 400 && (body as PostEventErrorResponse)?.errorDescription) {
-            throw new RevError(response, { details: (body as PostEventErrorResponse).errorDescription });
+            throw new RevError(response, { detail: (body as PostEventErrorResponse).errorDescription });
         }
         // bodyUsed should always be true, but this is just a safety check
         const error = (!!body || response.bodyUsed)

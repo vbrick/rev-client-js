@@ -30,7 +30,7 @@ export const defaultRateLimits: Required<RateLimits> = {
     [RateLimitEnum.GetWebcastAttendeesRealtime]: 2,
     [RateLimitEnum.AuditEndpoints]: 60,
     [RateLimitEnum.GetUsersByLoginDate]: 10,
-    [RateLimitEnum.GetVideoViewReport]: 120,
+    [RateLimitEnum.GetVideoViewReport]: 30,
 };
 
 // passthrough placeholder for ratelimit

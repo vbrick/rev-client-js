@@ -619,6 +619,9 @@ declare namespace Video {
         password?: string;
         /** An array of customFields that is attached to the  */
         customFields?: Admin.CustomField.Request[];
+        /**
+         * This enables the video to bypass transcoding. Doesn't work with audio only files like mp3
+         */
         doNotTranscode?: boolean;
         is360?: boolean;
         unlisted?: boolean;
@@ -645,6 +648,10 @@ declare namespace Video {
          * NOTE: Feature must be enabled (contact Vbrick Support)
          */
         sensitiveContent?: boolean;
+        /**
+         * Additional domains from which viewers can view this video via an embed. This field is only applicable if the account admin has enabled additional domains for embeds. Do not add https:// to the domain string or it will fail.
+         */
+        additionalEmbedDomains?: string[];
         /**
          * Retain the total views count from an outside system as an optional param.
          */
@@ -849,6 +856,18 @@ declare namespace Video {
         viewerIdEnabled: boolean;
         enableAutoShowChapterImages: boolean;
         sensitiveContent: boolean;
+        /**
+         * If enabled, embedding of videos is restricted to a list of domains managed by your Account Admin
+         */
+        domainAllowlistEnabled: boolean;
+        /**
+         * If enabled, additional domains from which viewers can view this video can be added.
+         */
+        allowAdditionalDomainsEnabled: boolean;
+        /**
+         * Additional domains from which viewers can view this video via an embed.
+         */
+        additionalEmbedDomains: null | string[];
     }
     interface PatchRequest {
         title?: string;
@@ -863,11 +882,12 @@ declare namespace Video {
         enableExternalApplicationAccess?: boolean;
         enableExternalViewersAccess?: boolean;
         videoAccessControl?: AccessControl;
-        accessControlEntities: string | string[];
-        customFields: Admin.CustomField.Request[];
+        accessControlEntities?: string | string[];
+        customFields?: Admin.CustomField.Request[];
         unlisted?: boolean;
         userTags?: string[];
         sensitiveContent?: boolean;
+        additionalEmbedDomains?: string[];
     }
     interface StatusResponse {
         videoId: string;
@@ -879,7 +899,7 @@ declare namespace Video {
         uploadedBy: string;
         whenUploaded: string;
     }
-    interface SearchOptions {
+    interface BaseSearchOptions {
         /** text to search for */
         q?: string;
         /** specific videoIds to search for */
@@ -935,17 +955,24 @@ declare namespace Video {
          */
         channelId?: string;
         /**
+         * Multiple channelIds, separated by comma. User should have rights to the channels
+         */
+        channelIds?: string;
+        /**
          * Filter the results based on the channels and categories the Principal is subscribed OR apply the recommendation logic which boosts search results based on recent viewing history using up to the last 10 videos viewed by a user.
          */
         filter?: SearchFilterEnum;
         /** Number of videos to get (default is 50) */
         count?: number;
-        /**
-         * search for videos matching specific custom field values.
-         * Object in the format {My_Custom_Field_Name: "MyCustomFieldValue"}
-         */
-        [key: string]: any;
     }
+    /**
+     * Filter criteria for searching for videos.
+     * See [Search API Docs](https://revdocs.vbrick.com/reference/searchvideo) for details
+     * Any non-documented keys are treated as a Custom Field query
+     */
+    type SearchOptions = {
+        [K in LiteralString<keyof BaseSearchOptions>]?: K extends keyof BaseSearchOptions ? BaseSearchOptions[K] : unknown;
+    };
     interface Playback {
         id: string;
         title: string;
@@ -1012,6 +1039,14 @@ declare namespace Video {
         viewingStartTime: string;
         viewingEndTime: string;
         userId: string;
+        geoLocation?: Video.GeoLocationResponse;
+    }
+    interface GeoLocationResponse {
+        continent?: string;
+        country?: string;
+        region?: string;
+        city?: string;
+        postalCode?: string;
     }
     interface VideoReportOptions extends Rev.SearchOptions<VideoReportEntry> {
         videoIds?: string | string[] | undefined;
@@ -1232,6 +1267,18 @@ declare namespace Video {
         accountId: string;
         /** ISO Date */
         when: string;
+    }
+    interface LmsScormRequest {
+        /**
+         * video will be marked as complete in lms after the specified percent watched is hit.
+         * @default 80
+         */
+        completionPercentage?: number;
+        /**
+         * allow / block changing the speed of the video
+         * @default false
+         */
+        allowSpeedChanges?: boolean;
     }
 }
 /** @category Videos */
@@ -1610,10 +1657,11 @@ declare namespace Category {
 */
 declare namespace Channel {
     type SortOrder = LiteralString<'whenUploaded' | 'recommended' | 'title' | 'viewCount'>;
+    type RoleType = LiteralString<'Admin' | 'Contributor' | 'Uploader' | 'Member'>;
     interface Member {
         id: string;
         type: LiteralString<'User' | 'Group'>;
-        roleTypes: LiteralString<'Admin' | 'Contributor' | 'Uploader' | 'Member'>[];
+        roleTypes: Channel.RoleType[];
     }
     interface CreateRequest {
         name: string;
@@ -1699,6 +1747,7 @@ declare namespace Device {
         isVideoStorageDevice: boolean;
         dmeStatus: DmeHealthStatus;
         ipAddress: string;
+        sslExpiryDate: string;
     }
     export interface CreateDMERequest {
         /**
@@ -2022,6 +2071,48 @@ declare namespace Device {
             enrichedStreams?: EnrichedStreamStatus[];
         };
     }
+    export type LogStatusType = 'Success' | 'Requested' | 'Failed';
+    export type ActionNameType = LiteralString<"CheckConnection" | "DeleteFile" | "DmeDeviceSynchronization" | "DownloadUpdate" | "DownloadVideoFile" | "GetCapabilities" | "GetFile" | "HealthWarning" | "InitializePeriodicStatusUpdate" | "InstallUpdate" | "LdapSyncDuplicateUserEmails" | "LdapSyncDuplicateUsernames" | "LdapSyncInvalidGroups" | "LdapSyncReport" | "LdapUsersProfileImageSyncFinished" | "Reboot" | "SavedGroupsSynchronize" | "SetOffline" | "SetOnline" | "StartCdnPush" | "StartHlsDistribution" | "StartRecording" | "StartRtmpsPush" | "StopCdnPush" | "StopHlsDistribution" | "StopLockdown" | "StopRecording" | "StopRtmpsPush" | "SynchronizeAvailableGroups" | "UpdateMesh">;
+    export interface LogsRequest {
+        deviceId?: string;
+        accountId?: string;
+        status?: LogStatusType;
+        actionName?: ActionNameType;
+        startDate?: string;
+        endDate?: string;
+        /**
+         * @default "desc"
+         */
+        sortDirection?: Rev.SortDirection;
+        count?: number;
+    }
+    export interface LogItem {
+        deviceId: string;
+        deviceName: string;
+        deviceType: DeviceType | 'LdapConnector';
+        id: string;
+        status: LogStatusType;
+        actionName: ActionNameType;
+        message: Record<string, any>;
+        dateTime: string;
+    }
+    export interface PrepositionVideosRequest {
+        /**
+         * Video ID
+         */
+        id: string;
+        instanceIds: string[];
+    }
+    export interface PrepositionVideosResponse {
+        ignoredVideos: Array<{
+            /**
+             * Video ID
+             */
+            id: string;
+            instanceIds: string[];
+            reason: string;
+        }>;
+    }
     export {  };
 }
 
@@ -2063,7 +2154,7 @@ declare namespace Upload {
     type TranscriptionOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
         contentType?: LiteralString<'text/plain' | 'text/vtt' | 'application/x-subrip'>;
     };
-    type SupplementalOptions = Rev.RequestOptions & Omit<Rev.UploadFileOptions, 'filename' | 'contentLength'> & {
+    type SupplementalOptions = Rev.RequestOptions & Rev.UploadFileOptions & {
         contentType?: LiteralString<'application/x-7z-compressed' | 'text/csv' | 'application/msword' | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' | 'image/gif' | 'image/jpeg' | 'application/pdf' | 'image/png' | 'application/vnd.ms-powerpoint' | 'application/vnd.openxmlformats-officedocument.presentationml.presentation' | 'application/x-rar-compressed' | 'image/svg+xml' | 'text/plain' | 'application/vnd.ms-excel' | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' | 'application/zip'>;
     };
 }
@@ -2163,6 +2254,7 @@ declare namespace User {
 interface Playlist {
     id: string;
     name: string;
+    owners?: Playlist.Owner[];
     playbackUrl: string;
     playlistType?: Playlist.PlaylistTypeEnum;
     videos?: Playlist.Video[];
@@ -2171,8 +2263,14 @@ interface Playlist {
 /** @category Playlists */
 declare namespace Playlist {
     type PlaylistTypeEnum = LiteralString<'Static' | 'Dynamic'>;
+    interface Featured {
+        id: string;
+        playbackUrl: string | null;
+        videos: Playlist.Video[];
+    }
     interface List {
-        featuredPlaylist?: Playlist;
+        featuredPlaylist?: Playlist.Featured;
+        publicFeaturedPlaylist?: Playlist.Featured;
         playlists: Playlist[];
     }
     interface Video {
@@ -2197,12 +2295,19 @@ declare namespace Playlist {
     interface DetailsResponse {
         playlistId: string;
         playlistType: PlaylistTypeEnum;
+        owners: Playlist.Owner[];
         playlistDetails: Omit<Playlist, 'videos'> & {
             videos?: undefined;
         };
         videos: Video.Details[];
         scrollId?: string;
         totalVideos?: string;
+    }
+    interface Owner {
+        firstName: string;
+        lastName: string;
+        userId: string;
+        userName: string;
     }
 }
 
@@ -2269,7 +2374,7 @@ interface Webcast {
 declare namespace Webcast {
     type WebcastAccessControl = LiteralString<'Public' | 'TrustedPublic' | 'AllUsers' | 'Private'>;
     type SortField = LiteralString<'startDate' | 'title'>;
-    type VideoSourceType = LiteralString<'Capture' | 'MicrosoftTeams' | 'PresentationProfile' | 'Rtmp' | 'WebrtcSinglePresenter' | 'SipAddress' | 'WebexTeam' | 'WebexEvents' | 'WebexLiveStream' | 'Vod' | 'Zoom' | 'Pexip' | 'Producer'>;
+    type VideoSourceType = LiteralString<'Capture' | 'MicrosoftTeams' | 'Srt' | 'PresentationProfile' | 'Rtmp' | 'WebrtcSinglePresenter' | 'SipAddress' | 'WebexTeam' | 'WebexEvents' | 'WebexLiveStream' | 'Vod' | 'Zoom' | 'Pexip' | 'Producer'>;
     type RealtimeField = LiteralString<'FullName' | 'Email' | 'ZoneName' | 'StreamType' | 'IpAddress' | 'Browser' | 'OsFamily' | 'StreamAccessed' | 'PlayerDevice' | 'OsName' | 'UserType' | 'Username' | 'AttendeeType'>;
     type QuestionOption = LiteralString<'IDENTIFIED' | 'SELFSELECT' | 'ANONYMOUS'>;
     type AttendeeJoinMethod = LiteralString<'Anonymous' | 'Registration'>;
@@ -2431,6 +2536,20 @@ declare namespace Webcast {
          * After the event is complete and there is a Recording, this video will be added to the Ending of your Recording.
          */
         postRollVideoId?: string;
+        /**
+         * Additional domains from which viewers can view this video via an embed.
+         */
+        additionalEmbedDomains?: string[];
+    }
+    interface EditRequest extends CreateRequest {
+        /**
+         * Specifies if the existing RTMP-based webcast URL and key need to be regenerated. This also affects the backup URL and Key if existing
+         */
+        regenerateRtmpUrlAndKey?: boolean;
+        /**
+         *  Specifies if the existing SRT-based webcast URL and key need to be regenerated. This also affects the backup URL and Key if existing
+         */
+        regenerateSrtUrlAndKey?: boolean;
     }
     interface Details {
         eventId: string;
@@ -2459,6 +2578,18 @@ declare namespace Webcast {
         secondaryRtmp?: {
             url: string;
             key: string;
+        };
+        srt?: {
+            /**
+             * The SRT push Url to use with the scheduled event
+             */
+            url: string;
+        };
+        secondarySrt?: {
+            /**
+             * The SRT push Url to use with the scheduled event
+             */
+            url: string;
         };
         /**
          * If enabled, the event will have a secondary RTMP source for redundancy. This is only applicable when videoSourceType is Rtmp.
@@ -2548,6 +2679,20 @@ declare namespace Webcast {
         isFeatured: boolean;
         preRollVideoId: string | null;
         postRollVideoId: string | null;
+        isCustomConsentEnabled: boolean;
+        consentVerbiage: string | null;
+        /**
+         * If enabled, embedding of videos is restricted to a list of domains managed by your Account Admin
+         */
+        domainAllowlistEnabled: boolean;
+        /**
+         * If enabled, additional domains from which viewers can view this video can be added.
+         */
+        allowAdditionalDomainsEnabled: boolean;
+        /**
+         * Additional domains from which viewers can view this video via an embed.
+         */
+        additionalEmbedDomains: null | string[];
     }
     type ListItem = Webcast & Pick<Webcast.Details, 'autoAssociateVod' | 'redirectVod' | 'videoSourceType' | 'rtmp' | 'secondaryRtmp' | 'secondarySourceEnabled' | 'webcastType'> & {
         eventAdmin: {
@@ -2597,6 +2742,14 @@ declare namespace Webcast {
         rebufferEvents: number;
         rebufferDuration: number;
         attendeeType: LiteralString<'Host' | 'Moderator' | 'AccountAdmin' | 'Attendee'>;
+        polls?: PollResponse[] | null;
+        geoLocation?: Video.GeoLocationResponse | null;
+    }
+    interface PollResponse {
+        pollId: string;
+        question: string;
+        answers: string;
+        when: string;
     }
     interface RealtimeRequest {
         sortField?: RealtimeField;
@@ -2656,6 +2809,7 @@ declare namespace Webcast {
         streamType: string;
         sessionId: string;
         profileImageUrl: string;
+        geoLocation?: Video.GeoLocationResponse;
     }
     interface Question {
         questionId: string;
@@ -2741,9 +2895,13 @@ declare namespace Webcast {
     interface BrandingRequest {
         branding: Omit<Webcast.BrandingSettings, 'logos'>;
         logoImage: Rev.FileUploadType;
-        logoImageOptions?: Exclude<Upload.ImageOptions, Rev.RequestOptions>;
+        logoImageOptions?: {
+            [K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]: Upload.ImageOptions[K];
+        };
         backgroundImage: Rev.FileUploadType;
-        backgroundImageOptions?: Exclude<Upload.ImageOptions, Rev.RequestOptions>;
+        backgroundImageOptions?: {
+            [K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]: Upload.ImageOptions[K];
+        };
     }
     interface ContentLink {
         id: string;
@@ -3423,6 +3581,10 @@ declare class ChannelListRequest implements Rev.ISearchRequest<Channel.SearchHit
     [Symbol.asyncIterator](): AsyncGenerator<Channel.SearchHit, void, unknown>;
 }
 
+declare class DeviceLogsRequest extends SearchRequest<Device.LogItem> {
+    constructor(rev: RevClient, query: Device.LogsRequest, options?: Rev.SearchOptions<Device.LogItem>);
+}
+
 /** @ignore */
 type API$9 = ReturnType<typeof deviceAPIFactory>;
 /**
@@ -3474,6 +3636,23 @@ declare function deviceAPIFactory(rev: RevClient): {
      * @returns
      */
     rebootDME(deviceId: string): Promise<any>;
+    /**
+     * This API allows account administrators to initiate and manage targeted video downloads to specific DMEs. Using a single API call, users can send one or more video instances (from the same videoID) to designated DMEs for prepositioning, regardless of the DME’s preposition settings.
+     * @param deviceId id of device in question
+     * @param request a list of videos and their instanceIds to include
+     * @param options
+     * @returns
+     */
+    prepositionVideos(deviceId: string, request: Device.PrepositionVideosRequest | Device.PrepositionVideosRequest[], options?: Rev.RequestOptions): Promise<Device.PrepositionVideosResponse>;
+    /**
+     * Get list of logs for a specific device or all devices in the account
+     * pass {deviceId} to get for a single device
+     * pass {accountId} to get for all devices in account
+     *
+     * @see [Device Logs](https://revdocs.vbrick.com/reference/getdevicelogs)
+     * @see [Account Logs](https://revdocs.vbrick.com/reference/getaccountdevicelogs)
+     */
+    getLogs(request: Device.LogsRequest, options?: Rev.SearchOptions<Device.LogItem>): DeviceLogsRequest;
 };
 
 /** @ignore */
@@ -3539,6 +3718,7 @@ declare class PlaylistDetailsRequest extends SearchRequest<Video.Details> {
         searchFilter: Video.SearchOptions | undefined;
         name: string;
         id: string;
+        owners: Playlist.Owner[];
         playbackUrl: string;
         playlistType: (string & Record<never, never>) | "Static" | "Dynamic";
         playlistId: string;
@@ -3570,10 +3750,11 @@ declare function playlistAPIFactory(rev: RevClient): {
     }, options?: Rev.SearchOptions<Video.Details>): PlaylistDetailsRequest;
     update(playlistId: string, actions: Playlist.UpdateAction[] | Video.SearchOptions): Promise<void>;
     updateFeatured(actions: Playlist.UpdateAction[]): Promise<void>;
+    updateOwners(playlistId: string, ownerIds: string | string[]): Promise<any>;
     delete(playlistId: string): Promise<void>;
     /**
      * get list of playlists in system.
-     * NOTE: return type is slightly different than API documentation
+     * NOTE: return type is slightly different than API documentation to ensure consistent output regardless of API response format
      * @see {@link https://revdocs.vbrick.com/reference#getplaylists}
      */
     list(): Promise<Playlist.List>;
@@ -4037,6 +4218,7 @@ declare function videoAPIFactory(rev: RevClient): {
             sheetIndex?: string | number;
         }, options?: Rev.RequestOptions): Promise<T>;
     };
+    downloadLmsScormPackage: <T = Blob>(videoId: string, scormSettings?: Video.LmsScormRequest, options?: Rev.RequestOptions) => Promise<T>;
     /**
      * This is an example of using the video Patch API to only update a single field
      * @param videoId
@@ -4159,7 +4341,7 @@ declare function webcastAPIFactory(rev: RevClient): {
     search(query: Webcast.SearchRequest, options?: Rev.SearchOptions<Webcast>): Rev.ISearchRequest<Webcast>;
     create(event: Webcast.CreateRequest): Promise<string>;
     details(eventId: string, requestOptions?: Rev.RequestOptions): Promise<Webcast.Details>;
-    edit(eventId: string, event: Webcast.CreateRequest): Promise<void>;
+    edit(eventId: string, event: Webcast.EditRequest): Promise<void>;
     /**
      * Partially edits the details of a webcast. You do not need to provide the fields that you are not changing.
      * Webcast status determines which fields are modifiable and when.

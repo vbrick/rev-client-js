@@ -46,56 +46,47 @@ export default function playlistAPIFactory(rev: RevClient) {
             };
             return rev.put(`/api/v2/playlists/featured-playlist`, payload);
         },
+        async updateOwners(playlistId: string, ownerIds: string | string[]) {
+            const owners = Array.isArray(ownerIds) ? ownerIds : [ownerIds];
+            return rev.put(`/api/v2/playlists/${playlistId}/owners`, { owners });
+        },
         async delete(playlistId: string): Promise<void> {
             return rev.delete(`/api/v2/playlists/${playlistId}`);
         },
         /**
          * get list of playlists in system.
-         * NOTE: return type is slightly different than API documentation
+         * NOTE: return type is slightly different than API documentation to ensure consistent output regardless of API response format
          * @see {@link https://revdocs.vbrick.com/reference#getplaylists}
          */
         async list(): Promise<Playlist.List> {
-            // ensure raw response is in consistent format
-            function parsePlaylist(entry: Record<string, string> & { videos: any; }): Playlist {
-                const {
-                    id,
-                    playlistId,
-                    featurePlaylistId,
-                    featuredPlaylist,
-                    name,
-                    playlistName,
-                    ...extra
-                } = entry;
-                return {
-                    ...(extra as any),
-                    id: id ?? playlistId ?? featurePlaylistId ?? featuredPlaylist,
-                    name: name ?? playlistName,
-                    videos: entry.videos ?? entry.Videos as any,
-                };
-            }
-
             const rawResult = await rev.get('/api/v2/playlists', undefined, { responseType: 'json' });
             // rawResult may return in strange format, so cleanup and return consistent output
 
-            const hasFeatured = !Array.isArray(rawResult);
-
-            const rawPlaylists = hasFeatured
-                ? rawResult.playlists
-                : rawResult;
-
-
-            const output: Playlist.List = {
-                playlists: rawPlaylists.map(parsePlaylist)
-            };
-
-            if (hasFeatured) {
-                if (isPlainObject(rawResult.featuredPlaylist)) {
-                    output.featuredPlaylist = parsePlaylist(rawResult.featuredPlaylist);
-                } else if (Array.isArray(rawResult.videos)) {
-                    output.featuredPlaylist = parsePlaylist(rawResult);
-                }
+            if (Array.isArray(rawResult)) {
+                return {
+                    playlists: rawResult
+                };
             }
-            return output;
+
+            const {
+                featuredPlaylist,
+                publicFeaturedPlaylist,
+                playbackUrl,
+                videos,
+                playlists
+            } = rawResult;
+
+            return {
+                ...featuredPlaylist && {
+                    featuredPlaylist: {
+                        id: featuredPlaylist,
+                        playbackUrl,
+                        videos
+                    }
+                },
+                ...publicFeaturedPlaylist && {publicFeaturedPlaylist},
+                playlists
+            };
         }
     };
     return playlistAPI;

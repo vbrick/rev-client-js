@@ -6,10 +6,11 @@ import type { LiteralString } from './rev';
 */
 export namespace Channel {
     export type SortOrder = LiteralString<'whenUploaded' | 'recommended' | 'title' | 'viewCount'>
+    export type RoleType = LiteralString<'Admin' | 'Contributor' | 'Uploader' | 'Member'>
     export interface Member {
         id: string;
         type: LiteralString<'User' | 'Group'>;
-        roleTypes: LiteralString<'Admin' | 'Contributor' | 'Uploader' | 'Member'>[];
+        roleTypes: Channel.RoleType[];
     }
     export interface CreateRequest {
         name: string;

@@ -1,3 +1,36 @@
+### UPCOMING CHANGES
+
+* **BUILD** Future versions will switch to `tsdown` for building instead of the deprecated `tsup`
+* **PLATFORMS** Remove commonjs support now that nodejs has improved ESM support
+* When uploading the `MKV` mimetype may change from `video/x-matroska` to `video/matroska` as browsers no longer treate the format as experimental
+
+## 0.25.6
+
+* Update types for Rev 8.5
+* Implement new playlist API endpoints
+
+#### Breaking Changes
+
+* `rev.playlist.list()` may not parse API results for On-Prem Rev versions earlier than 7.54
+
+## 0.25.5
+
+* Update build targets to minimum node 20
+* Bugfix: Set View Report (`video.report()`) rate limiting to 30
+* Minor: Export `Channel.RoleType` enum
+* Minor: Improve IDE autocomplete for `Video.SearchOptions` type
+
+## 0.25.4
+
+* Update types for Rev 8.4
+* Add `device.getLogs()` and `device.prepositionVideos()` endpoints
+* Add `video.downloadLmsScormPackage()` endpoint
+
+## 0.25.3
+
+* Minor: ensure customfield passed to `video.setCustomField()` only has `id` and `value` parameters.
+* Bugfix: avoid NegativeTimeout warning on node v24
+
 ## 0.25.2
 
 * Bugfix - `video.deleteTranscriptions()` was calling wrong endpoint

@@ -1,6 +1,8 @@
 import type { RevClient } from '../rev-client';
 
-import type { Device } from '../types/index';
+import type { Device } from '../types/device.js';
+import type { Rev } from '../types/rev.js';
+import { DeviceLogsRequest } from './device-logs-request.js';
 
 /** @ignore */
 export type API = ReturnType<typeof deviceAPIFactory>;
@@ -69,6 +71,28 @@ export default function deviceAPIFactory(rev: RevClient) {
          */
         async rebootDME(deviceId: string) {
             return rev.put(`/api/v2/devices/dmes/${deviceId}`);
+        },
+        /**
+         * This API allows account administrators to initiate and manage targeted video downloads to specific DMEs. Using a single API call, users can send one or more video instances (from the same videoID) to designated DMEs for prepositioning, regardless of the DME’s preposition settings.
+         * @param deviceId id of device in question
+         * @param request a list of videos and their instanceIds to include
+         * @param options
+         * @returns
+         */
+        async prepositionVideos(deviceId: string, request: Device.PrepositionVideosRequest | Device.PrepositionVideosRequest[], options?: Rev.RequestOptions): Promise<Device.PrepositionVideosResponse> {
+            const payload = Array.isArray(request) ? request : [request];
+            return rev.post(`/api/v2/devices/dmes/${deviceId}/prepositioned-videos`, payload, options);
+        },
+        /**
+         * Get list of logs for a specific device or all devices in the account
+         * pass {deviceId} to get for a single device
+         * pass {accountId} to get for all devices in account
+         *
+         * @see [Device Logs](https://revdocs.vbrick.com/reference/getdevicelogs)
+         * @see [Account Logs](https://revdocs.vbrick.com/reference/getaccountdevicelogs)
+         */
+        getLogs(request: Device.LogsRequest, options?: Rev.SearchOptions<Device.LogItem>) {
+            return new DeviceLogsRequest(rev, request, options)
         }
     };
     return deviceAPI;

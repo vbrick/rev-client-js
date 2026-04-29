@@ -7,7 +7,7 @@ export async function decodeBody(response: Response, acceptType?: string | null)
     const contentType = response.headers.get('Content-Type') || acceptType || '';
     const contentLength = response.headers.get('Content-Length');
 
-    if (contentType.startsWith('application/json') && contentLength !== '0') {
+    if (/^(application|text)\/[^+]*[+]?json/.test(contentType) && contentLength !== '0') {
         try {
             return await response.json();
         } catch (err) {
