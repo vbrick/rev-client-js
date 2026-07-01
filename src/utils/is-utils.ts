@@ -13,12 +13,14 @@ export function isBlobLike(val: unknown): val is Blob | File {
 }
 
 export function isReadable<T = any>(val: unknown): val is AsyncIterable<T> {
-    return typeof (val as AsyncIterable<T>)[Symbol.asyncIterator] === 'function';
+    return typeof (val as AsyncIterable<T>)?.[Symbol.asyncIterator] === 'function';
 }
 
 export function isResponseLike(val: unknown): val is Response {
     const _res = val as Response | undefined;
     return (
+        !!val &&
+        typeof val === 'object' &&
         isReadable(_res?.body) &&
         typeof _res.headers === 'object' &&
         _res.url != null
