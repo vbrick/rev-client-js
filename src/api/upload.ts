@@ -6,7 +6,7 @@ import type { SpeakerProfile } from '../types/webcast.js';
 import { RateLimitEnum } from '../utils';
 import { appendFileToForm, appendJSONToForm, uploadMultipart } from '../utils/multipart-utils';
 
-function splitOptions(options: Rev.UploadFileOptions & Rev.RequestOptions, defaultType?: string) {
+function splitOptions(options: Rev.UploadFileOptions & Rev.RequestOptions = {}, defaultType?: string) {
     const {
         filename,
         contentType,
@@ -235,7 +235,7 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/video-presentations/${videoId}`, form, filePayload, requestOptions);
         },
-        async webcastPresentation(eventId: string, file: Rev.FileUploadType, options: Upload.PresentationChaptersOptions) {
+        async webcastPresentation(eventId: string, file: Rev.FileUploadType, options: Upload.PresentationChaptersOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'application/vnd.ms-powerpoint');
 
             const form = new polyfills.FormData();
@@ -246,7 +246,7 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/presentations/${eventId}`, form, filePayload, requestOptions);
         },
-        async webcastBackground(eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions) {
+        async webcastBackground(eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
 
             const form = new polyfills.FormData();
@@ -257,7 +257,7 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             await uploadMultipart(rev, 'POST', `/api/v2/uploads/background-image/${eventId}`, form, filePayload, requestOptions);
         },
-        async webcastProducerLayoutBackground(eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions) {
+        async webcastProducerLayoutBackground(eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
 
             const form = new polyfills.FormData();

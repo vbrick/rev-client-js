@@ -48,7 +48,7 @@ export default function userAPIFactory(rev: RevClient) {
      * @see [Get User by Username](https://revdocs.vbrick.com/reference/getuserbyusername)
      * @see [Get User by Email](https://revdocs.vbrick.com/reference/getuserbyemail)
      */
-    async function details<T extends string>(userLookupValue: T, options: User.DetailsLookup | User.DetailsOptions = {}): Promise<T extends 'me' ? User.Current : User> {
+    async function details<StrVal extends string>(userLookupValue: StrVal, options: User.DetailsLookup | User.DetailsOptions = {}): Promise<StrVal extends 'me' ? User.Current : User> {
         const {lookupType, ...requestOptions} = typeof options === 'string'
             ? {lookupType: options}
             : options;
