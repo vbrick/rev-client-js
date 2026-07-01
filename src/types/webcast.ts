@@ -599,13 +599,33 @@ export namespace Webcast {
     }
 
     export interface BrandingRequest {
-        branding: Omit<Webcast.BrandingSettings, 'logos' | 'registrationBannerImageUrl' | 'speakerProfiles'> & { speakerProfiles?: SpeakerProfile.Request[] }
-        logoImage: Rev.FileUploadType,
-        logoImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]: Upload.ImageOptions[K]}
-        backgroundImage: Rev.FileUploadType,
-        backgroundImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]: Upload.ImageOptions[K]}
-        registrationBannerImage: Rev.FileUploadType,
-        registrationBannerImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]: Upload.ImageOptions[K]}
+        branding?: {
+            headerColor?: string;
+            headerFontColor?: string;
+            primaryFontColor?: string;
+            accentColor?: string;
+            accentFontColor?: string;
+            primaryColor?: string;
+        }
+        speakerProfiles?: SpeakerProfile.Request[]
+        /**
+         * Event logo image
+         * If value is null then existing image will be removed
+         */
+        logoImage: Rev.FileUploadType | null,
+        /**
+         * Event background image
+         * If value is null then existing image will be removed
+         */
+        backgroundImage: Rev.FileUploadType | null,
+        /**
+         * Event banner image (aka registrationBannerImage - shown on Webcast Landing Page / Registration Page)
+         * If value is null then existing image will be removed
+         */
+        eventBannerImage: Rev.FileUploadType | null,
+        logoImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]?: Upload.ImageOptions[K]}
+        backgroundImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]?: Upload.ImageOptions[K]}
+        eventBannerImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]?: Upload.ImageOptions[K]}
     }
 
     export interface ContentLink {
@@ -710,13 +730,19 @@ export namespace WebcastBanner {
 /** @category Webcasts */
 export interface SpeakerProfile {
     name: string;
-    title: string;
-    description: string;
-    avatarImageUrl: string;
+    /**
+     * Speaker "Role" in event
+     */
+    title: string | null;
+    description: string | null;
+    avatarImageUrl: string | null;
 }
 
 export namespace SpeakerProfile {
-    export type Request = Omit<SpeakerProfile, 'avatarImageUrl'> & {
+    export interface Request {
+        name: string;
+        title?: string;
+        description?: string;
         avatarImage?: Rev.FileUploadType;
         /** set filename/contenttype or other options for appended file */
         uploadOptions?: Rev.UploadFileOptions & {

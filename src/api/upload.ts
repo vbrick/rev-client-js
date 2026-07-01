@@ -273,72 +273,73 @@ export default function uploadAPIFactory(rev: RevClient) {
 
             const form = new polyfills.FormData();
 
-            // add logo, background, registrationBanner images - all handled the same except different keys/fields
-            const imagePayloadSpecs = [
-                {   key: 'logoImage',
-                    field: 'LogoImageFile',
-                    optionsKey: 'logoImageOptions'
-                },
-                {
-                    key: 'backgroundImage',
-                    field: 'BackgroundImageFile',
-                    optionsKey: 'backgroundImageOptions'
-                },
-                {
-                    key: 'registrationBannerImage',
-                    field: 'RegistrationBannerImageFile',
-                    optionsKey: 'registrationBannerImageOptions'
-                }
-            ] as const;
-
-            const imageFilenames: Record<string, string> = {};
-            for (const {key, field, optionsKey} of imagePayloadSpecs) {
-                const image = request[key];
-                if (!image) continue;
-                const fileOptions: Rev.UploadFileOptions = {
+            /**
+             * Add image file to form.
+             * @param image image file (may be null)
+             * @param field form field name
+             * @param options upload options particular to this image
+             * @returns filename of image if attached, undefined otherwise (which will remove any existing image)
+             */
+            const addImage = async (image: Rev.FileUploadType | undefined | null, field: string, options?: Rev.UploadFileOptions) => {
+                if (!image) return;
+                const fileOptions = {
                     ...uploadOptions,
+                    ...options,
                     // make sure filename is by default unique
-                    filename: key.replace('Image', ''),
-                    ...request[optionsKey]
+                    filename: `${field.replace('ImageFile', '')}${options?.filename ?? ''}`,
                 };
                 const imagePayload = await appendFileToForm(form, field, image, fileOptions);
-                imageFilenames[`${key}Filename`] = imagePayload.filename ?? key
+                return imagePayload.filename ?? fileOptions.filename;
+                // imageFilenames[metaKey] = imagePayload.filename ?? fileOptions.filename;
             }
 
             // add speaker profiles
             type ApiSpeakerProfileRequest = Omit<SpeakerProfile, 'avatarImageUrl'> & {avatarImageFilename?: string};
             const speakerProfiles: Array<ApiSpeakerProfileRequest> = [];
-            const {speakerProfiles: reqSpeakers = [], ...branding} = request.branding;
 
-            for (const [index, speaker] of reqSpeakers.entries()) {
+            for (const [index, speaker] of (request.speakerProfiles || []).entries()) {
                 const {avatarImage, uploadOptions: fileUploadOptions, ...data} = speaker;
                 const payload: ApiSpeakerProfileRequest = data;
 
                 if (avatarImage) {
-                    const fileOpts = {
-                        ...uploadOptions,
-                        // explicitly set filename to avoid conflicts
-                        filename: `avatar${index + 1}`,
-                        ...fileUploadOptions,
-                    };
-                    const filePayload = await appendFileToForm(form, 'AvatarImageFiles', avatarImage, fileOpts);
-                    // add image filename based on what was appended to form
-                    payload.avatarImageFilename = filePayload.filename;
+                    payload.avatarImageFilename = await addImage(
+                        avatarImage,
+                        'AvatarImageFiles',
+                        {
+                            ...fileUploadOptions,
+                            // explicitly set filename to avoid conflicts
+                            filename: `${index + 1}${fileUploadOptions?.filename ?? ''}`,
+                        },
+                    );
                 }
                 speakerProfiles.push(payload);
             }
 
             const meta = {
-                ...branding,
-                ...imageFilenames,
-                ...(speakerProfiles.length > 0 && { speakerProfiles })
+                ...request.branding,
+                ...(speakerProfiles.length > 0 && { speakerProfiles }),
+                logoImageFilename: await addImage(
+                    request.logoImage,
+                    'LogoImageFile',
+                    request.logoImageOptions,
+                ),
+                backgroundImageFilename: await addImage(
+                    request.backgroundImage,
+                    'BackgroundImageFile',
+                    request.backgroundImageOptions,
+                ),
+                registrationBannerImageFilename: await addImage(
+                    request.eventBannerImage,
+                    'RegistrationBannerImageFile',
+                    request.eventBannerImageOptions,
+                )
             };
 
             appendJSONToForm(form, 'Branding', meta);
 
-            rev.log('info', `Uploading webcast branding to ${eventId} (${JSON.stringify({...imageFilenames})})`);
+            rev.log('info', `Uploading webcast branding to ${eventId}})`);
 
-            await uploadMultipart(rev, 'POST', `/api/v2/uploads/webcast-branding/${eventId}`, form, uploadOptions, requestOptions);
+            await uploadMultipart(rev, 'PUT', `/api/v2/uploads/webcast-branding/${eventId}`, form, uploadOptions, requestOptions);
         },
         async channelLogo(channelId: string, file: Rev.FileUploadType, options: Upload.ImageOptions = {}) {
             const { uploadOptions, requestOptions } = splitOptions(options, 'image/jpeg');
