@@ -1,6 +1,6 @@
-import type { Rev, RegistrationField, Admin, Upload } from './index';
-import type { Video } from './video';
+import type { Admin, RegistrationField, Rev, Upload } from './index';
 import type { LiteralString } from './rev';
+import type { Video } from './video';
 
 /** @category Webcasts */
 export interface Webcast {
@@ -241,6 +241,11 @@ export namespace Webcast {
         eventId: string;
         title: string;
         description: string;
+        htmlDescription: string;
+        /** Sharable link to event */
+        eventUrl: string;
+        /** Link to .ical file for this event */
+        iCSFileUrl: string;
         startDate: string;
         endDate: string;
 
@@ -332,6 +337,7 @@ export namespace Webcast {
         presenterIds?: string[];
 
         brandingSettings: Webcast.BrandingSettings | null;
+        backgroundImages: Array<{ url: string, scaleSize: string; }>;
 
         autoplay?: boolean;
 
