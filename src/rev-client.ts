@@ -3,7 +3,7 @@ import polyfills, { onInitialize, shouldInitialize } from './interop/polyfills';
 import { RevError } from './rev-error';
 import { createSession } from './rev-session';
 import type { Rev } from './types';
-import { RateLimitEnum, isPlainObject, retry } from './utils';
+import { isFormData, isPlainObject, RateLimitEnum, retry } from './utils';
 import { decodeBody } from './utils/request-utils';
 
 /**
@@ -283,7 +283,7 @@ export class RevClient {
             if (['POST', 'PUT', 'PATCH'].includes(normalizedMethod)) {
                 if (typeof data === 'string') {
                     fetchOptions.body = data;
-                } else if (data instanceof polyfills.FormData) {
+                } else if (isFormData(data)) {
                     shouldSetAsJSON = false;
                     fetchOptions.body = data;
                 } else if (isPlainObject(data) || Array.isArray(data)) {
