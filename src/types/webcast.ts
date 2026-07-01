@@ -591,15 +591,21 @@ export namespace Webcast {
         accentFontColor: string;
         primaryColor: string;
         logos: Array<{ url: string, scaleSize: LiteralString<'Original' | 'ExtraSmall' | 'Small' | 'Medium' | 'Large'> }>
+        registrationBannerImageUrl: string;
+        /**
+         * Speaker profiles for the event
+         */
+        speakerProfiles: SpeakerProfile[];
     }
 
     export interface BrandingRequest {
-        branding: Omit<Webcast.BrandingSettings, 'logos'>
+        branding: Omit<Webcast.BrandingSettings, 'logos' | 'registrationBannerImageUrl' | 'speakerProfiles'> & { speakerProfiles?: SpeakerProfile.Request[] }
         logoImage: Rev.FileUploadType,
         logoImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]: Upload.ImageOptions[K]}
         backgroundImage: Rev.FileUploadType,
         backgroundImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]: Upload.ImageOptions[K]}
-
+        registrationBannerImage: Rev.FileUploadType,
+        registrationBannerImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]: Upload.ImageOptions[K]}
     }
 
     export interface ContentLink {
@@ -699,4 +705,22 @@ export interface WebcastBanner {
 /** @category Webcasts */
 export namespace WebcastBanner {
     export type Request = Omit<WebcastBanner, 'id'>;
+}
+
+/** @category Webcasts */
+export interface SpeakerProfile {
+    name: string;
+    title: string;
+    description: string;
+    avatarImageUrl: string;
+}
+
+export namespace SpeakerProfile {
+    export type Request = Omit<SpeakerProfile, 'avatarImageUrl'> & {
+        avatarImage?: Rev.FileUploadType;
+        /** set filename/contenttype or other options for appended file */
+        uploadOptions?: Rev.UploadFileOptions & {
+            contentType?: LiteralString<'image/gif' | 'image/jpeg' | 'image/png'>
+        };
+    }
 }
