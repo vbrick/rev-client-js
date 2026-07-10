@@ -55,7 +55,7 @@ export default function authAPIFactory(rev: RevClient) {
                 ...options,
                 headers: mergeHeaders(options?.headers, { 'x-requested-with': 'xmlhttprequest' })
             };
-            return rev.post(`/external/auth/jwt/${webcastId}`, { token: `vbrick_rev ${jwtToken}`}, options);
+            return rev.post(`/external/auth/jwt/${webcastId}`, { token: `vbrick_rev ${jwtToken}`}, opts);
         },
         async extendSession(): Promise<Auth.ExtendResponse> {
             return rev.post('/api/v2/user/extend-session');

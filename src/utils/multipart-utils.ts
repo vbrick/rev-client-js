@@ -3,7 +3,7 @@ import type { RevClient } from '../rev-client';
 import { RevError } from '../rev-error';
 import type { Rev } from '../types/index';
 import { sanitizeUploadOptions } from './file-utils';
-import { isBlobLike } from './is-utils';
+import { isBlobLike, isResponseLike } from './is-utils';
 
 const LOCAL_PROTOCOLS = ['blob:', 'data:'];
 
@@ -81,7 +81,7 @@ export const uploadParser = {
         if (typeof value === 'string' || value instanceof URL) {
             return uploadParser.string(value, options);
         }
-        if (value instanceof polyfills.Response) {
+        if (isResponseLike(value)) {
             return uploadParser.response(value, options);
         }
         if (!isBlobLike(value)) {

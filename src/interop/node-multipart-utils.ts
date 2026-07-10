@@ -5,7 +5,7 @@ import { Readable } from 'node:stream';
 import { ReadableStream } from "node:stream/web";
 import { RevError } from "../rev-error";
 import type { Rev } from "../types/rev";
-import { isBlobLike } from "../utils";
+import { isBlobLike, isResponseLike } from "../utils";
 import { sanitizeUploadOptions } from "../utils/file-utils";
 import { uploadParser as baseUploadParser } from "../utils/multipart-utils";
 import polyfills from "./polyfills";
@@ -118,7 +118,7 @@ export const uploadParser = {
         if (typeof value === 'string' || value instanceof URL) {
             return uploadParser.string(value, options);
         }
-        if (value instanceof polyfills.Response) {
+        if (isResponseLike(value)) {
             return uploadParser.response(value, options);
         }
         if (isBlobLike(value) && !(value as any)[Symbol.asyncIterator]) {

@@ -226,9 +226,9 @@ export default function videoAPIFactory(rev: RevClient) {
             await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);
             return rev.put<void>(`/api/v2/videos/${videoId}/convert-dual-streams-to-switched-stream`);
         },
-        async edit(videoId: string, keepRanges: Video.ClipRequest[], options?: Rev.RequestOptions) {
+        async edit(videoId: string, clips: Video.ClipRequest[], options?: Rev.RequestOptions) {
             await rev.session.queueRequest(RateLimitEnum.UploadVideo);
-            return rev.post(`/api/v2/videos/${videoId}/edit`, keepRanges, options);
+            return rev.post(`/api/v2/videos/${videoId}/edit`, {clips}, options);
         },
         async patch(videoId: string, operations: Rev.PatchOperation[], options?: Rev.RequestOptions) {
             await rev.session.queueRequest(RateLimitEnum.UpdateVideoMetadata);

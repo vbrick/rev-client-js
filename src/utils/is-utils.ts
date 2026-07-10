@@ -13,7 +13,29 @@ export function isBlobLike(val: unknown): val is Blob | File {
 }
 
 export function isReadable<T = any>(val: unknown): val is AsyncIterable<T> {
-    return typeof (val as AsyncIterable<T>)[Symbol.asyncIterator] === 'function';
+    return typeof (val as AsyncIterable<T>)?.[Symbol.asyncIterator] === 'function';
+}
+
+export function isResponseLike(val: unknown): val is Response {
+    const _res = val as Response | undefined;
+    return (
+        !!val &&
+        typeof val === 'object' &&
+        isReadable(_res?.body) &&
+        typeof _res.headers === 'object' &&
+        _res.url != null
+    );
+}
+
+export function isFormData(val: unknown): val is FormData {
+    return (
+        !!val &&
+        typeof val === 'object' &&
+        // as of 2026 typescript doesn't have toStringTag typed for all native dom objects
+        (val as { [Symbol.toStringTag]: string })[Symbol.toStringTag] ===
+            'FormData' &&
+        typeof (val as FormData).entries === 'function'
+    );
 }
 
 export function titleCase(val: string) {
@@ -21,6 +43,6 @@ export function titleCase(val: string) {
 }
 
 // exclude 0 / false from falsy check
-export function isBlank(val: any) {
-    return val == undefined || val === '';
+export function isBlank(val: unknown) {
+    return val == null || val === '';
 }

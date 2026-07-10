@@ -19,10 +19,10 @@ export interface UserAPI extends API {}
 export default function userAPIFactory(rev: RevClient) {
     /**
      * Get details about a specific user
-     * By default it will lookup users by `userId`. To lookup by `username` or `email` pass in the second parameter `{lookupType}`. Specify the special value `'me'` to get details of the authenticated user
+     * By default it will lookup users by `userId`. To lookup by `username` or `email` pass in the second parameter `{lookupType}`. Specify the special value `'me'` to get details of the authenticated user (which also includes a 'sessionType' attribute)
      *
      * @param userLookupValue userId, username or email
-     * @param options the lookup type {lookupType: 'username'} as well as any additional {@link Rev.RequestOptions | request options}
+     * @param options 'username' | 'email' or the lookup type {lookupType: 'username'} as well as any additional {@link Rev.RequestOptions | request options}
      *
      * @example
      * ```js
@@ -31,7 +31,7 @@ export default function userAPIFactory(rev: RevClient) {
      *
      * // get details of the current user
      * let user = await rev.user.details('me');
-     * // { userId: '<guid>', username: 'string', email: 'string', ... }
+     * // { sessionType: 'Internal', userId: '<guid>', username: 'string', email: 'string', ... }
      *
      * // now get the same user record, just change the lookup criteria
      * console.log('looking up by id', user.userId);
@@ -48,13 +48,7 @@ export default function userAPIFactory(rev: RevClient) {
      * @see [Get User by Username](https://revdocs.vbrick.com/reference/getuserbyusername)
      * @see [Get User by Email](https://revdocs.vbrick.com/reference/getuserbyemail)
      */
-    function details(userLookupValue: string, options?: User.DetailsOptions): Promise<User>;
-    /**
-     * @deprecated
-     * use {@link UserAPI.details | updated signature} `details(userLookupValue, {lookupType: 'userId' | 'username' | 'email'})` instead
-     */
-    function details(userLookupValue: string, type: 'userId' | 'email' | 'username'): Promise<User>;
-    async function details(userLookupValue: string, options: User.DetailsLookup | User.DetailsOptions = {}) {
+    async function details<StrVal extends string>(userLookupValue: StrVal, options: User.DetailsLookup | User.DetailsOptions = {}): Promise<StrVal extends 'me' ? User.Current : User> {
         const {lookupType, ...requestOptions} = typeof options === 'string'
             ? {lookupType: options}
             : options;
@@ -93,9 +87,10 @@ export default function userAPIFactory(rev: RevClient) {
         details,
         /**
          * Use the Details API to get information about currently logged in user
+         * Note that this also includes the 'sessionType' of the session
          * @param requestOptions
          */
-        async profile(requestOptions?: Rev.RequestOptions) {
+        async profile(requestOptions?: Rev.RequestOptions): Promise<User.Current> {
             return details('me', requestOptions);
         },
         /**

@@ -1,6 +1,6 @@
-import type { Rev, RegistrationField, Admin, Upload } from './index';
-import type { Video } from './video';
+import type { Admin, RegistrationField, Rev, Upload } from './index';
 import type { LiteralString } from './rev';
+import type { Video } from './video';
 
 /** @category Webcasts */
 export interface Webcast {
@@ -241,6 +241,11 @@ export namespace Webcast {
         eventId: string;
         title: string;
         description: string;
+        htmlDescription: string;
+        /** Sharable link to event */
+        eventUrl: string;
+        /** Link to .ical file for this event */
+        iCSFileUrl: string;
         startDate: string;
         endDate: string;
 
@@ -332,6 +337,7 @@ export namespace Webcast {
         presenterIds?: string[];
 
         brandingSettings: Webcast.BrandingSettings | null;
+        backgroundImages: Array<{ url: string, scaleSize: string; }>;
 
         autoplay?: boolean;
 
@@ -591,15 +597,41 @@ export namespace Webcast {
         accentFontColor: string;
         primaryColor: string;
         logos: Array<{ url: string, scaleSize: LiteralString<'Original' | 'ExtraSmall' | 'Small' | 'Medium' | 'Large'> }>
+        registrationBannerImageUrl: string;
+        /**
+         * Speaker profiles for the event
+         */
+        speakerProfiles: SpeakerProfile[];
     }
 
     export interface BrandingRequest {
-        branding: Omit<Webcast.BrandingSettings, 'logos'>
-        logoImage: Rev.FileUploadType,
-        logoImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]: Upload.ImageOptions[K]}
-        backgroundImage: Rev.FileUploadType,
-        backgroundImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]: Upload.ImageOptions[K]}
-
+        branding?: {
+            headerColor?: string;
+            headerFontColor?: string;
+            primaryFontColor?: string;
+            accentColor?: string;
+            accentFontColor?: string;
+            primaryColor?: string;
+        }
+        speakerProfiles?: SpeakerProfile.Request[]
+        /**
+         * Event logo image
+         * If value is null then existing image will be removed
+         */
+        logoImage: Rev.FileUploadType | null,
+        /**
+         * Event background image
+         * If value is null then existing image will be removed
+         */
+        backgroundImage: Rev.FileUploadType | null,
+        /**
+         * Event banner image (aka registrationBannerImage - shown on Webcast Landing Page / Registration Page)
+         * If value is null then existing image will be removed
+         */
+        eventBannerImage: Rev.FileUploadType | null,
+        logoImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]?: Upload.ImageOptions[K]}
+        backgroundImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]?: Upload.ImageOptions[K]}
+        eventBannerImageOptions?: {[K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]?: Upload.ImageOptions[K]}
     }
 
     export interface ContentLink {
@@ -699,4 +731,28 @@ export interface WebcastBanner {
 /** @category Webcasts */
 export namespace WebcastBanner {
     export type Request = Omit<WebcastBanner, 'id'>;
+}
+
+/** @category Webcasts */
+export interface SpeakerProfile {
+    name: string;
+    /**
+     * Speaker "Role" in event
+     */
+    title: string | null;
+    description: string | null;
+    avatarImageUrl: string | null;
+}
+
+export namespace SpeakerProfile {
+    export interface Request {
+        name: string;
+        title?: string;
+        description?: string;
+        avatarImage?: Rev.FileUploadType;
+        /** set filename/contenttype or other options for appended file */
+        uploadOptions?: Rev.UploadFileOptions & {
+            contentType?: LiteralString<'image/gif' | 'image/jpeg' | 'image/png'>
+        };
+    }
 }

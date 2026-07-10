@@ -4,6 +4,18 @@
 * **PLATFORMS** Remove commonjs support now that nodejs has improved ESM support
 * When uploading the `MKV` mimetype may change from `video/x-matroska` to `video/matroska` as browsers no longer treate the format as experimental
 
+## 0.25.7
+
+* Feature - Rev 8.6 webcast branding upload changes
+* Minor - update `tsconfig.json` for Typescript 6/7 compatibility
+* Minor - add type annotation for new `sessionType` returned from `.user.details('me')`
+* Minor - add missing properties on `Webcast.Detail`
+* Bugfix - fix `Rev.FileUploadType` to accept native `Response` rather than `Rev.Response` type
+* Bugfix - improve support of alternate `FormData` or `Blob` implementations
+* Bugfix - detect `Response` filetype when passed as file of upload
+* Bugfix - Pass correct http headers with Guest Registration authentication
+* Bugfix - Correct video.edit() payload
+
 ## 0.25.6
 
 * Update types for Rev 8.5

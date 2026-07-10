@@ -301,7 +301,7 @@ export namespace Rev {
 
     export type SortDirection = LiteralString<'asc' | 'desc'>;
 
-    export type FileUploadType = string | URL | File | Blob | Response<any> | AsyncIterable<any>;
+    export type FileUploadType = string | URL | File | Blob | FetchResponse | AsyncIterable<any>;
     export interface UploadFileOptions extends Rev.RequestOptions {
         /** specify filename of video as reported to Rev */
         filename?: string;

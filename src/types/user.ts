@@ -63,6 +63,14 @@ export namespace User {
     export interface DetailsOptions extends Rev.RequestOptions {
         lookupType?: User.DetailsLookup
     }
+    export interface Current extends User {
+        /**
+         * Type of user session. Only returned when using the 'me' identifier (/api/v2/users/me), null otherwise."
+         * Internal = Authenticated Rev user
+         * Guest | RegisteredGuest - Webcast event guest, registered guest or JWT Trusted Public login types (will have limited permissions / access)
+         */
+        sessionType: LiteralString<'Internal' | 'Guest' | 'RegisteredGuest'>
+    }
 
     export interface Permissions {
         canUpload: boolean

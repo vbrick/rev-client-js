@@ -75,6 +75,17 @@ function isPlainObject(val) {
 function isBlobLike(val) {
   return typeof val?.stream === "function";
 }
+function isReadable(val) {
+  return typeof val?.[Symbol.asyncIterator] === "function";
+}
+function isResponseLike(val) {
+  const _res = val;
+  return !!val && typeof val === "object" && isReadable(_res?.body) && typeof _res.headers === "object" && _res.url != null;
+}
+function isFormData(val) {
+  return !!val && typeof val === "object" && // as of 2026 typescript doesn't have toStringTag typed for all native dom objects
+  val[Symbol.toStringTag] === "FormData" && typeof val.entries === "function";
+}
 function titleCase(val) {
   return `${val[0]}${val.slice(1)}`;
 }
@@ -146,7 +157,7 @@ var uploadParser = {
     if (typeof value === "string" || value instanceof URL) {
       return uploadParser.string(value, options);
     }
-    if (value instanceof polyfills_default.Response) {
+    if (isResponseLike(value)) {
       return uploadParser.response(value, options);
     }
     if (!isBlobLike(value)) {
@@ -1255,7 +1266,7 @@ function authAPIFactory(rev) {
         ...options,
         headers: mergeHeaders(options?.headers, { "x-requested-with": "xmlhttprequest" })
       };
-      return rev.post(`/external/auth/jwt/${webcastId}`, { token: `vbrick_rev ${jwtToken}` }, options);
+      return rev.post(`/external/auth/jwt/${webcastId}`, { token: `vbrick_rev ${jwtToken}` }, opts);
     },
     async extendSession() {
       return rev.post("/api/v2/user/extend-session");
@@ -1948,7 +1959,7 @@ function recordingAPIFactory(rev) {
 }
 
 // src/api/upload.ts
-function splitOptions(options, defaultType) {
+function splitOptions(options = {}, defaultType) {
   const {
     filename,
     contentType,
@@ -2114,21 +2125,21 @@ function uploadAPIFactory(rev) {
       rev.log("info", `Uploading presentation for ${videoId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/video-presentations/${videoId}`, form, filePayload, requestOptions);
     },
-    async webcastPresentation(eventId, file, options) {
+    async webcastPresentation(eventId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "application/vnd.ms-powerpoint");
       const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "PresentationFile", file, uploadOptions);
       rev.log("info", `Uploading presentation for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/presentations/${eventId}`, form, filePayload, requestOptions);
     },
-    async webcastBackground(eventId, file, options) {
+    async webcastBackground(eventId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
       const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
       rev.log("info", `Uploading background image for ${eventId} ${filePayload.filename} (${filePayload.contentType})`);
       await uploadMultipart(rev, "POST", `/api/v2/uploads/background-image/${eventId}`, form, filePayload, requestOptions);
     },
-    async webcastProducerLayoutBackground(eventId, file, options) {
+    async webcastProducerLayoutBackground(eventId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
       const form = new polyfills_default.FormData();
       const filePayload = await appendFileToForm(form, "ImageFile", file, uploadOptions);
@@ -2138,28 +2149,56 @@ function uploadAPIFactory(rev) {
     async webcastBranding(eventId, request, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
       const form = new polyfills_default.FormData();
-      const logoOptions = {
-        ...uploadOptions,
-        // make sure filename is by default unique
-        filename: "logo",
-        ...request.logoImageOptions ?? {}
+      const addImage = async (image, field, options2) => {
+        if (!image) return;
+        const fileOptions = {
+          ...uploadOptions,
+          ...options2,
+          // make sure filename is by default unique
+          filename: `${field.replace("ImageFile", "")}${options2?.filename ?? ""}`
+        };
+        const imagePayload = await appendFileToForm(form, field, image, fileOptions);
+        return imagePayload.filename ?? fileOptions.filename;
       };
-      const backgroundOptions = {
-        ...uploadOptions,
-        // make sure filename is by default unique
-        filename: "background",
-        ...request.logoImageOptions ?? {}
-      };
-      const logoImagePayload = await appendFileToForm(form, "LogoImageFile", request.logoImage, logoOptions);
-      const backgroundImagePayload = await appendFileToForm(form, "BackgroundImageFile", request.backgroundImage, backgroundOptions);
+      const speakerProfiles = [];
+      for (const [index, speaker] of (request.speakerProfiles || []).entries()) {
+        const { avatarImage, uploadOptions: fileUploadOptions, ...data } = speaker;
+        const payload = data;
+        if (avatarImage) {
+          payload.avatarImageFilename = await addImage(
+            avatarImage,
+            "AvatarImageFiles",
+            {
+              ...fileUploadOptions,
+              // explicitly set filename to avoid conflicts
+              filename: `${index + 1}${fileUploadOptions?.filename ?? ""}`
+            }
+          );
+        }
+        speakerProfiles.push(payload);
+      }
       const meta = {
         ...request.branding,
-        logoImageFilename: logoImagePayload.filename,
-        backgroundImageFilename: backgroundImagePayload.filename
+        ...speakerProfiles.length > 0 && { speakerProfiles },
+        logoImageFilename: await addImage(
+          request.logoImage,
+          "LogoImageFile",
+          request.logoImageOptions
+        ),
+        backgroundImageFilename: await addImage(
+          request.backgroundImage,
+          "BackgroundImageFile",
+          request.backgroundImageOptions
+        ),
+        registrationBannerImageFilename: await addImage(
+          request.eventBannerImage,
+          "RegistrationBannerImageFile",
+          request.eventBannerImageOptions
+        )
       };
       appendJSONToForm(form, "Branding", meta);
-      rev.log("info", `Uploading webcast branding to ${eventId} (${meta.logoImageFilename} ${meta.backgroundImageFilename})`);
-      await uploadMultipart(rev, "POST", `/api/v2/uploads/webcast-branding/${eventId}`, form, uploadOptions, requestOptions);
+      rev.log("info", `Uploading webcast branding to ${eventId}})`);
+      await uploadMultipart(rev, "PUT", `/api/v2/uploads/webcast-branding/${eventId}`, form, uploadOptions, requestOptions);
     },
     async channelLogo(channelId, file, options = {}) {
       const { uploadOptions, requestOptions } = splitOptions(options, "image/jpeg");
@@ -2225,6 +2264,7 @@ function userAPIFactory(rev) {
     details,
     /**
      * Use the Details API to get information about currently logged in user
+     * Note that this also includes the 'sessionType' of the session
      * @param requestOptions
      */
     async profile(requestOptions) {
@@ -2821,9 +2861,9 @@ function videoAPIFactory(rev) {
       await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
       return rev.put(`/api/v2/videos/${videoId}/convert-dual-streams-to-switched-stream`);
     },
-    async edit(videoId, keepRanges, options) {
+    async edit(videoId, clips, options) {
       await rev.session.queueRequest("uploadVideo" /* UploadVideo */);
-      return rev.post(`/api/v2/videos/${videoId}/edit`, keepRanges, options);
+      return rev.post(`/api/v2/videos/${videoId}/edit`, { clips }, options);
     },
     async patch(videoId, operations, options) {
       await rev.session.queueRequest("updateVideo" /* UpdateVideoMetadata */);
@@ -4321,7 +4361,7 @@ var RevClient3 = class {
       if (["POST", "PUT", "PATCH"].includes(normalizedMethod)) {
         if (typeof data === "string") {
           fetchOptions.body = data;
-        } else if (data instanceof polyfills_default.FormData) {
+        } else if (isFormData(data)) {
           shouldSetAsJSON = false;
           fetchOptions.body = data;
         } else if (isPlainObject(data) || Array.isArray(data)) {
@@ -4723,7 +4763,7 @@ var uploadParser2 = {
     if (typeof value === "string" || value instanceof URL) {
       return uploadParser2.string(value, options);
     }
-    if (value instanceof polyfills_default.Response) {
+    if (isResponseLike(value)) {
       return uploadParser2.response(value, options);
     }
     if (isBlobLike(value) && !value[Symbol.asyncIterator]) {
