@@ -465,7 +465,7 @@ declare namespace Rev {
         done: boolean;
     }
     type SortDirection = LiteralString<'asc' | 'desc'>;
-    type FileUploadType = string | URL | File | Blob | Response<any> | AsyncIterable<any>;
+    type FileUploadType = string | URL | File | Blob | FetchResponse | AsyncIterable<any>;
     interface UploadFileOptions extends Rev.RequestOptions {
         /** specify filename of video as reported to Rev */
         filename?: string;
@@ -2223,6 +2223,14 @@ declare namespace User {
     interface DetailsOptions extends Rev.RequestOptions {
         lookupType?: User.DetailsLookup;
     }
+    interface Current extends User {
+        /**
+         * Type of user session. Only returned when using the 'me' identifier (/api/v2/users/me), null otherwise."
+         * Internal = Authenticated Rev user
+         * Guest | RegisteredGuest - Webcast event guest, registered guest or JWT Trusted Public login types (will have limited permissions / access)
+         */
+        sessionType: LiteralString<'Internal' | 'Guest' | 'RegisteredGuest'>;
+    }
     interface Permissions {
         canUpload: boolean;
         canCreateEvents: boolean;
@@ -2555,6 +2563,11 @@ declare namespace Webcast {
         eventId: string;
         title: string;
         description: string;
+        htmlDescription: string;
+        /** Sharable link to event */
+        eventUrl: string;
+        /** Link to .ical file for this event */
+        iCSFileUrl: string;
         startDate: string;
         endDate: string;
         presentationProfileId?: string;
@@ -2645,6 +2658,10 @@ declare namespace Webcast {
          */
         presenterIds?: string[];
         brandingSettings: Webcast.BrandingSettings | null;
+        backgroundImages: Array<{
+            url: string;
+            scaleSize: string;
+        }>;
         autoplay?: boolean;
         presentationFileDownloadAllowed: boolean;
         registrationFields: RegistrationField[];
@@ -2891,16 +2908,45 @@ declare namespace Webcast {
             url: string;
             scaleSize: LiteralString<'Original' | 'ExtraSmall' | 'Small' | 'Medium' | 'Large'>;
         }>;
+        registrationBannerImageUrl: string;
+        /**
+         * Speaker profiles for the event
+         */
+        speakerProfiles: SpeakerProfile[];
     }
     interface BrandingRequest {
-        branding: Omit<Webcast.BrandingSettings, 'logos'>;
-        logoImage: Rev.FileUploadType;
-        logoImageOptions?: {
-            [K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]: Upload.ImageOptions[K];
+        branding?: {
+            headerColor?: string;
+            headerFontColor?: string;
+            primaryFontColor?: string;
+            accentColor?: string;
+            accentFontColor?: string;
+            primaryColor?: string;
         };
-        backgroundImage: Rev.FileUploadType;
+        speakerProfiles?: SpeakerProfile.Request[];
+        /**
+         * Event logo image
+         * If value is null then existing image will be removed
+         */
+        logoImage: Rev.FileUploadType | null;
+        /**
+         * Event background image
+         * If value is null then existing image will be removed
+         */
+        backgroundImage: Rev.FileUploadType | null;
+        /**
+         * Event banner image (aka registrationBannerImage - shown on Webcast Landing Page / Registration Page)
+         * If value is null then existing image will be removed
+         */
+        eventBannerImage: Rev.FileUploadType | null;
+        logoImageOptions?: {
+            [K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]?: Upload.ImageOptions[K];
+        };
         backgroundImageOptions?: {
-            [K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]: Upload.ImageOptions[K];
+            [K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]?: Upload.ImageOptions[K];
+        };
+        eventBannerImageOptions?: {
+            [K in Exclude<keyof Upload.ImageOptions, keyof Rev.RequestOptions>]?: Upload.ImageOptions[K];
         };
     }
     interface ContentLink {
@@ -3001,6 +3047,28 @@ interface WebcastBanner {
 /** @category Webcasts */
 declare namespace WebcastBanner {
     type Request = Omit<WebcastBanner, 'id'>;
+}
+/** @category Webcasts */
+interface SpeakerProfile {
+    name: string;
+    /**
+     * Speaker "Role" in event
+     */
+    title: string | null;
+    description: string | null;
+    avatarImageUrl: string | null;
+}
+declare namespace SpeakerProfile {
+    interface Request {
+        name: string;
+        title?: string;
+        description?: string;
+        avatarImage?: Rev.FileUploadType;
+        /** set filename/contenttype or other options for appended file */
+        uploadOptions?: Rev.UploadFileOptions & {
+            contentType?: LiteralString<'image/gif' | 'image/jpeg' | 'image/png'>;
+        };
+    }
 }
 
 /** @category Administration */
@@ -3841,9 +3909,9 @@ declare function uploadAPIFactory(rev: RevClient): {
     chapters(videoId: string, chapters: Video.Chapter.Request[], action?: "append" | "replace", options?: Rev.RequestOptions): Promise<void>;
     thumbnail(videoId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions): Promise<void>;
     presentationChapters(videoId: string, file: Rev.FileUploadType, options?: Upload.PresentationChaptersOptions): Promise<void>;
-    webcastPresentation(eventId: string, file: Rev.FileUploadType, options: Upload.PresentationChaptersOptions): Promise<void>;
-    webcastBackground(eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions): Promise<void>;
-    webcastProducerLayoutBackground(eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions): Promise<void>;
+    webcastPresentation(eventId: string, file: Rev.FileUploadType, options?: Upload.PresentationChaptersOptions): Promise<void>;
+    webcastBackground(eventId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions): Promise<void>;
+    webcastProducerLayoutBackground(eventId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions): Promise<void>;
     webcastBranding(eventId: string, request: Webcast.BrandingRequest, options?: Upload.ImageOptions): Promise<void>;
     channelLogo(channelId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions): Promise<void>;
     /**
@@ -3883,15 +3951,13 @@ declare function userAPIFactory(rev: RevClient): {
      */
     create(user: User.Request): Promise<string>;
     delete(userId: string): Promise<void>;
-    details: {
-        (userLookupValue: string, options?: User.DetailsOptions): Promise<User>;
-        (userLookupValue: string, type: "userId" | "email" | "username"): Promise<User>;
-    };
+    details: <StrVal extends string>(userLookupValue: StrVal, options?: User.DetailsLookup | User.DetailsOptions) => Promise<StrVal extends "me" ? User.Current : User>;
     /**
      * Use the Details API to get information about currently logged in user
+     * Note that this also includes the 'sessionType' of the session
      * @param requestOptions
      */
-    profile(requestOptions?: Rev.RequestOptions): Promise<User>;
+    profile(requestOptions?: Rev.RequestOptions): Promise<User.Current>;
     /**
      * get user details by username
      * @deprecated use {@link UserAPI.details | user.details()} with `{lookupType: 'username'}`
@@ -4026,7 +4092,7 @@ declare function videoAPIFactory(rev: RevClient): {
         end: string;
     }>): Promise<any>;
     convertDualStreamToSwitched(videoId: string): Promise<void>;
-    edit(videoId: string, keepRanges: Video.ClipRequest[], options?: Rev.RequestOptions): Promise<any>;
+    edit(videoId: string, clips: Video.ClipRequest[], options?: Rev.RequestOptions): Promise<any>;
     patch(videoId: string, operations: Rev.PatchOperation[], options?: Rev.RequestOptions): Promise<void>;
     generateMetadata(videoId: string, fields?: Video.MetadataGenerationField[], options?: Rev.RequestOptions): Promise<void>;
     generateMetadataStatus(videoId: string, options?: Rev.RequestOptions): Promise<Video.MetadataGenerationStatus>;
@@ -4449,10 +4515,10 @@ declare function webcastAPIFactory(rev: RevClient): {
     updateBanner(eventId: string, banner: WebcastBanner): Promise<WebcastBanner>;
     deleteBanner(eventId: string, bannerId: string): Promise<void>;
     readonly uploadBranding: (eventId: string, request: Webcast.BrandingRequest, options?: Upload.ImageOptions) => Promise<void>;
-    readonly uploadPresentation: (eventId: string, file: Rev.FileUploadType, options: Upload.PresentationChaptersOptions) => Promise<void>;
-    readonly uploadBackgroundImage: (eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions) => Promise<void>;
+    readonly uploadPresentation: (eventId: string, file: Rev.FileUploadType, options?: Upload.PresentationChaptersOptions) => Promise<void>;
+    readonly uploadBackgroundImage: (eventId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions) => Promise<void>;
     deleteBackgroundImage(eventId: string): Promise<void>;
-    readonly uploadProducerLayoutBackground: (eventId: string, file: Rev.FileUploadType, options: Upload.ImageOptions) => Promise<void>;
+    readonly uploadProducerLayoutBackground: (eventId: string, file: Rev.FileUploadType, options?: Upload.ImageOptions) => Promise<void>;
     deleteProducerLayoutBackground(eventId: string): Promise<void>;
 };
 
