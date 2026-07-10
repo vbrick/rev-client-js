@@ -294,7 +294,7 @@ export default function uploadAPIFactory(rev: RevClient) {
             }
 
             // add speaker profiles
-            type ApiSpeakerProfileRequest = Omit<SpeakerProfile, 'avatarImageUrl'> & {avatarImageFilename?: string};
+            type ApiSpeakerProfileRequest = Omit<Partial<SpeakerProfile>, 'avatarImageUrl'> & {avatarImageFilename?: string;};
             const speakerProfiles: Array<ApiSpeakerProfileRequest> = [];
 
             for (const [index, speaker] of (request.speakerProfiles || []).entries()) {
